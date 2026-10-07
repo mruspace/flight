@@ -28,6 +28,11 @@ verified Rust core, to be wrapped as components for NASA JPL's open-source
 real processes, with faults injected, work today. The F´ components come next
 ([design](docs/fprime-design.md)).
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/chart-dark.png">
+  <img src="docs/chart-light.png" alt="Correct results over 20,000 ticks with the same upsets and faults. Both lines are the same until tick 9,000. Then fixed TMR, left comparing a good replica with a stuck one, stops at 8,993 correct results. The shrinking quorum, which retired the stuck replica at tick 4,002, self-checks on the last replica and reaches 14,490." width="100%">
+</picture>
+
 ## What is here
 
 | Crate | What it is |
@@ -90,7 +95,10 @@ cargo run --release -- --policy shrink --ticks 20000 --seed 1 --upset-rate 0.001
 ```
 
 `--log file.csv` writes every event (stuck, hang, lost, retired, cleared,
-killed, detected, wrong, stopped, sensor bit flips). `quorum` with an unknown option prints all options. To run the proofs,
+killed, detected, wrong, stopped, sensor bit flips), and `--progress-every N`
+adds the running totals every N ticks. `quorum` with an unknown option prints
+all options. `python3 scripts/chart.py --png` redraws the chart above from two
+such runs. To run the proofs,
 install Kani and run `cargo kani -p quorum`.
 
 ## Results
