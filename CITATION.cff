@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use Mru Flight, please cite it as below."
+title: "Mru Flight: Onboard Software That Keeps a Spacecraft Working as Its Computers Fail"
+type: software
+authors:
+  - family-names: Binns
+    given-names: Will
+license: Apache-2.0
+repository-code: "https://github.com/mruspace/flight"
+url: "https://mru.space"
+version: 0.1.0
+date-released: 2026-10-07
+keywords:
+  - fault tolerance
+  - triple modular redundancy
+  - graceful degradation
+  - flight software
+  - F Prime
+  - Rust
+  - formal verification
+references:
+  - type: article
+    title: "Mru: A Fault-Tolerant Operating System for Thousand-Year Autonomous Operation"
+    authors:
+      - family-names: Binns
+        given-names: Will
+    year: 2026
+    doi: 10.5281/zenodo.20579438
+  - type: software
+    title: "dusk: A Monte Carlo of Redundancy Policies on Hardware That Only Ever Decays"
+    authors:
+      - family-names: Binns
+        given-names: Will
+    repository-code: "https://github.com/mruspace/dusk"

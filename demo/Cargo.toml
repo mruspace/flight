@@ -1,0 +1,16 @@
+[package]
+name = "demo"
+description = "Process-based demo of Mru's shrinking quorum with fault injection"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[[bin]]
+name = "quorum"
+path = "src/main.rs"
+
+[dependencies]
+quorum = { path = "../quorum" }

@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Unit tests
+        run: cargo test --workspace --release
+      - name: Scenario tests
+        run: ./scripts/scenarios.sh
+      - name: Demo and footprint
+        run: |
+          uname -sm
+          ls -l target/release/quorum
+          for p in tmr shrink; do
+            target/release/quorum --policy "$p" --ticks 20000 --seed 1 --upset-rate 0.001 \
+              --fault stuck:1@4000 --fault kill:0@9000
+          done
+
+  no-std:
+    name: no_std build (bare-metal ARM Cortex-M)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
+      - run: cargo build -p quorum --release --target thumbv7em-none-eabihf
+
+  kani:
+    name: Kani proofs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: model-checking/kani-github-action@v1
+        with:
+          args: -p quorum
