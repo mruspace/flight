@@ -33,7 +33,7 @@ real processes, with faults injected, work today. The F´ components come next
 | Crate | What it is |
 |---|---|
 | [`quorum`](quorum/src/lib.rs) | The decision core: vote, compare, self-check, and the health record that decides when a replica must be diagnosed. `no_std`, no allocation, no dependencies. Unit-tested, checked with [Kani](https://github.com/model-checking/kani), and built in CI for a bare-metal ARM Cortex-M target. |
-| [`demo`](demo/src/main.rs) | The `quorum` program: three replica processes, a voter built on the core, fault injection, and a report of what was delivered and what it cost. Runs on Linux and macOS. |
+| [`demo`](demo/src/main.rs) | The `quorum` program: three replica processes, a voter built on the core, fault injection, enforced resource limits, and a report of what was delivered and what it cost. Runs on Linux and macOS; release builds are fully static binaries for 64-bit and 32-bit ARM Linux. Its only dependency is `libc`, for the system calls behind the limits. |
 
 ### What the core guarantees
 
@@ -61,10 +61,16 @@ Kani over every possible input (4 proofs, verified in CI on every change):
   retires it.
 - **Known-answer tests** also tell which side is wrong when two replicas
   disagree, and run periodically on the last replica to catch a stuck fault.
-- **Fault injection** by schedule or at random: kill a replica, corrupt one
-  result, or make a replica stuck. On one replica, a share of upsets
-  (`--common-mode`) hits both self-check runs alike, which is how a wrong
-  result can slip through.
+- **Fault injection** by schedule or at random: kill a replica, make it hang,
+  make it stuck, or flip a bit in its **working memory** during a computation,
+  as radiation would, so the fault travels through the real calculation. On
+  one replica, a share of upsets (`--common-mode`) hits both self-check runs at
+  the same place, which is how a wrong result can slip through.
+- **Safe on shared hardware**: each process enforces a memory limit (128 MB by
+  default) and an optional CPU-time limit on itself; the voter can cap its CPU
+  share (`--cpu-percent`), stops cleanly on SIGTERM or after a maximum run time,
+  and drops a replica that stops answering. See the
+  [operations note for OPS-SAT](docs/opssat.md).
 - **Every run is reproducible** from its seed.
 
 ## Run it
@@ -76,8 +82,8 @@ cargo run --release -- --policy shrink --ticks 20000 --seed 1 --upset-rate 0.001
   --fault stuck:1@4000 --fault kill:0@9000
 ```
 
-`--log file.csv` writes every event (stuck, retired, cleared, killed, detected,
-wrong). `quorum` with an unknown option prints all options. To run the proofs,
+`--log file.csv` writes every event (stuck, hang, lost, retired, cleared,
+killed, detected, wrong, stopped). `quorum` with an unknown option prints all options. To run the proofs,
 install Kani and run `cargo kani -p quorum`.
 
 ## Results
@@ -123,7 +129,7 @@ fixed TMR. Diagnosing with a known-answer test before retiring fixed it, and
 `scripts/scenarios.sh` now checks over ten seeds that the shrinking quorum never
 delivers fewer correct results than fixed TMR.
 
-### Footprint
+### Footprint and limits
 
 Measured in CI on every change, 20,000 results (the shrinking-quorum demo run):
 
@@ -133,8 +139,12 @@ Measured in CI on every change, 20,000 results (the shrinking-quorum demo run):
 | Linux x86_64 | about 2.0 MB | about 2.0 MB | about 0.5 MB |
 | macOS (Apple silicon) | about 1.5 MB | about 1.4 MB | about 0.5 MB |
 
-The planned OPS-SAT experiment targets under 5% CPU, under 128 MB memory and
-under 50 MB storage.
+The scenario tests also check the safety limits: a hung replica is dropped
+after the reply timeout, SIGTERM ends the run cleanly with no replica left, the
+maximum run time is enforced, `--cpu-percent 5` keeps CPU time near 5% of wall
+time, and on Linux the 128 MB memory limit is read back from the kernel for the
+voter and every replica. In CI the whole suite also runs on the static 64-bit
+and 32-bit ARM binaries under emulation.
 
 ## Roadmap
 
@@ -142,7 +152,8 @@ under 50 MB storage.
    test-only `FaultInjector`, as thin C++ shells around the Rust core
    ([design](docs/fprime-design.md)). `PowerAccountant` and `ScrubScheduler`
    follow.
-2. **Measurements on representative processors**, cross-compiled for ARM Linux.
+2. **Measurements on representative processors**: static ARM Linux binaries are
+   built and tested today; next, real boards.
 3. **Hardware-in-the-loop bench**: real boards with injected faults (bit flips,
    resets, power cuts).
 4. **In orbit**: an experiment proposed for ESA's

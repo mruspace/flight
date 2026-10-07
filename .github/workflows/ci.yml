@@ -46,3 +46,35 @@ jobs:
       - uses: model-checking/kani-github-action@v1
         with:
           args: -p quorum
+
+  static-arm:
+    name: static ARM binary (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-unknown-linux-musl
+            platform: linux/arm64
+          - target: armv7-unknown-linux-musleabihf
+            platform: linux/arm/v7
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cross
+        run: cargo install cross --locked
+      - name: Build a fully static binary
+        run: cross build -p demo --release --target ${{ matrix.target }}
+      - uses: docker/setup-qemu-action@v3
+      - name: Scenario tests on ${{ matrix.platform }} (emulated)
+        run: |
+          bin=target/${{ matrix.target }}/release/quorum
+          file "$bin"
+          ls -l "$bin"
+          docker run --rm --platform ${{ matrix.platform }} -v "$PWD:/w" -w /w \
+            -e QUORUM_BIN="$bin" -e QUORUM_EMULATED=1 alpine:3 \
+            sh -c 'uname -m && ./scripts/scenarios.sh'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quorum-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/quorum

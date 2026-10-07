@@ -3,9 +3,14 @@
 # asserts on its output. Exit status is non-zero if any check fails.
 set -eu
 cd "$(dirname "$0")/.."
-cargo build --release --quiet
 
-Q=target/release/quorum
+# QUORUM_BIN tests a prebuilt binary (for example a static ARM build under
+# emulation); otherwise the local release build is used.
+if [ -z "${QUORUM_BIN:-}" ]; then
+    cargo build --release --quiet
+fi
+
+Q=${QUORUM_BIN:-target/release/quorum}
 fails=0
 pass() { printf 'ok    %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1"; fails=$((fails + 1)); }
@@ -65,7 +70,63 @@ for seed in 1 2 3 4 5 6 7 8 9 10; do
 done
 [ "$worse" = 0 ] && pass "shrink: never fewer correct results than tmr over 10 seeds" || fail "shrink: fewer than tmr on $worse seeds"
 
-# 6. Footprint stays well inside the planned OPS-SAT targets (128 MB memory).
+# 6. A replica that stops answering is treated as lost after the reply timeout,
+#    and the shrinking quorum carries on.
+log=$(mktemp)
+out=$(run --policy shrink --ticks 3000 --seed 1 --reply-timeout-ms 200 --fault hang:1@1000 --log "$log")
+lost=$(sed -n 's/^\([0-9]*\),lost,1$/\1/p' "$log" | head -n 1)
+if [ "$lost" = 1000 ] && [ "$(field halted_at "$out")" = never ] && [ "$(field useful "$out")" -ge 2990 ]; then
+    pass "shrink: hung replica dropped after the reply timeout, run continues"
+else
+    fail "shrink: hung replica ($out, lost at '$lost')"
+fi
+rm -f "$log"
+
+# 7. SIGTERM stops the run cleanly: summary printed, exit status 0, no replica left.
+out_file=$(mktemp)
+"$Q" --policy shrink --ticks 100000000 --seed 1 --cpu-percent 50 >"$out_file" &
+pid=$!
+sleep 1
+kill -TERM "$pid"
+if wait "$pid" && grep -q "stopped=signal" "$out_file" && ! pgrep -f "quorum --replica" >/dev/null; then
+    pass "stop: SIGTERM ends the run cleanly, replicas exit"
+else
+    fail "stop: SIGTERM ($(cat "$out_file"))"
+fi
+rm -f "$out_file"
+
+# 8. A maximum run time is enforced.
+out=$(run --policy shrink --ticks 100000000 --seed 1 --max-seconds 1)
+[ "$(field stopped "$out")" = time-limit ] && pass "stop: maximum run time enforced" || fail "stop: max run time ($out)"
+
+# 9. The CPU share is throttled: at 5%, total CPU time stays near 5% of wall time.
+fp=$("$Q" --policy shrink --ticks 100000000 --seed 1 --cpu-percent 5 --max-seconds 3 | sed -n 3p)
+cpu=$(field cpu "$fp" | tr -d s)
+wall=$(field wall "$fp" | tr -d s)
+if awk -v c="$cpu" -v w="$wall" 'BEGIN { exit !(c / w < 0.08) }'; then
+    pass "cpu share: ${cpu}s CPU over ${wall}s wall at --cpu-percent 5"
+else
+    fail "cpu share too high (${cpu}s over ${wall}s)"
+fi
+
+# 10. On Linux, the memory limit is applied by the kernel to the voter and to
+#     every replica (read back from /proc).
+# (Skipped under user-mode emulation, which does not pass this limit through.)
+if [ "$(uname)" = Linux ] && [ -z "${QUORUM_EMULATED:-}" ]; then
+    "$Q" --policy shrink --ticks 100000000 --seed 1 --cpu-percent 50 --max-memory-mb 128 >/dev/null &
+    pid=$!
+    sleep 1
+    want=134217728
+    ok=1
+    for p in "$pid" $(pgrep -P "$pid"); do
+        got=$(awk '/Max address space/ { print $4 }' "/proc/$p/limits")
+        [ "$got" = "$want" ] || ok=0
+    done
+    kill -TERM "$pid"; wait "$pid" || true
+    [ "$ok" = 1 ] && pass "limits: 128 MB address-space limit on voter and replicas" || fail "limits: memory limit not applied"
+fi
+
+# 11. Footprint stays well inside the planned OPS-SAT targets (128 MB memory).
 fp=$("$Q" --policy shrink --ticks 20000 --seed 1 --upset-rate 0.001 | sed -n 3p)
 voter=$(field voter_max_rss "$fp" | tr -dc 0-9)
 replica=$(field replica_max_rss "$fp" | tr -dc 0-9)

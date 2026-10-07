@@ -14,3 +14,4 @@ path = "src/main.rs"
 
 [dependencies]
 quorum = { path = "../quorum" }
+libc = "0.2"

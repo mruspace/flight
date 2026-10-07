@@ -6,6 +6,12 @@
 //! `quorum` crate, the same `no_std` code meant for flight. Faults are injected
 //! by the voter on a schedule or at random, so every run is reproducible from
 //! its seed.
+//!
+//! Safety for running on shared hardware (see docs/opssat.md): every process
+//! enforces a memory limit and an optional CPU-time limit on itself, the voter
+//! can throttle its CPU share, stops cleanly on SIGTERM or SIGINT or after a
+//! maximum run time, and treats a replica that stops answering as lost.
+//! Replicas exit on their own when the voter goes away.
 
 // Replicas are indexed by position because a lost replica is taken out of its slot.
 #![allow(clippy::needless_range_loop)]
@@ -13,10 +19,14 @@
 use quorum::{decide, Health, Mode, Outcome, Policy, Reply, REPLICAS};
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
+use std::os::fd::AsRawFd;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::time::Instant;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
-// ---- the payload task: hash a pseudo-random 4 KiB block derived from the tick
+// ---- the payload task: hash a 4 KiB block of working memory derived from the tick
+
+const BLOCK_WORDS: usize = 512;
 
 fn xorshift(s: &mut u64) -> u64 {
     *s ^= *s << 13;
@@ -25,11 +35,18 @@ fn xorshift(s: &mut u64) -> u64 {
     *s
 }
 
-fn task(tick: u64) -> u64 {
+/// Fill the working block for `tick`, apply an optional upset (a bit flip in
+/// working memory, as radiation would cause), and hash the block.
+fn compute(block: &mut [u64; BLOCK_WORDS], tick: u64, upset: Option<(usize, u32)>) -> u64 {
     let mut s = tick.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(1);
+    for w in block.iter_mut() {
+        *w = xorshift(&mut s);
+    }
+    if let Some((word, bit)) = upset {
+        block[word % BLOCK_WORDS] ^= 1 << (bit % 64);
+    }
     let mut h: u64 = 0xcbf2_9ce4_8422_2325; // FNV-1a over the block
-    for _ in 0..512 {
-        let w = xorshift(&mut s);
+    for w in block.iter() {
         for b in 0..8 {
             h ^= (w >> (8 * b)) & 0xff;
             h = h.wrapping_mul(0x0100_0000_01b3);
@@ -38,35 +55,44 @@ fn task(tick: u64) -> u64 {
     h
 }
 
-// ---- voter <-> replica protocol: 10-byte requests, 16-byte responses
+/// The correct result for `tick`, computed by the voter for scoring only.
+fn truth(tick: u64) -> u64 {
+    compute(&mut [0; BLOCK_WORDS], tick, None)
+}
 
-const FLIP_FIRST: u8 = 1; // corrupt the (first) result
+// ---- voter <-> replica protocol: 12-byte requests, 16-byte responses
+
+const UPSET_FIRST: u8 = 1; // flip a bit in working memory during the (first) run
 const SELF_CHECK: u8 = 2; // compute twice and return both results
-const FLIP_SECOND: u8 = 4; // corrupt the second result too (common mode)
+const UPSET_SECOND: u8 = 4; // the same flip during the second run too (common mode)
 const STUCK: u8 = 8; // persistent fault: return a fixed wrong value
+const HANG: u8 = 16; // persistent fault: stop answering
 
 /// Known-answer test input; its result is computed once at start-up.
 const KAT_INPUT: u64 = 0;
 
-fn replica_main() -> ! {
+fn replica_main(limits: Limits) -> ! {
+    limits.apply();
     let mut input = std::io::stdin().lock();
     let mut output = std::io::stdout().lock();
-    let mut q = [0u8; 10];
+    let mut block = Box::new([0u64; BLOCK_WORDS]); // working memory, allocated once
+    let mut q = [0u8; 12];
     while input.read_exact(&mut q).is_ok() {
         let tick = u64::from_le_bytes(q[..8].try_into().unwrap());
-        let (flags, bit) = (q[8], q[9] % 64);
-        let mut first = task(tick);
+        let (flags, bit) = (q[8], u32::from(q[9]));
+        let word = usize::from(u16::from_le_bytes([q[10], q[11]]));
+        if flags & HANG != 0 {
+            loop {
+                std::thread::sleep(Duration::from_secs(3600));
+            }
+        }
+        let at = (word, bit);
+        let mut first = compute(&mut block, tick, (flags & UPSET_FIRST != 0).then_some(at));
         let mut second = if flags & SELF_CHECK != 0 {
-            task(tick)
+            compute(&mut block, tick, (flags & UPSET_SECOND != 0).then_some(at))
         } else {
             0
         };
-        if flags & FLIP_FIRST != 0 {
-            first ^= 1 << bit;
-        }
-        if flags & FLIP_SECOND != 0 {
-            second ^= 1 << bit;
-        }
         if flags & STUCK != 0 {
             first = 0xdead_beef;
             second = 0xdead_beef;
@@ -78,6 +104,7 @@ fn replica_main() -> ! {
             break;
         }
     }
+    // end of input: the voter has finished or gone away
     std::process::exit(0)
 }
 
@@ -86,13 +113,19 @@ struct Replica {
     to: ChildStdin,
     from: ChildStdout,
     stuck: bool,
+    hung: bool,
 }
 
 impl Replica {
-    fn spawn() -> Replica {
+    fn spawn(limits: Limits) -> Replica {
         let exe = std::env::current_exe().expect("own path");
         let mut child = Command::new(exe)
-            .arg("--replica")
+            .args([
+                "--replica",
+                "--max-memory-mb",
+                &limits.memory_mb.to_string(),
+            ])
+            .args(["--max-cpu-seconds", &limits.cpu_seconds.to_string()])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -104,34 +137,116 @@ impl Replica {
             to,
             from,
             stuck: false,
+            hung: false,
         }
     }
 
-    /// Send one request; `None` if the replica is gone.
-    fn ask(&mut self, tick: u64, mut flags: u8, bit: u8) -> Option<(u64, u64)> {
+    /// Send one request; `None` if the replica is gone or does not answer in time.
+    fn ask(
+        &mut self,
+        tick: u64,
+        mut flags: u8,
+        bit: u8,
+        word: u16,
+        timeout: Duration,
+    ) -> Option<(u64, u64)> {
         if self.stuck {
             flags |= STUCK;
         }
-        let mut q = [0u8; 10];
+        if self.hung {
+            flags |= HANG;
+        }
+        let mut q = [0u8; 12];
         q[..8].copy_from_slice(&tick.to_le_bytes());
         q[8] = flags;
         q[9] = bit;
+        q[10..].copy_from_slice(&word.to_le_bytes());
         self.to.write_all(&q).and_then(|_| self.to.flush()).ok()?;
         let mut r = [0u8; 16];
-        self.from.read_exact(&mut r).ok()?;
+        read_exact_timeout(&mut self.from, &mut r, timeout)?;
         Some((
             u64::from_le_bytes(r[..8].try_into().unwrap()),
             u64::from_le_bytes(r[8..].try_into().unwrap()),
         ))
     }
 
-    fn known_answer_ok(&mut self, expected: u64) -> bool {
-        self.ask(KAT_INPUT, 0, 0).map(|(a, _)| a) == Some(expected)
+    fn known_answer_ok(&mut self, expected: u64, timeout: Duration) -> bool {
+        self.ask(KAT_INPUT, 0, 0, 0, timeout).map(|(a, _)| a) == Some(expected)
     }
 
     fn retire(mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+    }
+}
+
+/// Read exactly `buf.len()` bytes, giving up after `timeout` without data.
+fn read_exact_timeout(from: &mut ChildStdout, buf: &mut [u8], timeout: Duration) -> Option<()> {
+    let ms = libc::c_int::try_from(timeout.as_millis()).unwrap_or(libc::c_int::MAX);
+    let mut filled = 0;
+    while filled < buf.len() {
+        let mut p = libc::pollfd {
+            fd: from.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // SAFETY: one valid pollfd, owned by this frame.
+        let ready = unsafe { libc::poll(&mut p, 1, ms) };
+        if ready <= 0 {
+            return None; // timed out or failed
+        }
+        match from.read(&mut buf[filled..]) {
+            Ok(0) | Err(_) => return None,
+            Ok(n) => filled += n,
+        }
+    }
+    Some(())
+}
+
+// ---- resource limits, enforced by each process on itself
+
+#[derive(Clone, Copy)]
+struct Limits {
+    /// Address-space limit per process, in MB (enforced on Linux).
+    memory_mb: u64,
+    /// CPU-time limit per process, in seconds; 0 means none.
+    cpu_seconds: u64,
+}
+
+impl Limits {
+    fn apply(self) {
+        fn set(resource: libc::c_int, value: u64) {
+            let v = libc::rlim_t::try_from(value).unwrap_or(libc::RLIM_INFINITY);
+            let r = libc::rlimit {
+                rlim_cur: v,
+                rlim_max: v,
+            };
+            // SAFETY: a valid rlimit for this process.
+            unsafe { libc::setrlimit(resource as _, &r) };
+        }
+        #[cfg(target_os = "linux")]
+        if self.memory_mb > 0 {
+            set(libc::RLIMIT_AS as libc::c_int, self.memory_mb * 1024 * 1024);
+        }
+        if self.cpu_seconds > 0 {
+            set(libc::RLIMIT_CPU as libc::c_int, self.cpu_seconds);
+        }
+    }
+}
+
+// ---- clean stop on SIGTERM or SIGINT
+
+static STOP: AtomicBool = AtomicBool::new(false);
+
+extern "C" fn on_signal(_: libc::c_int) {
+    STOP.store(true, Ordering::SeqCst);
+}
+
+fn install_stop_handlers() {
+    // SAFETY: the handler only stores to an atomic, which is async-signal-safe.
+    unsafe {
+        libc::signal(libc::SIGTERM, on_signal as libc::sighandler_t);
+        libc::signal(libc::SIGINT, on_signal as libc::sighandler_t);
     }
 }
 
@@ -146,6 +261,7 @@ enum FaultKind {
     Kill,
     Corrupt,
     Stuck,
+    Hang,
 }
 
 struct Fault {
@@ -163,14 +279,19 @@ struct Options {
     kat_period: u64,
     faults: Vec<Fault>,
     log: Option<String>,
+    limits: Limits,
+    cpu_percent: f64,
+    max_seconds: f64,
+    reply_timeout: Duration,
 }
 
 fn usage() -> ! {
     eprintln!(
         "usage: quorum [--policy shrink|tmr] [--ticks N] [--seed S]\n\
          \x20             [--upset-rate R] [--common-mode C] [--kat-period P]\n\
-         \x20             [--fault kill:I@T] [--fault corrupt:I@T] [--fault stuck:I@T] ...\n\
-         \x20             [--log file.csv]"
+         \x20             [--fault kill|corrupt|stuck|hang:I@T] ...\n\
+         \x20             [--max-memory-mb M] [--max-cpu-seconds S] [--cpu-percent P]\n\
+         \x20             [--max-seconds S] [--reply-timeout-ms T] [--log file.csv]"
     );
     std::process::exit(2)
 }
@@ -182,6 +303,7 @@ fn parse_fault(s: &str) -> Option<Fault> {
         "kill" => FaultKind::Kill,
         "corrupt" => FaultKind::Corrupt,
         "stuck" => FaultKind::Stuck,
+        "hang" => FaultKind::Hang,
         _ => return None,
     };
     let replica: usize = replica.parse().ok()?;
@@ -192,7 +314,26 @@ fn parse_fault(s: &str) -> Option<Fault> {
     })
 }
 
-fn parse() -> Options {
+fn parse_limits(args: &[String]) -> Limits {
+    let mut limits = Limits {
+        memory_mb: 128,
+        cpu_seconds: 0,
+    };
+    let mut i = 0;
+    while i + 1 < args.len() {
+        match args[i].as_str() {
+            "--max-memory-mb" => limits.memory_mb = args[i + 1].parse().unwrap_or_else(|_| usage()),
+            "--max-cpu-seconds" => {
+                limits.cpu_seconds = args[i + 1].parse().unwrap_or_else(|_| usage())
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    limits
+}
+
+fn parse(args: &[String]) -> Options {
     let mut o = Options {
         policy: Policy::Shrink,
         ticks: 10_000,
@@ -202,10 +343,14 @@ fn parse() -> Options {
         kat_period: 64,
         faults: Vec::new(),
         log: None,
+        limits: parse_limits(args),
+        cpu_percent: 0.0,
+        max_seconds: 0.0,
+        reply_timeout: Duration::from_millis(2000),
     };
-    let mut args = std::env::args().skip(1);
+    let mut args = args.iter();
     while let Some(a) = args.next() {
-        let mut next = || args.next().unwrap_or_else(|| usage());
+        let mut next = || args.next().cloned().unwrap_or_else(|| usage());
         match a.as_str() {
             "--policy" => {
                 o.policy = match next().as_str() {
@@ -223,60 +368,53 @@ fn parse() -> Options {
                 .faults
                 .push(parse_fault(&next()).unwrap_or_else(|| usage())),
             "--log" => o.log = Some(next()),
+            "--max-memory-mb" | "--max-cpu-seconds" => {
+                next(); // read by parse_limits
+            }
+            "--cpu-percent" => o.cpu_percent = next().parse().unwrap_or_else(|_| usage()),
+            "--max-seconds" => o.max_seconds = next().parse().unwrap_or_else(|_| usage()),
+            "--reply-timeout-ms" => {
+                o.reply_timeout = Duration::from_millis(next().parse().unwrap_or_else(|_| usage()))
+            }
             _ => usage(),
         }
     }
     o
 }
 
-// ---- footprint: getrusage without dependencies (same layout on 64-bit Linux and macOS)
+// ---- footprint
 
-#[repr(C)]
-#[derive(Default)]
-struct Timeval {
-    sec: i64,
-    usec: i64,
-}
-
-#[repr(C)]
-#[derive(Default)]
-struct Rusage {
-    utime: Timeval,
-    stime: Timeval,
-    maxrss: i64,
-    rest: [i64; 13],
-}
-
-extern "C" {
-    fn getrusage(who: i32, usage: *mut Rusage) -> i32;
-}
-
-/// Peak resident memory in KiB and CPU seconds, for this process (0) or its
-/// waited-for children (-1).
-fn usage_of(who: i32) -> (i64, f64) {
-    let mut u = Rusage::default();
-    // SAFETY: getrusage writes a struct rusage, which has this layout on
-    // 64-bit Linux and macOS.
-    unsafe { getrusage(who, &mut u) };
-    let kib = if cfg!(target_os = "macos") {
-        u.maxrss / 1024
-    } else {
-        u.maxrss
+/// Peak resident memory in KiB and CPU seconds, for this process or its
+/// waited-for children.
+fn usage_of(who: libc::c_int) -> (i64, f64) {
+    // SAFETY: getrusage fills a zeroed rusage owned by this frame.
+    let u = unsafe {
+        let mut u: libc::rusage = std::mem::zeroed();
+        libc::getrusage(who, &mut u);
+        u
     };
-    let usec = |t: &Timeval| (t.usec & 0xffff_ffff) as f64 / 1e6; // tv_usec is 32-bit on macOS
-    (
-        kib,
-        u.utime.sec as f64 + usec(&u.utime) + u.stime.sec as f64 + usec(&u.stime),
-    )
+    #[allow(clippy::useless_conversion)] // c_long is 32-bit on 32-bit targets
+    let rss = i64::from(u.ru_maxrss);
+    let kib = if cfg!(target_os = "macos") {
+        rss / 1024
+    } else {
+        rss
+    };
+    let secs = |t: libc::timeval| t.tv_sec as f64 + t.tv_usec as f64 / 1e6;
+    (kib, secs(u.ru_utime) + secs(u.ru_stime))
 }
 
 // ---- run
 
 fn main() {
-    if std::env::args().nth(1).as_deref() == Some("--replica") {
-        replica_main();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--replica") {
+        replica_main(parse_limits(&args));
     }
-    let o = parse();
+    let o = parse(&args);
+    o.limits.apply();
+    install_stop_handlers();
+
     let mut log = o
         .log
         .as_ref()
@@ -290,22 +428,37 @@ fn main() {
         }
     };
 
-    let mut replicas: Vec<Option<Replica>> =
-        (0..REPLICAS).map(|_| Some(Replica::spawn())).collect();
+    let mut replicas: Vec<Option<Replica>> = (0..REPLICAS)
+        .map(|_| Some(Replica::spawn(o.limits)))
+        .collect();
     let mut health = Health::new();
-    let kat = task(KAT_INPUT);
+    let kat = truth(KAT_INPUT);
+    let timeout = o.reply_timeout;
     let mut rng = o.seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(7);
 
     let (mut useful, mut detected, mut wrong, mut halted_at) = (0u64, 0u64, 0u64, None);
+    let mut stopped = "completed";
     let start = Instant::now();
 
     for tick in 1..=o.ticks {
+        if STOP.load(Ordering::SeqCst) {
+            stopped = "signal";
+            event(tick, "stopped", stopped.into());
+            break;
+        }
+        if o.max_seconds > 0.0 && start.elapsed().as_secs_f64() >= o.max_seconds {
+            stopped = "time-limit";
+            event(tick, "stopped", stopped.into());
+            break;
+        }
+        let tick_start = Instant::now();
+
         // scheduled faults
         let mut corrupt = [false; REPLICAS];
         for f in o.faults.iter().filter(|f| f.tick == tick) {
-            if replicas[f.replica].is_none() {
+            let Some(r) = replicas[f.replica].as_mut() else {
                 continue;
-            }
+            };
             match f.kind {
                 FaultKind::Kill => {
                     replicas[f.replica].take().unwrap().retire();
@@ -313,8 +466,12 @@ fn main() {
                 }
                 FaultKind::Corrupt => corrupt[f.replica] = true,
                 FaultKind::Stuck => {
-                    replicas[f.replica].as_mut().unwrap().stuck = true;
+                    r.stuck = true;
                     event(tick, "stuck", f.replica.to_string());
+                }
+                FaultKind::Hang => {
+                    r.hung = true;
+                    event(tick, "hang", f.replica.to_string());
                 }
             }
         }
@@ -323,6 +480,7 @@ fn main() {
         let mode = quorum::mode(o.policy, alive);
         if mode == Mode::Halted {
             halted_at = Some(tick);
+            stopped = "halted";
             event(tick, "halted", alive.to_string());
             break;
         }
@@ -336,21 +494,22 @@ fn main() {
             let Some(r) = replicas[i].as_mut() else {
                 continue;
             };
-            let bit = (xorshift(&mut rng) & 63) as u8;
+            let draw = xorshift(&mut rng);
+            let (bit, word) = ((draw & 63) as u8, ((draw >> 6) % BLOCK_WORDS as u64) as u16);
             let upset = corrupt[i] || (o.upset_rate > 0.0 && uniform(&mut rng) < o.upset_rate);
             let mut flags = 0;
             if mode == Mode::SelfCheck {
                 flags |= SELF_CHECK;
                 if upset {
-                    flags |= FLIP_FIRST;
+                    flags |= UPSET_FIRST;
                     if uniform(&mut rng) < o.common_mode {
-                        flags |= FLIP_SECOND; // both runs hit alike: this can slip through
+                        flags |= UPSET_SECOND; // both runs hit alike: this can slip through
                     }
                 }
             } else if upset {
-                flags |= FLIP_FIRST;
+                flags |= UPSET_FIRST;
             }
-            match r.ask(tick, flags, bit) {
+            match r.ask(tick, flags, bit, word, timeout) {
                 Some((a, b)) => {
                     replies[i] = if mode == Mode::SelfCheck {
                         Reply::Pair(a, b)
@@ -359,7 +518,8 @@ fn main() {
                     }
                 }
                 None => {
-                    replicas[i].take().unwrap().retire(); // the replica died on its own
+                    // died or stopped answering within the timeout
+                    replicas[i].take().unwrap().retire();
                     event(tick, "lost", i.to_string());
                 }
             }
@@ -376,7 +536,9 @@ fn main() {
                 if !verdict.dissent[i] || !health.strike(i, tick) {
                     continue;
                 }
-                let ok = replicas[i].as_mut().is_some_and(|r| r.known_answer_ok(kat));
+                let ok = replicas[i]
+                    .as_mut()
+                    .is_some_and(|r| r.known_answer_ok(kat, timeout));
                 if ok {
                     health.clear(i);
                     event(tick, "cleared", i.to_string());
@@ -390,7 +552,7 @@ fn main() {
                 for i in 0..REPLICAS {
                     let failed = replicas[i]
                         .as_mut()
-                        .is_some_and(|r| !r.known_answer_ok(kat));
+                        .is_some_and(|r| !r.known_answer_ok(kat, timeout));
                     if failed {
                         replicas[i].take().unwrap().retire();
                         event(tick, "retired", i.to_string());
@@ -402,7 +564,7 @@ fn main() {
                 for i in 0..REPLICAS {
                     let failed = replicas[i]
                         .as_mut()
-                        .is_some_and(|r| !r.known_answer_ok(kat));
+                        .is_some_and(|r| !r.known_answer_ok(kat, timeout));
                     if failed {
                         replicas[i].take().unwrap().retire();
                         event(tick, "retired", i.to_string());
@@ -413,7 +575,7 @@ fn main() {
         }
 
         match outcome {
-            Outcome::Deliver(v) if v == task(tick) => useful += 1,
+            Outcome::Deliver(v) if v == truth(tick) => useful += 1,
             Outcome::Deliver(_) => {
                 wrong += 1;
                 event(tick, "wrong", format!("{:?}", verdict.mode));
@@ -424,17 +586,27 @@ fn main() {
             }
             Outcome::Halted => {}
         }
+
+        // CPU share: sleep so that work takes at most cpu_percent of wall time
+        if o.cpu_percent > 0.0 && o.cpu_percent < 100.0 {
+            let work = tick_start.elapsed();
+            std::thread::sleep(work.mul_f64((100.0 - o.cpu_percent) / o.cpu_percent));
+        }
     }
 
     let alive_at_end = replicas.iter().filter(|r| r.is_some()).count();
     for r in replicas.into_iter().flatten() {
+        if r.hung {
+            r.retire();
+            continue;
+        }
         drop(r.to); // end of input: the replica exits
         let mut child = r.child;
         let _ = child.wait();
     }
     let wall = start.elapsed().as_secs_f64();
-    let (voter_kib, voter_cpu) = usage_of(0);
-    let (replica_kib, replica_cpu) = usage_of(-1);
+    let (voter_kib, voter_cpu) = usage_of(libc::RUSAGE_SELF);
+    let (replica_kib, replica_cpu) = usage_of(libc::RUSAGE_CHILDREN);
 
     let policy = if o.policy == Policy::Shrink {
         "shrink"
@@ -446,11 +618,31 @@ fn main() {
         o.ticks, o.seed, o.upset_rate
     );
     println!(
-        "useful={useful} detected={detected} wrong={wrong} halted_at={} alive_at_end={alive_at_end}",
+        "useful={useful} detected={detected} wrong={wrong} halted_at={} alive_at_end={alive_at_end} stopped={stopped}",
         halted_at.map_or("never".to_string(), |t| t.to_string())
     );
     println!(
         "footprint: voter_max_rss={voter_kib}KiB replica_max_rss={replica_kib}KiB cpu={:.2}s wall={wall:.2}s",
         voter_cpu + replica_cpu
+    );
+    println!(
+        "limits: memory={}MB/process cpu_time={} cpu_share={} max_run={} reply_timeout={}ms",
+        o.limits.memory_mb,
+        if o.limits.cpu_seconds > 0 {
+            format!("{}s/process", o.limits.cpu_seconds)
+        } else {
+            "none".into()
+        },
+        if o.cpu_percent > 0.0 {
+            format!("{}%", o.cpu_percent)
+        } else {
+            "none".into()
+        },
+        if o.max_seconds > 0.0 {
+            format!("{}s", o.max_seconds)
+        } else {
+            "none".into()
+        },
+        o.reply_timeout.as_millis()
     );
 }
