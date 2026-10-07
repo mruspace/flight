@@ -13,8 +13,9 @@ jobs:
     strategy:
       matrix:
         target:
-          - aarch64-unknown-linux-musl
-          - armv7-unknown-linux-musleabihf
+          - aarch64-unknown-linux-musl # 64-bit ARM
+          - armv7-unknown-linux-musleabihf # 32-bit ARM, hard float
+          - armv7-unknown-linux-musleabi # 32-bit ARM, soft float
           - x86_64-unknown-linux-musl
     runs-on: ubuntu-latest
     steps:
@@ -22,11 +23,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo install cross --locked
       - run: cross build -p demo --release --target ${{ matrix.target }}
-      - name: Package
+      - name: Package binary, launcher, fault schedule and operations note
         run: |
           name=quorum-${{ github.ref_name }}-${{ matrix.target }}
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/quorum "dist/$name"
+          mkdir -p "pkg/$name" dist
+          cp target/${{ matrix.target }}/release/quorum "pkg/$name/"
+          cp opssat/run.sh opssat/faults.example.txt "pkg/$name/"
+          cp docs/opssat.md "pkg/$name/OPSSAT.md"
+          cp LICENSE "pkg/$name/"
+          tar -C pkg -czf "dist/$name.tar.gz" "$name"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}

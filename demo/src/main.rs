@@ -254,6 +254,61 @@ fn uniform(rng: &mut u64) -> f64 {
     (xorshift(rng) >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0)
 }
 
+// ---- radiation sensor: a block of memory with a known pattern, checked for flips
+
+/// Holds `mb` megabytes of a known, address-dependent pattern. Each scan
+/// reads every word back and reports and repairs any bit that changed, so on
+/// hardware without error-correcting memory it measures the real upset rate.
+struct Sensor {
+    words: Vec<u64>,
+    scans: u64,
+    flips: u64,
+}
+
+impl Sensor {
+    fn pattern(i: usize) -> u64 {
+        (i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ 0x5555_5555_5555_5555
+    }
+
+    fn new(mb: u64) -> Sensor {
+        let n = (mb as usize) * 1024 * 1024 / 8;
+        let words = (0..n).map(Sensor::pattern).collect(); // written, so resident
+        Sensor {
+            words,
+            scans: 0,
+            flips: 0,
+        }
+    }
+
+    /// Check every word; call `report(word, bit)` for each flipped bit and repair it.
+    fn scan(&mut self, mut report: impl FnMut(usize, u32)) {
+        self.scans += 1;
+        for (i, w) in self.words.iter_mut().enumerate() {
+            // SAFETY: a valid, aligned pointer into our own vector; volatile so
+            // the read really goes to memory.
+            let seen = unsafe { std::ptr::read_volatile(w) };
+            let diff = seen ^ Sensor::pattern(i);
+            if diff != 0 {
+                for bit in 0..64 {
+                    if diff >> bit & 1 == 1 {
+                        report(i, bit);
+                        self.flips += 1;
+                    }
+                }
+                *w = Sensor::pattern(i);
+            }
+        }
+    }
+
+    /// Flip one bit, as a test of the sensor itself.
+    fn inject(&mut self, word: usize, bit: u32) {
+        let n = self.words.len();
+        if n > 0 {
+            self.words[word % n] ^= 1 << (bit % 64);
+        }
+    }
+}
+
 // ---- options and faults
 
 #[derive(Clone, Copy, PartialEq)]
@@ -262,6 +317,8 @@ enum FaultKind {
     Corrupt,
     Stuck,
     Hang,
+    /// Flip a bit in the radiation sensor's memory (tests the sensor).
+    Sensor,
 }
 
 struct Fault {
@@ -283,15 +340,20 @@ struct Options {
     cpu_percent: f64,
     max_seconds: f64,
     reply_timeout: Duration,
+    summary: Option<String>,
+    sensor_mb: u64,
+    sensor_every: u64,
 }
 
 fn usage() -> ! {
     eprintln!(
         "usage: quorum [--policy shrink|tmr] [--ticks N] [--seed S]\n\
          \x20             [--upset-rate R] [--common-mode C] [--kat-period P]\n\
-         \x20             [--fault kill|corrupt|stuck|hang:I@T] ...\n\
+         \x20             [--fault kill|corrupt|stuck|hang|sensor:I@T] ... [--faults-file F]\n\
          \x20             [--max-memory-mb M] [--max-cpu-seconds S] [--cpu-percent P]\n\
-         \x20             [--max-seconds S] [--reply-timeout-ms T] [--log file.csv]"
+         \x20             [--max-seconds S] [--reply-timeout-ms T]\n\
+         \x20             [--sensor-mb M] [--sensor-every N]\n\
+         \x20             [--log file.csv] [--summary file.txt]"
     );
     std::process::exit(2)
 }
@@ -304,6 +366,7 @@ fn parse_fault(s: &str) -> Option<Fault> {
         "corrupt" => FaultKind::Corrupt,
         "stuck" => FaultKind::Stuck,
         "hang" => FaultKind::Hang,
+        "sensor" => FaultKind::Sensor,
         _ => return None,
     };
     let replica: usize = replica.parse().ok()?;
@@ -347,6 +410,9 @@ fn parse(args: &[String]) -> Options {
         cpu_percent: 0.0,
         max_seconds: 0.0,
         reply_timeout: Duration::from_millis(2000),
+        summary: None,
+        sensor_mb: 0,
+        sensor_every: 1000,
     };
     let mut args = args.iter();
     while let Some(a) = args.next() {
@@ -368,6 +434,18 @@ fn parse(args: &[String]) -> Options {
                 .faults
                 .push(parse_fault(&next()).unwrap_or_else(|| usage())),
             "--log" => o.log = Some(next()),
+            "--summary" => o.summary = Some(next()),
+            "--faults-file" => {
+                let text = std::fs::read_to_string(next()).unwrap_or_else(|_| usage());
+                for line in text.lines().map(str::trim) {
+                    if line.is_empty() || line.starts_with('#') {
+                        continue;
+                    }
+                    o.faults.push(parse_fault(line).unwrap_or_else(|| usage()));
+                }
+            }
+            "--sensor-mb" => o.sensor_mb = next().parse().unwrap_or_else(|_| usage()),
+            "--sensor-every" => o.sensor_every = next().parse().unwrap_or_else(|_| usage()),
             "--max-memory-mb" | "--max-cpu-seconds" => {
                 next(); // read by parse_limits
             }
@@ -378,6 +456,14 @@ fn parse(args: &[String]) -> Options {
             }
             _ => usage(),
         }
+    }
+    // the sensor lives in the voter, inside its memory limit, with room to spare
+    if o.sensor_mb > 0 && o.limits.memory_mb > 0 && o.sensor_mb + 32 > o.limits.memory_mb {
+        eprintln!(
+            "--sensor-mb {} does not fit under --max-memory-mb {} (leave at least 32 MB)",
+            o.sensor_mb, o.limits.memory_mb
+        );
+        std::process::exit(2);
     }
     o
 }
@@ -432,6 +518,7 @@ fn main() {
         .map(|_| Some(Replica::spawn(o.limits)))
         .collect();
     let mut health = Health::new();
+    let mut sensor = (o.sensor_mb > 0).then(|| Sensor::new(o.sensor_mb));
     let kat = truth(KAT_INPUT);
     let timeout = o.reply_timeout;
     let mut rng = o.seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(7);
@@ -456,6 +543,13 @@ fn main() {
         // scheduled faults
         let mut corrupt = [false; REPLICAS];
         for f in o.faults.iter().filter(|f| f.tick == tick) {
+            if f.kind == FaultKind::Sensor {
+                if let Some(s) = sensor.as_mut() {
+                    s.inject(tick as usize, (tick % 64) as u32);
+                    event(tick, "sensor_injected", String::new());
+                }
+                continue;
+            }
             let Some(r) = replicas[f.replica].as_mut() else {
                 continue;
             };
@@ -473,6 +567,7 @@ fn main() {
                     r.hung = true;
                     event(tick, "hang", f.replica.to_string());
                 }
+                FaultKind::Sensor => {}
             }
         }
 
@@ -587,6 +682,13 @@ fn main() {
             Outcome::Halted => {}
         }
 
+        // radiation sensor: check the pattern every sensor_every ticks
+        if let Some(s) = sensor.as_mut() {
+            if tick % o.sensor_every.max(1) == 0 {
+                s.scan(|word, bit| event(tick, "sensor_upset", format!("{word}:{bit}")));
+            }
+        }
+
         // CPU share: sleep so that work takes at most cpu_percent of wall time
         if o.cpu_percent > 0.0 && o.cpu_percent < 100.0 {
             let work = tick_start.elapsed();
@@ -613,36 +715,37 @@ fn main() {
     } else {
         "tmr"
     };
-    println!(
-        "policy={policy} ticks={} seed={} upset_rate={}",
-        o.ticks, o.seed, o.upset_rate
-    );
-    println!(
-        "useful={useful} detected={detected} wrong={wrong} halted_at={} alive_at_end={alive_at_end} stopped={stopped}",
-        halted_at.map_or("never".to_string(), |t| t.to_string())
-    );
-    println!(
-        "footprint: voter_max_rss={voter_kib}KiB replica_max_rss={replica_kib}KiB cpu={:.2}s wall={wall:.2}s",
-        voter_cpu + replica_cpu
-    );
-    println!(
-        "limits: memory={}MB/process cpu_time={} cpu_share={} max_run={} reply_timeout={}ms",
-        o.limits.memory_mb,
-        if o.limits.cpu_seconds > 0 {
-            format!("{}s/process", o.limits.cpu_seconds)
-        } else {
-            "none".into()
-        },
-        if o.cpu_percent > 0.0 {
-            format!("{}%", o.cpu_percent)
-        } else {
-            "none".into()
-        },
-        if o.max_seconds > 0.0 {
-            format!("{}s", o.max_seconds)
-        } else {
-            "none".into()
-        },
-        o.reply_timeout.as_millis()
-    );
+    let none = || "none".to_string();
+    let mut summary = vec![
+        format!("policy={policy} ticks={} seed={} upset_rate={}", o.ticks, o.seed, o.upset_rate),
+        format!(
+            "useful={useful} detected={detected} wrong={wrong} halted_at={} alive_at_end={alive_at_end} stopped={stopped}",
+            halted_at.map_or("never".to_string(), |t| t.to_string())
+        ),
+        format!(
+            "footprint: voter_max_rss={voter_kib}KiB replica_max_rss={replica_kib}KiB cpu={:.2}s wall={wall:.2}s",
+            voter_cpu + replica_cpu
+        ),
+        format!(
+            "limits: memory={}MB/process cpu_time={} cpu_share={} max_run={} reply_timeout={}ms",
+            o.limits.memory_mb,
+            if o.limits.cpu_seconds > 0 { format!("{}s/process", o.limits.cpu_seconds) } else { none() },
+            if o.cpu_percent > 0.0 { format!("{}%", o.cpu_percent) } else { none() },
+            if o.max_seconds > 0.0 { format!("{}s", o.max_seconds) } else { none() },
+            o.reply_timeout.as_millis()
+        ),
+    ];
+    if let Some(s) = &sensor {
+        summary.push(format!(
+            "sensor: size={}MB scans={} flips={}",
+            o.sensor_mb, s.scans, s.flips
+        ));
+    }
+    let text = summary.join("\n") + "\n";
+    print!("{text}");
+    if let Some(path) = &o.summary {
+        if let Err(e) = std::fs::write(path, &text) {
+            eprintln!("could not write summary to {path}: {e}");
+        }
+    }
 }

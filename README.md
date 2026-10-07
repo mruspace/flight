@@ -71,6 +71,13 @@ Kani over every possible input (4 proofs, verified in CI on every change):
   share (`--cpu-percent`), stops cleanly on SIGTERM or after a maximum run time,
   and drops a replica that stops answering. See the
   [operations note for OPS-SAT](docs/opssat.md).
+- **Radiation sensor** (`--sensor-mb`): a block of memory with a known pattern,
+  checked at a fixed interval; every flipped bit is logged with its location
+  and repaired, to measure the real upset rate on flight hardware.
+- **Ready to run**: a fault schedule can come from a file (`--faults-file`), the
+  summary can be written to a file for downlink (`--summary`), and
+  [`opssat/run.sh`](opssat/run.sh) starts, checks and stops a run with all the
+  limits set.
 - **Every run is reproducible** from its seed.
 
 ## Run it
@@ -83,7 +90,7 @@ cargo run --release -- --policy shrink --ticks 20000 --seed 1 --upset-rate 0.001
 ```
 
 `--log file.csv` writes every event (stuck, hang, lost, retired, cleared,
-killed, detected, wrong, stopped). `quorum` with an unknown option prints all options. To run the proofs,
+killed, detected, wrong, stopped, sensor bit flips). `quorum` with an unknown option prints all options. To run the proofs,
 install Kani and run `cargo kani -p quorum`.
 
 ## Results
@@ -143,8 +150,11 @@ The scenario tests also check the safety limits: a hung replica is dropped
 after the reply timeout, SIGTERM ends the run cleanly with no replica left, the
 maximum run time is enforced, `--cpu-percent 5` keeps CPU time near 5% of wall
 time, and on Linux the 128 MB memory limit is read back from the kernel for the
-voter and every replica. In CI the whole suite also runs on the static 64-bit
-and 32-bit ARM binaries under emulation.
+voter and every replica. They also check the radiation sensor, the fault
+schedule file and the launcher script. In CI the whole suite also runs on the
+static 64-bit and 32-bit (hard and soft float) ARM binaries under emulation.
+Tagged releases package each binary with the launcher, a sample fault
+schedule and the operations note.
 
 ## Roadmap
 

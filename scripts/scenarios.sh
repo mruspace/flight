@@ -126,7 +126,49 @@ if [ "$(uname)" = Linux ] && [ -z "${QUORUM_EMULATED:-}" ]; then
     [ "$ok" = 1 ] && pass "limits: 128 MB address-space limit on voter and replicas" || fail "limits: memory limit not applied"
 fi
 
-# 11. Footprint stays well inside the planned OPS-SAT targets (128 MB memory).
+# 11. The radiation sensor finds and reports a bit flip in its memory.
+log=$(mktemp)
+out=$("$Q" --policy shrink --ticks 500 --seed 1 --sensor-mb 8 --sensor-every 100 --fault sensor:0@150 --log "$log")
+if grep -q '^200,sensor_upset,' "$log" && printf '%s\n' "$out" | grep -q 'flips=1'; then
+    pass "sensor: injected bit flip found at the next scan and reported"
+else
+    fail "sensor: injected flip not found ($out)"
+fi
+rm -f "$log"
+
+# 12. A 64 MB sensor fits within the 128 MB memory limit; an oversized one is refused.
+out=$("$Q" --policy shrink --ticks 2000 --seed 1 --sensor-mb 64 --sensor-every 1000 --max-memory-mb 128 | sed -n 5p)
+if [ "$(field scans "$out")" = 2 ] && ! "$Q" --sensor-mb 120 --max-memory-mb 128 >/dev/null 2>&1; then
+    pass "sensor: 64 MB runs under the 128 MB limit, oversize refused"
+else
+    fail "sensor: memory limit interplay ($out)"
+fi
+
+# 13. A fault schedule from a file gives the same run as the same faults on the command line.
+faults=$(mktemp)
+printf '# test schedule\nstuck:1@4000\n\nkill:0@9000\n' >"$faults"
+a=$(run --policy shrink --ticks 20000 --seed 1 --upset-rate 0.001 --faults-file "$faults")
+b=$(run --policy shrink --ticks 20000 --seed 1 --upset-rate 0.001 --fault stuck:1@4000 --fault kill:0@9000)
+[ "$a" = "$b" ] && pass "faults file: same result as command-line faults" || fail "faults file ($a / $b)"
+rm -f "$faults"
+
+# 14. The launcher starts a run, reports it, and stops it cleanly with a summary.
+dir=$(mktemp -d)
+export QUORUM="$PWD/$Q" OUT_DIR="$dir" SENSOR_MB=8 CPU_PERCENT=20 FAULTS_FILE=/nonexistent
+case "$Q" in /*) QUORUM="$Q" ;; esac
+./opssat/run.sh start >/dev/null
+sleep 1
+st=$(./opssat/run.sh status)
+./opssat/run.sh stop >/dev/null
+if [ "${st#running}" != "$st" ] && grep -q 'stopped=signal' "$dir/summary-shrink.txt" && ! pgrep -f "quorum --replica" >/dev/null; then
+    pass "launcher: start, status and stop work, summary written"
+else
+    fail "launcher ($st)"
+fi
+unset QUORUM OUT_DIR SENSOR_MB CPU_PERCENT FAULTS_FILE
+rm -rf "$dir"
+
+# 15. Footprint stays well inside the planned OPS-SAT targets (128 MB memory).
 fp=$("$Q" --policy shrink --ticks 20000 --seed 1 --upset-rate 0.001 | sed -n 3p)
 voter=$(field voter_max_rss "$fp" | tr -dc 0-9)
 replica=$(field replica_max_rss "$fp" | tr -dc 0-9)

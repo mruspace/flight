@@ -57,6 +57,8 @@ jobs:
             platform: linux/arm64
           - target: armv7-unknown-linux-musleabihf
             platform: linux/arm/v7
+          - target: armv7-unknown-linux-musleabi
+            platform: linux/arm/v7
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
