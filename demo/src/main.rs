@@ -343,6 +343,7 @@ struct Options {
     summary: Option<String>,
     sensor_mb: u64,
     sensor_every: u64,
+    progress_every: u64,
 }
 
 fn usage() -> ! {
@@ -353,7 +354,7 @@ fn usage() -> ! {
          \x20             [--max-memory-mb M] [--max-cpu-seconds S] [--cpu-percent P]\n\
          \x20             [--max-seconds S] [--reply-timeout-ms T]\n\
          \x20             [--sensor-mb M] [--sensor-every N]\n\
-         \x20             [--log file.csv] [--summary file.txt]"
+         \x20             [--log file.csv] [--progress-every N] [--summary file.txt]"
     );
     std::process::exit(2)
 }
@@ -413,6 +414,7 @@ fn parse(args: &[String]) -> Options {
         summary: None,
         sensor_mb: 0,
         sensor_every: 1000,
+        progress_every: 0,
     };
     let mut args = args.iter();
     while let Some(a) = args.next() {
@@ -446,6 +448,7 @@ fn parse(args: &[String]) -> Options {
             }
             "--sensor-mb" => o.sensor_mb = next().parse().unwrap_or_else(|_| usage()),
             "--sensor-every" => o.sensor_every = next().parse().unwrap_or_else(|_| usage()),
+            "--progress-every" => o.progress_every = next().parse().unwrap_or_else(|_| usage()),
             "--max-memory-mb" | "--max-cpu-seconds" => {
                 next(); // read by parse_limits
             }
@@ -526,8 +529,22 @@ fn main() {
     let (mut useful, mut detected, mut wrong, mut halted_at) = (0u64, 0u64, 0u64, None);
     let mut stopped = "completed";
     let start = Instant::now();
+    let mut last_tick = 0;
+    let progress = |useful: u64, detected: u64, wrong: u64, alive: usize| {
+        format!("useful={useful} detected={detected} wrong={wrong} alive={alive}")
+    };
 
     for tick in 1..=o.ticks {
+        // progress: the running totals up to the previous tick, for plots and
+        // for a heartbeat in the downlinked log
+        if o.progress_every > 0 && last_tick > 0 && last_tick % o.progress_every == 0 {
+            let alive = replicas.iter().filter(|r| r.is_some()).count();
+            event(
+                last_tick,
+                "progress",
+                progress(useful, detected, wrong, alive),
+            );
+        }
         if STOP.load(Ordering::SeqCst) {
             stopped = "signal";
             event(tick, "stopped", stopped.into());
@@ -579,6 +596,7 @@ fn main() {
             event(tick, "halted", alive.to_string());
             break;
         }
+        last_tick = tick;
         // self-check computes everything twice, so it delivers at half rate
         if mode == Mode::SelfCheck && tick % 2 == 1 {
             continue;
@@ -697,6 +715,13 @@ fn main() {
     }
 
     let alive_at_end = replicas.iter().filter(|r| r.is_some()).count();
+    if o.progress_every > 0 && last_tick > 0 {
+        event(
+            last_tick,
+            "progress",
+            progress(useful, detected, wrong, alive_at_end),
+        );
+    }
     for r in replicas.into_iter().flatten() {
         if r.hung {
             r.retire();

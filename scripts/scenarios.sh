@@ -178,5 +178,17 @@ else
     fail "footprint too large ($fp)"
 fi
 
+# 16. Progress lines give the running totals, ending on the summary's count.
+log=$(mktemp)
+out=$(run --policy tmr --ticks 20000 --seed 1 --upset-rate 0.001 --fault kill:0@5000 --fault kill:1@10000 --progress-every 1000 --log "$log")
+n=$(grep -c ',progress,' "$log")
+last=$(grep ',progress,' "$log" | tail -n 1)
+if [ "$n" = 10 ] && [ "$(printf '%s' "$last" | sed 's/^\([0-9]*\),.*useful=\([0-9]*\).*/\1 \2/')" = "9999 $(field useful "$out")" ]; then
+    pass "progress: one line per 1000 ticks, last one matches the summary"
+else
+    fail "progress lines ($n, $last)"
+fi
+rm -f "$log"
+
 echo
 if [ "$fails" -eq 0 ]; then echo "all checks passed"; else echo "$fails check(s) failed"; exit 1; fi
