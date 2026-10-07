@@ -38,7 +38,7 @@ real processes, with faults injected, work today. The F´ components come next
 ### What the core guarantees
 
 Checked by unit tests over every combination of a small value domain, and by
-Kani over every possible input:
+Kani over every possible input (4 proofs, verified in CI on every change):
 
 - **Never less than fixed TMR.** While fixed TMR can still run (two or more
   replicas), both policies make exactly the same decision. The shrinking
@@ -125,18 +125,16 @@ delivers fewer correct results than fixed TMR.
 
 ### Footprint
 
-20,000 results, measured on an Apple silicon machine (arm64):
+Measured in CI on every change, 20,000 results (the shrinking-quorum demo run):
 
-| | Measured |
-|---|---|
-| Voter | about 1.9 MB resident memory |
-| Each replica | about 1.8 MB resident memory |
-| CPU | about 0.3 s in total |
-| Binary | about 0.5 MB |
+| Platform | Voter memory | Each replica | Binary |
+|---|---|---|---|
+| Linux ARM64 (aarch64) | about 1.5 MB | about 1.5 MB | about 0.5 MB |
+| Linux x86_64 | about 2.0 MB | about 2.0 MB | about 0.5 MB |
+| macOS (Apple silicon) | about 1.5 MB | about 1.4 MB | about 0.5 MB |
 
-CI prints the same measurements on Linux x86_64 and Linux ARM64 on every
-change. The planned OPS-SAT experiment targets under 5% CPU, under 128 MB memory
-and under 50 MB storage.
+The planned OPS-SAT experiment targets under 5% CPU, under 128 MB memory and
+under 50 MB storage.
 
 ## Roadmap
 
