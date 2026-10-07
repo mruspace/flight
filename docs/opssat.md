@@ -8,7 +8,7 @@ command and telemetry interfaces (see [fprime-design.md](fprime-design.md)).
 ## What runs
 
 One program, `quorum`, as a fully static Linux binary (no shared libraries,
-about 0.5 MB). Release builds are provided for 64-bit and 32-bit ARM Linux;
+about 0.6 MB). Release builds are provided for 64-bit and 32-bit ARM Linux;
 the scenario tests run on both under emulation in CI on every change.
 
 At start it launches three copies of itself as replicas. The voter sends each
