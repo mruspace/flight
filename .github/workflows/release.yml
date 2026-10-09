@@ -8,7 +8,24 @@ permissions:
   contents: write
 
 jobs:
+  version:
+    name: tag matches Cargo.toml and CITATION.cff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare versions
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          cargo=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
+          cff=$(sed -n 's/^version: //p' CITATION.cff)
+          echo "tag $tag, Cargo.toml $cargo, CITATION.cff $cff"
+          if [ "$tag" != "$cargo" ] || [ "$tag" != "$cff" ]; then
+            echo "::error::Tag v$tag does not match Cargo.toml ($cargo) and CITATION.cff ($cff). Bump the version, then tag that commit."
+            exit 1
+          fi
+
   build:
+    needs: version
     name: build (${{ matrix.target }})
     strategy:
       matrix:

@@ -8,7 +8,7 @@ authors:
 license: Apache-2.0
 repository-code: "https://github.com/mruspace/flight"
 url: "https://mru.space"
-version: 0.1.0
+version: 0.1.1
 date-released: 2026-10-07
 keywords:
   - fault tolerance
