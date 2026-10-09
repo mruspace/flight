@@ -40,5 +40,5 @@
 <text x="570.1" y="294.1" font-size="17" class="soft">and self-checks on the last one, at half rate</text>
 <text x="307.9" y="345.6" font-size="17" class="soft">Both lines are the same</text>
 <text x="307.9" y="367.6" font-size="17" class="soft">while TMR can still vote</text>
-<text x="56" y="634" font-size="16" class="faint">One run, seed 1, upset rate 0.001: illustrative, not a reliability estimate. Made by scripts/chart.py from the program’s own log.</text>
+<text x="56" y="634" font-size="16" class="faint">One run, seed 1, upset rate 0.001: illustrative, not a reliability estimate. Made by scripts/chart.py from the program's own log.</text>
 </svg>

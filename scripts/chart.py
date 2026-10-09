@@ -112,7 +112,7 @@ def svg(theme, shrink, tmr, retired_at):
 
     # footer
     add(f'<text x="{M}" y="{H - 26}" font-size="16" class="faint">One run, seed {SEED}, upset rate {RATE}: illustrative, not a reliability estimate. '
-        f'Made by scripts/chart.py from the program’s own log.</text>')
+        "Made by scripts/chart.py from the program's own log.</text>")
     add('</svg>')
     return '\n'.join(s)
 
