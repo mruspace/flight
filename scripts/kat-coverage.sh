@@ -4,8 +4,10 @@
 # out first, and what the test costs. Writes JSON and CSV to
 # bench/results/<date>-<host>-kat.{json,csv}.
 #
-#   scripts/kat-coverage.sh            full matrix (about 5,900 runs)
-#   scripts/kat-coverage.sh --quick    a small sample of it (for CI)
+#   scripts/kat-coverage.sh                 full matrix (about 5,900 runs)
+#   scripts/kat-coverage.sh --quick         a small sample of it (for CI)
+#   scripts/kat-coverage.sh --only GROUP    one group of the matrix, written
+#                                           to <date>-<host>-kat-GROUP.*
 #
 # Every run: shrinking quorum, no random upsets, replicas 0 and 1 killed at
 # ticks 10 and 20, so replica 2 runs alone in self-check mode. The fault goes
@@ -20,14 +22,33 @@
 #             (block), the hash accumulator (acc) or the result (out)
 #   corrupt   one bit flip in one computation, over seeds and common-mode
 #             shares (the share of flips that hit both self-check runs alike)
-#   baseline  kills only, for the cost of the KAT at each period
+#   baseline  kills only, for the cost of the KAT at each period (100,000
+#             ticks per run, 20,000 with --quick)
 #
 # BENCH_HOST, BENCH_OUT, BENCH_COMMIT and QUORUM_BIN work as in bench.sh.
 set -eu
 cd "$(dirname "$0")/.."
 
 quick=0
-[ "${1:-}" = --quick ] && quick=1
+only=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --quick) quick=1 ;;
+        --only)
+            only=${2:?--only needs a group}
+            shift
+            case "$only" in
+                stuck | hang | stuckbit | corrupt | baseline) ;;
+                *) echo "unknown group $only (stuck, hang, stuckbit, corrupt or baseline)" >&2; exit 2 ;;
+            esac
+            ;;
+        *) echo "unknown option $1" >&2; exit 2 ;;
+    esac
+    shift
+done
+groups=${only:-stuck hang stuckbit corrupt baseline}
+# wanted <group>: whether this run includes the group
+wanted() { case " $groups " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
 if [ -z "${QUORUM_BIN:-}" ]; then
     cargo build --release --quiet
@@ -49,6 +70,7 @@ if [ "$quick" = 1 ]; then
     shares="0 0.2"
     base_seeds="1 2"
     base_periods="16 64 1000000"
+    BASE_TICKS=20000
 else
     periods="8 16 32 64 128 256"
     stuck_k=$(nums 0 255)
@@ -58,8 +80,8 @@ else
     shares="0 0.05 0.2"
     base_seeds=$(nums 1 10)
     base_periods="8 16 32 64 128 256 1000000"
+    BASE_TICKS=100000
 fi
-BASE_TICKS=20000
 # a healthy replica answers in microseconds: the timeout only matters for hang
 TIMEOUT=1000
 HANG_TIMEOUT=100
@@ -68,6 +90,7 @@ common="--policy shrink --upset-rate 0 --fault kill:0@10 --fault kill:1@20"
 # host, cpu, commit, rustc, date and the output folder
 . scripts/bench-meta.sh
 base="$out/$date-$host-kat"
+[ -n "$only" ] && base="$base-$only"
 [ "$quick" = 1 ] && base="$base-quick"
 csv="$base.csv"
 json="$base.json"
@@ -96,7 +119,7 @@ run() {
 }
 
 # ---- stuck: a fixed wrong result, at every phase of the KAT period
-for P in $periods; do
+wanted stuck && for P in $periods; do
     for k in $stuck_k; do
         t=$((500 + k))
         run stuck stuck "" "" "" "$P" "" "$k" "$t" $((t + 1024)) $TIMEOUT 1 "stuck:2@$t"
@@ -105,17 +128,17 @@ for P in $periods; do
 done
 
 # ---- hang: the replica stops answering; the reply timeout catches it
-for k in $hang_k; do
+wanted hang && for k in $hang_k; do
     t=$((500 + k))
     run hang hang "" "" "" 64 "" "$k" "$t" $((t + 64)) $HANG_TIMEOUT 1 "hang:2@$t"
 done
-printf '  hang: done\n' >&2
+wanted hang && printf '  hang: done\n' >&2
 
 # ---- stuckbit: instance k holds one bit at one value from tick 500 + k on.
 # in, acc, out: bit k % 64, value k / 64 (all 128 of 64 bits x 2 values).
 # block: bit (k * 257) % 32768, value k / 64 (128 of 32,768 bits x 2 values,
 # spread over the block, every bit position in a word once per value).
-for loc in in block acc out; do
+wanted stuckbit && for loc in in block acc out; do
     for P in $periods; do
         for k in $bit_k; do
             if [ "$loc" = block ]; then b=$(((k * 257) % 32768)); else b=$((k % 64)); fi
@@ -130,7 +153,7 @@ done
 
 # ---- corrupt: one bit flip in one computation; the seed picks the bit and
 # whether the flip hits both self-check runs (the common-mode share)
-for c in $shares; do
+wanted corrupt && for c in $shares; do
     for s in $seeds; do
         run corrupt corrupt "" "" "" 64 "$c" "$s" 500 600 $TIMEOUT "$s" "corrupt:2@500"
     done
@@ -139,11 +162,13 @@ done
 
 # ---- baseline: no fault, for the cost of the KAT at each period
 # (1000000 is in effect no test; --kat-period 0 would test every tick)
-for P in $base_periods; do
-    for s in $base_seeds; do
+# Each seed runs every period in turn, so a change in machine load over the
+# group hits all periods alike.
+wanted baseline && for s in $base_seeds; do
+    for P in $base_periods; do
         run baseline none "" "" "" "$P" "" "$s" "" $BASE_TICKS $TIMEOUT "$s"
     done
-    printf '  baseline, KAT period %s: done\n' "$P" >&2
+    printf '  baseline, seed %s: done\n' "$s" >&2
 done
 wall_total=$(($(date +%s) - started))
 
@@ -159,7 +184,7 @@ done
 
 # ---- summary per fault, location, KAT period and common-mode share
 
-summary=$(awk -F, 'FNR == NR { pre[$1] = $2; next }
+summary=$(awk -F, -v prefile="$pre" 'FILENAME == prefile { pre[$1] = $2; next }
 FNR > 1 && $1 != "baseline" {
     k = $2 "," $3 "," $6 "," $7
     if (!(k in runs)) { order[++m] = k }
@@ -195,19 +220,22 @@ rm -f "$pre"
 throughput=$(awk -F, 'NR > 1 && $1 == "baseline" {
     p = $6
     if (!(p in runs)) order[++m] = p
-    runs[p]++; u[p] += $11; kt[p] += $17; cpu[p, runs[p]] = $18
+    runs[p]++; u[p] += $11; kt[p] += $17; dl[p] += $11 + $13; cpu[p, runs[p]] = $18
 }
+# q <quantile>: of v[1..c], sorted, by linear interpolation
+function q(f,   x, i) { x = 1 + (c - 1) * f; i = int(x); return (i >= c) ? v[c] : v[i] + (x - i) * (v[i + 1] - v[i]) }
 END {
     for (i = 1; i <= m; i++) {
         p = order[i]; c = runs[p]
         for (a = 1; a <= c; a++) v[a] = cpu[p, a]
         for (a = 2; a <= c; a++) { x = v[a]; for (b = a - 1; b >= 1 && v[b] > x; b--) v[b + 1] = v[b]; v[b + 1] = x }
-        med[p] = (c % 2) ? v[(c + 1) / 2] : (v[c / 2] + v[c / 2 + 1]) / 2
+        med[p] = q(0.5); q1[p] = q(0.25); q3[p] = q(0.75)
         if (p + 0 > ref + 0) ref = p
     }
     for (i = 1; i <= m; i++) {
         p = order[i]
-        printf "%s,%d,%.1f,%.1f,%.3f,%s,%.6f\n", p, runs[p], u[p] / runs[p], kt[p] / runs[p], med[p],
+        printf "%s,%d,%.1f,%.1f,%.6f,%.4f,%.4f,%.4f,%.4f,%s,%.6f\n", p, runs[p], u[p] / runs[p], kt[p] / runs[p],
+            (dl[p] > 0 ? kt[p] / dl[p] : 0), med[p], q1[p], q3[p], q3[p] - q1[p],
             (med[ref] > 0 ? sprintf("%.4f", med[p] / med[ref] - 1) : "null"), 1 / p
     }
 }' "$csv")
@@ -224,6 +252,7 @@ nk=$(echo "$bit_k" | wc -w | tr -d ' ')
     printf '  "build": "release, lto = true, codegen-units = 1",\n'
     printf '  "binary": "%s",\n' "$Q"
     printf '  "matrix": {\n'
+    printf '    "groups": ["%s"],\n' "$(echo "$groups" | sed 's/ /", "/g')"
     printf '    "total_runs": %s,\n    "wall_s": %s,\n' "$n" "$wall_total"
     printf '    "common": "%s",\n' "$common"
     printf '    "fault_replica": 2,\n    "kat_input": "tick 0",\n'
@@ -248,19 +277,21 @@ nk=$(echo "$bit_k" | wc -w | tr -d ' ')
     printf '      "missed_no_effect": "not caught, wrong == 0",\n'
     printf '      "wrong_rate_when_missed": "wrong results / results delivered from the fault tick on, over the missed runs",\n'
     printf '      "latency": "ticks from the fault to detection, over the detected runs",\n'
-    printf '      "cpu_cost_vs_no_test": "median CPU time (voter and replicas) / the median at period 1000000, minus 1",\n'
+    printf '      "kat_tests_per_delivered_result": "known-answer tests / correct and wrong results delivered, over the runs (exact)",
+      "cpu_s_q1_q3_iqr": "first and third quartiles of CPU time over the runs (linear interpolation), and their difference",
+      "cpu_cost_vs_no_test": "median CPU time (voter and replicas) / the median at period 1000000, minus 1",\n'
     printf '      "model_extra_computes": "1 / P: one KAT computation per P ticks, against P computations for P / 2 self-checked results"\n'
     printf '    }\n  },\n  "summary": ['
-    printf '%s\n' "$summary" | awk -F, '{
+    printf '%s\n' "$summary" | awk -F, 'NF > 1 {
         bv = ""
         if ($1 == "stuckbit") { split($15, z, "/"); split($16, o, "/")
             bv = sprintf(", \"by_value\": { \"0\": { \"runs\": %s, \"detected\": %s }, \"1\": { \"runs\": %s, \"detected\": %s } }", z[2], z[1], o[2], o[1]) }
         printf "%s\n    { \"fault\": \"%s\", \"location\": %s, \"kat_period\": %s, \"common_mode\": %s, \"runs\": %s, \"detected\": %s, \"fraction_detected\": %s, \"missed_with_wrong\": %s, \"missed_no_effect\": %s, \"latency_mean\": %s, \"latency_max\": %s, \"wrong_before_detection_mean\": %s, \"wrong_before_detection_max\": %s, \"wrong_rate_when_missed\": %s%s }",
-            (NR > 1 ? "," : ""), $1, ($2 == "-" ? "null" : "\"" $2 "\""), $3, ($4 == "-" ? "null" : $4),
+            (n++ ? "," : ""), $1, ($2 == "-" ? "null" : "\"" $2 "\""), $3, ($4 == "-" ? "null" : $4),
             $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, bv }'
     printf '\n  ],\n  "throughput": ['
-    printf '%s\n' "$throughput" | awk -F, '{ printf "%s\n    { \"kat_period\": %s, \"runs\": %s, \"useful_mean\": %s, \"kat_tests_mean\": %s, \"cpu_s_median\": %s, \"cpu_cost_vs_no_test\": %s, \"model_extra_computes\": %s }",
-        (NR > 1 ? "," : ""), $1, $2, $3, $4, $5, $6, $7 }'
+    printf '%s\n' "$throughput" | awk -F, 'NF > 1 { printf "%s\n    { \"kat_period\": %s, \"runs\": %s, \"useful_mean\": %s, \"kat_tests_mean\": %s, \"kat_tests_per_delivered_result\": %s, \"cpu_s_median\": %s, \"cpu_s_q1\": %s, \"cpu_s_q3\": %s, \"cpu_s_iqr\": %s, \"cpu_cost_vs_no_test\": %s, \"model_extra_computes\": %s }",
+        (n++ ? "," : ""), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11 }'
     printf '\n  ],\n  "runs": ['
     awk -F, 'NR == 1 { for (i = 1; i <= NF; i++) h[i] = $i; next }
         { printf "%s\n    {", (NR > 2 ? "," : "")
@@ -279,15 +310,19 @@ nk=$(echo "$bit_k" | wc -w | tr -d ' ')
 table() { if command -v column >/dev/null; then column -t -s,; else tr , ' '; fi; }
 echo
 echo "host: $host ($cpu), commit $commit, $n runs in ${wall_total}s"
-echo
-{
-    echo "fault,location,kat_period,common_mode,runs,detected,fraction,missed_wrong,missed_no_effect,latency_mean,latency_max,wrong_mean,wrong_max,wrong_rate_missed,detected_v0,detected_v1"
-    printf '%s\n' "$summary"
-} | table
-echo
-{
-    echo "kat_period,runs,useful_mean,kat_tests_mean,cpu_s_median,cpu_cost_vs_no_test,model_extra_computes"
-    printf '%s\n' "$throughput"
-} | table
+if [ -n "$summary" ]; then
+    echo
+    {
+        echo "fault,location,kat_period,common_mode,runs,detected,fraction,missed_wrong,missed_no_effect,latency_mean,latency_max,wrong_mean,wrong_max,wrong_rate_missed,detected_v0,detected_v1"
+        printf '%s\n' "$summary"
+    } | table
+fi
+if [ -n "$throughput" ]; then
+    echo
+    {
+        echo "kat_period,runs,useful_mean,kat_tests_mean,kat_tests_per_result,cpu_s_median,cpu_s_q1,cpu_s_q3,cpu_s_iqr,cpu_cost_vs_no_test,model_extra_computes"
+        printf '%s\n' "$throughput"
+    } | table
+fi
 echo
 echo "wrote $json and $csv"
