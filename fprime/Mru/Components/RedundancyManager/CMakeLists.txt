@@ -9,3 +9,16 @@ register_fprime_module(
     quorum_ffi
     Utils_Hash
 )
+
+register_fprime_ut(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/RedundancyManager.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/RedundancyManagerTestMain.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/RedundancyManagerTester.cpp"
+  DEPENDS
+    STest
+    quorum_ffi
+    Utils_Hash
+  UT_AUTO_HELPERS
+)
