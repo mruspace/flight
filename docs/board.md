@@ -66,7 +66,9 @@ The demo saves its state to a checkpoint file every 100 ticks
 storage and renames it over the old one, so a power cut leaves either the old
 checkpoint or the new one. After a reset, the same command resumes from the
 checkpoint. Dead, stuck and hung replicas stay that way, because that is
-hardware state. The ticks after the last checkpoint run again, and the run is
+hardware state. The event log is written out and synced before each
+checkpoint, so it keeps every event up to the checkpoint, and a `resumed` line
+marks where the run picked up. The ticks after the last checkpoint run again, and the run is
 deterministic, so they give the same results.
 
 The reset test first runs the same options without resets. It passes only if

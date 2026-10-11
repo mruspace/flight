@@ -89,7 +89,7 @@ reset() {
     if [ -n "${RESET_CMD:-}" ]; then
         sh -c "$RESET_CMD"
     elif [ "${RESET:-}" = process ]; then
-        on "kill -KILL \$(cat $state/pid)"
+        on "kill -KILL \$(cat $state/pid) 2>/dev/null" || true
     else
         # no sync: what was not on disk is lost, as in a power cut
         on "sudo sh -c 'echo 1 >/proc/sys/kernel/sysrq; echo b >/proc/sysrq-trigger'" >/dev/null 2>&1 &
@@ -108,8 +108,10 @@ while [ "$done_resets" -lt "$resets" ] && ! finished; do
     finished && break
     t0=$(date +%s)
     reset
-    done_resets=$((done_resets + 1))
     [ "${RESET:-}" = process ] || { sleep 10; up; }
+    # the run may have ended just before the reset: then it needs no restart
+    finished && break
+    done_resets=$((done_resets + 1))
     start
     t1=$(date +%s)
     echo "reset $done_resets after ${wait_s}s, back after $((t1 - t0))s" | tee -a "$log"

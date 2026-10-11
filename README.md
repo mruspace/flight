@@ -86,8 +86,9 @@ Kani over every possible input (4 proofs, verified in CI on every change):
   limits set.
 - **Survives resets and power cuts**: with `--checkpoint`, the voter saves its
   state every 100 ticks (written, flushed and renamed, so a power cut leaves the
-  old file or the new one). After a reset, the same command resumes and ends
-  with the same counts as a run that was never interrupted.
+  old file or the new one), and syncs the event log first. After a reset, the
+  same command resumes and ends with the same counts as a run that was never
+  interrupted.
 - **Every run is reproducible** from its seed.
 
 ## Run it

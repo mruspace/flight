@@ -713,7 +713,8 @@ fn main() {
     }
     cp.run = identity;
 
-    let mut log = o.log.as_ref().map(|p| {
+    // shared by the event closure and the checkpoint, which flushes it
+    let log = std::cell::RefCell::new(o.log.as_ref().map(|p| {
         let f = std::fs::OpenOptions::new()
             .create(true)
             .append(resuming)
@@ -722,16 +723,16 @@ fn main() {
             .open(p)
             .expect("log file");
         BufWriter::new(f)
-    });
-    if let Some(l) = log.as_mut() {
+    }));
+    if let Some(l) = log.borrow_mut().as_mut() {
         if resuming {
             let _ = writeln!(l, "{},resumed,{}", cp.tick, cp.resumes);
         } else {
             let _ = writeln!(l, "tick,event,detail");
         }
     }
-    let mut event = |tick: u64, what: &str, detail: String| {
-        if let Some(l) = log.as_mut() {
+    let event = |tick: u64, what: &str, detail: String| {
+        if let Some(l) = log.borrow_mut().as_mut() {
             let _ = writeln!(l, "{tick},{what},{detail}");
         }
     };
@@ -798,6 +799,11 @@ fn main() {
         ) = detection;
         if let Some(s) = sensor {
             (cp.sensor_scans, cp.sensor_flips) = (s.scans, s.flips);
+        }
+        // the log first, so after a reset it holds every event up to the checkpoint
+        if let Some(l) = log.borrow_mut().as_mut() {
+            let _ = l.flush();
+            let _ = l.get_ref().sync_data();
         }
         cp.save(path);
     };
