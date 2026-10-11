@@ -114,28 +114,49 @@ so no test code is in the flight components.
 
 ## One cycle
 
-At `schedIn` for cycle N:
+As built (this refines the first draft, which decided a cycle only at the next
+`schedIn`; deciding at once is what lets the counts match the demo):
 
-1. Decide cycle N−1 with `decide()` from the replies received for it. A missing
-   reply is `Absent` (MRU-RM-002). Deliver, count a disagreement, or halt.
-2. Pass outvotes to HealthRegistry. Request known-answer tests where needed
-   (MRU-RM-006 to 008). Retire replicas whose known-answer results were wrong
-   or missing (MRU-RM-009), or that missed three cycles (MRU-RM-010).
-3. Request cycle N from every live replica.
+1. At `schedIn` for cycle N, close cycle N−1: decide it if it is not yet
+   decided, with any missing reply as `Absent`; count missed replies (three in
+   a row: lost, MRU-RM-010); fail known-answer tests and admissions that had a
+   full cycle to answer (MRU-RM-009, 020).
+2. Start cycle N: compute the mode, request from every ACTIVE slot, and on the
+   last replica add the periodic known-answer test every `KatPeriod` cycles
+   (MRU-RM-008). The demo's tick does these in the same order.
+3. Decide cycle N as soon as every expected answer is in, the periodic test
+   included. Strikes, the diagnosis of two disagreeing replicas and the
+   periodic test follow at once, as in the demo's tick. Known-answer tests
+   asked for here are answered before the next cycle when the cycle is longer
+   than the work.
 
 **Self-check delivers every other cycle.** On one replica, the manager asks
 for two results of the same computation on even cycles only. The replica gets
 two cycles of time for the double work, and throughput is half, as in the
-demo and Dusk. The alternative, both computations in one cycle, needs a cycle
-long enough for twice the work.
+demo and Dusk.
 
 **A dead replica is found by silence.** The demo kills a replica from the
 voter, so the voter knows at once. In F´ a replica that dies simply stops
 answering. The manager treats a missing reply as absent at once, and as lost
 after three cycles in a row (D3). When the death leaves one replica, the
 cycles in which the manager still asks for single results end as caught
-disagreements. That costs up to three results per death, compared with the
-demo.
+disagreements.
+
+**Parameters not loaded.** F´ returns 0 for a parameter that was never
+loaded. The manager then uses the model's defaults (64 and 1000), so a
+topology that forgets `loadParameters()` does not test every cycle.
+
+## Results
+
+| Check | Result |
+|---|---|
+| Kani, `quorum` and `quorum-ffi` | 9 of 9 proofs verified |
+| C test of `quorum.h` | passes |
+| F´ unit tests | 37 (HealthRegistry 5, ReplicaHost 5, FaultInjector 8, RedundancyManager 19), with address and undefined-behavior sanitizers |
+| MRU-SYS-001, 60 cases (5 schedules, 2 policies, 3 upset rates, 2 seeds, 4,000 cycles) | 36 identical to the demo. In the other 24, a kill that leaves one replica costs the shrinking quorum 2 correct results and adds 3 caught disagreements, as predicted. Wrong results are identical in all 60. |
+
+The expected counts come from the demo itself (`scripts/parity-cases.sh`),
+and CI checks that they are current.
 
 ## Change to MRU-SYS-001
 
