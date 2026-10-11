@@ -22,6 +22,10 @@
 
 namespace Mru {
 
+// definitions of the class constants (C++14)
+constexpr U8 RedundancyManager::MISSES_TO_LOSE;
+constexpr FwSizeType RedundancyManager::STATE_SIZE;
+
 namespace {
 
 constexpr U32 STATE_MAGIC = 0x4D525553;  // "MRUS"

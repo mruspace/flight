@@ -8,6 +8,10 @@
 
 namespace Mru {
 
+// definitions of the class constants (C++14)
+constexpr FwSizeType FaultInjector::MAX_FAULTS;
+constexpr U64 FaultInjector::STUCK_VALUE;
+
 namespace {
 
 constexpr U64 SEED_MULTIPLIER = 0x9E3779B97F4A7C15ULL;  // as the demo seeds its generator

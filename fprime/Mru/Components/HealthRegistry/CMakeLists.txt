@@ -8,3 +8,14 @@ register_fprime_module(
   DEPENDS
     quorum_ffi
 )
+
+register_fprime_ut(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/HealthRegistry.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/HealthRegistryTestMain.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/HealthRegistryTester.cpp"
+  DEPENDS
+    STest
+  UT_AUTO_HELPERS
+)

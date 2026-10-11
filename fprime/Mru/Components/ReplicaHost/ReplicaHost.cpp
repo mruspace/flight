@@ -7,6 +7,10 @@
 
 namespace Mru {
 
+// definitions of the class constants (C++14)
+constexpr FwSizeType ReplicaHost::BLOCK_WORDS;
+constexpr U64 ReplicaHost::KNOWN_ANSWER_INPUT;
+
 namespace {
 
 constexpr U64 FILL_MULTIPLIER = 0x9E3779B97F4A7C15ULL;  // golden-ratio constant, as in the demo

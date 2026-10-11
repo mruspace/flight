@@ -6,3 +6,14 @@ register_fprime_module(
   HEADERS
     "${CMAKE_CURRENT_LIST_DIR}/FaultInjector.hpp"
 )
+
+register_fprime_ut(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/FaultInjector.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/FaultInjectorTestMain.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/FaultInjectorTester.cpp"
+  DEPENDS
+    STest
+  UT_AUTO_HELPERS
+)
