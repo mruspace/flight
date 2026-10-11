@@ -114,6 +114,9 @@ struct Replica {
     from: ChildStdout,
     stuck: bool,
     hung: bool,
+    /// A scheduled corrupt fault waiting for the replica's next computation
+    /// (in self-check mode the fault tick can be one without a computation).
+    corrupt_pending: bool,
 }
 
 impl Replica {
@@ -138,6 +141,7 @@ impl Replica {
             from,
             stuck: false,
             hung: false,
+            corrupt_pending: false,
         }
     }
 
@@ -519,6 +523,7 @@ struct Checkpoint {
     alive: [bool; REPLICAS],
     stuck: [bool; REPLICAS],
     hung: [bool; REPLICAS],
+    corrupt_pending: [bool; REPLICAS],
     strikes: [[u64; quorum::STRIKES]; REPLICAS],
     strike_count: [usize; REPLICAS],
     fault_at: [Option<u64>; REPLICAS],
@@ -576,7 +581,8 @@ impl Checkpoint {
             .collect();
         format!(
             "run={}\ntick={}\nuseful={}\ndetected={}\nwrong={}\nlast_useful={}\nrng={}\n\
-             alive={}\nstuck={}\nhung={}\nstrikes={}\nstrike_count={}\nfault_at={}\n\
+             alive={}\nstuck={}\nhung={}\ncorrupt_pending={}\n\
+             strikes={}\nstrike_count={}\nfault_at={}\n\
              faults_injected={}\ncaught={}\nlatency_sum={}\nlatency_max={}\n\
              sensor_scans={}\nsensor_flips={}\nresumes={}\n",
             self.run,
@@ -589,6 +595,7 @@ impl Checkpoint {
             list(&self.alive),
             list(&self.stuck),
             list(&self.hung),
+            list(&self.corrupt_pending),
             strikes.join(","),
             counts.join(","),
             fault_at.join(","),
@@ -634,6 +641,7 @@ impl Checkpoint {
             alive: flags("alive")?,
             stuck: flags("stuck")?,
             hung: flags("hung")?,
+            corrupt_pending: flags("corrupt_pending")?,
             faults_injected: num("faults_injected")?,
             caught: num("caught")?,
             latency_sum: num("latency_sum")?,
@@ -743,6 +751,7 @@ fn main() {
                 let mut r = Replica::spawn(o.limits);
                 r.stuck = cp.stuck[i];
                 r.hung = cp.hung[i];
+                r.corrupt_pending = cp.corrupt_pending[i];
                 r
             })
         })
@@ -788,6 +797,7 @@ fn main() {
             cp.alive[i] = replicas[i].is_some();
             cp.stuck[i] = replicas[i].as_ref().is_some_and(|r| r.stuck);
             cp.hung[i] = replicas[i].as_ref().is_some_and(|r| r.hung);
+            cp.corrupt_pending[i] = replicas[i].as_ref().is_some_and(|r| r.corrupt_pending);
         }
         (cp.strikes, cp.strike_count) = health.to_raw();
         (
@@ -835,7 +845,6 @@ fn main() {
         let tick_start = Instant::now();
 
         // scheduled faults
-        let mut corrupt = [false; REPLICAS];
         let mut flagged = [false; REPLICAS];
         for f in o.faults.iter().filter(|f| f.tick == tick) {
             if f.kind == FaultKind::Sensor {
@@ -857,7 +866,9 @@ fn main() {
                     replicas[f.replica].take().unwrap().retire();
                     event(tick, "killed", f.replica.to_string());
                 }
-                FaultKind::Corrupt => corrupt[f.replica] = true,
+                // taken at the replica's next computation, which in
+                // self-check mode is the next even tick
+                FaultKind::Corrupt => r.corrupt_pending = true,
                 FaultKind::Stuck => {
                     r.stuck = true;
                     event(tick, "stuck", f.replica.to_string());
@@ -891,7 +902,8 @@ fn main() {
             };
             let draw = xorshift(&mut rng);
             let (bit, word) = ((draw & 63) as u8, ((draw >> 6) % BLOCK_WORDS as u64) as u16);
-            let upset = corrupt[i] || (o.upset_rate > 0.0 && uniform(&mut rng) < o.upset_rate);
+            let upset = std::mem::take(&mut r.corrupt_pending)
+                || (o.upset_rate > 0.0 && uniform(&mut rng) < o.upset_rate);
             let mut flags = 0;
             if mode == Mode::SelfCheck {
                 flags |= SELF_CHECK;
