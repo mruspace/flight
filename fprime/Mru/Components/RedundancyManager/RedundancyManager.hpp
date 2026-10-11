@@ -19,6 +19,10 @@ class RedundancyManager final : public RedundancyManagerComponentBase {
     //! Cycles a replica may miss in a row before it is lost (D3)
     static constexpr U8 MISSES_TO_LOSE = 3;
 
+    //! Parameter defaults, as in the model: used when a parameter is not loaded
+    static constexpr U32 DEFAULT_KAT_PERIOD = 64;
+    static constexpr U32 DEFAULT_STATE_SAVE_PERIOD = 1000;
+
     //! Bytes in the state file: magic, version, policy, slots, next cycle, CRC
     static constexpr FwSizeType STATE_SIZE = 4 + 1 + 1 + Replicas + 8 + 4;
 

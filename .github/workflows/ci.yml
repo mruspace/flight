@@ -50,6 +50,28 @@ jobs:
           name: bench-${{ matrix.os }}
           path: bench/results/
 
+  fprime:
+    name: F´ components (build, unit tests, parity with the demo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the F´ tools (pinned by the submodule, v4.4.1)
+        run: pip install -r fprime/requirements.txt
+      - name: Expected counts are the demo's
+        run: ./scripts/parity-cases.sh --check
+      - name: Build the components
+        working-directory: fprime
+        run: fprime-util generate && fprime-util build -j4
+      - name: Unit tests and parity with the demo (MRU-SYS-001)
+        working-directory: fprime
+        run: fprime-util generate --ut && fprime-util check --all -j4
+
   no-std:
     name: no_std build (bare-metal ARM Cortex-M)
     runs-on: ubuntu-latest

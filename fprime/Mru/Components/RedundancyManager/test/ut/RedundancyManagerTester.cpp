@@ -17,7 +17,7 @@ constexpr U64 GOOD = 1000;
 constexpr U64 BAD = 9999;
 }  // namespace
 
-RedundancyManagerTester ::RedundancyManagerTester(const char* statePath, bool fresh)
+RedundancyManagerTester ::RedundancyManagerTester(const char* statePath, bool fresh, bool load)
     : RedundancyManagerGTestBase("RedundancyManagerTester", RedundancyManagerTester::MAX_HISTORY_SIZE),
       component("RedundancyManager"),
       m_statePath(statePath),
@@ -32,7 +32,9 @@ RedundancyManagerTester ::RedundancyManagerTester(const char* statePath, bool fr
     }
     this->initComponents();
     this->connectPorts();
-    this->component.loadParameters();
+    if (load) {
+        this->component.loadParameters();
+    }
     this->component.configure(KNOWN_ANSWER, statePath);
 }
 
@@ -453,6 +455,20 @@ void RedundancyManagerTester ::stateSavedPeriodically() {
     this->cycle();
     ASSERT_EQ(Os::FileSystem::getFileSize(this->m_statePath, size), Os::FileSystem::OP_OK);
     ASSERT_EQ(size, RedundancyManager::STATE_SIZE);
+}
+
+void RedundancyManagerTester ::unloadedParametersUseDefaults() {
+    RedundancyManagerTester unloaded(this->m_statePath, true, false);
+    unloaded.downToOne();
+    for (U64 c = 1; c <= RedundancyManager::DEFAULT_KAT_PERIOD; c++) {
+        unloaded.cycle();
+        // the known-answer test only on the default period, not every cycle
+        const I32 expected = (c == RedundancyManager::DEFAULT_KAT_PERIOD) ? static_cast<I32>(c) : -1;
+        ASSERT_EQ(unloaded.requested(0, RequestKind::KNOWN_ANSWER), expected) << c;
+        if (c % 2 == 0) {
+            unloaded.reply(0, c, RequestKind::COMPUTE_TWICE, GOOD, GOOD);
+        }
+    }
 }
 
 void RedundancyManagerTester ::ping() {

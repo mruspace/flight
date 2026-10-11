@@ -24,6 +24,8 @@ namespace Mru {
 
 // definitions of the class constants (C++14)
 constexpr U8 RedundancyManager::MISSES_TO_LOSE;
+constexpr U32 RedundancyManager::DEFAULT_KAT_PERIOD;
+constexpr U32 RedundancyManager::DEFAULT_STATE_SAVE_PERIOD;
 constexpr FwSizeType RedundancyManager::STATE_SIZE;
 
 namespace {
@@ -118,7 +120,10 @@ void RedundancyManager ::schedIn_handler(FwIndexType portNum, U32 context) {
     this->startCycle();
 
     Fw::ParamValid valid;
-    const U32 savePeriod = this->paramGet_StateSavePeriod(valid);
+    U32 savePeriod = this->paramGet_StateSavePeriod(valid);
+    if (valid != Fw::ParamValid::VALID && valid != Fw::ParamValid::DEFAULT) {
+        savePeriod = DEFAULT_STATE_SAVE_PERIOD;  // not loaded: the model's default, not 0
+    }
     this->m_sinceSave++;
     if (savePeriod > 0 && this->m_sinceSave >= savePeriod) {
         this->saveState();
@@ -352,7 +357,10 @@ void RedundancyManager ::startCycle() {
     // on one replica, a periodic known-answer test catches a stuck fault
     Fw::ParamValid valid;
     U32 period = this->paramGet_KatPeriod(valid);
-    period = (period == 0) ? 1 : period;
+    if (valid != Fw::ParamValid::VALID && valid != Fw::ParamValid::DEFAULT) {
+        period = DEFAULT_KAT_PERIOD;  // not loaded: the model's default, not every cycle
+    }
+    period = (period == 0) ? 1 : period;  // 0 set by command: every cycle, as the demo's max(1)
     if (this->m_policy == Policy::SHRINK && mode == QUORUM_SELF_CHECK && (this->m_cycle % period) == 0) {
         for (FwIndexType i = 0; i < Replicas; i++) {
             if (this->m_slots[i] == SlotState::ACTIVE) {

@@ -21,7 +21,8 @@ class RedundancyManagerTester final : public RedundancyManagerGTestBase {
     static constexpr U64 KNOWN_ANSWER = 0xABCDEF;
 
     //! A state file of its own: removed first when `fresh`, and after the test
-    explicit RedundancyManagerTester(const char* statePath, bool fresh = true);
+    //! `load`: load parameters, as a topology does at start
+    explicit RedundancyManagerTester(const char* statePath, bool fresh = true, bool load = true);
     ~RedundancyManagerTester();
 
     void voteDelivers();
@@ -45,6 +46,9 @@ class RedundancyManagerTester final : public RedundancyManagerGTestBase {
     void badStateFileIsIgnored();
     void stateSavedPeriodically();
     void ping();
+
+    //! Parameters never loaded: the model's defaults, not zero
+    void unloadedParametersUseDefaults();
 
   private:
     void connectPorts();

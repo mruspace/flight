@@ -54,6 +54,8 @@ MRU_TEST(OffNominal, BadStateFileIsIgnored, badStateFileIsIgnored, "A corrupt st
 MRU_TEST(Nominal, StateSavedPeriodically, stateSavedPeriodically, "The state file is written every period",
          "MRU-RM-022")
 MRU_TEST(Nominal, Ping, ping, "Health ping is returned", "MRU-RM-014")
+MRU_TEST(OffNominal, UnloadedParameters, unloadedParametersUseDefaults,
+         "Parameters never loaded: the model's defaults, not zero", "MRU-RM-015", "MRU-RM-022")
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
