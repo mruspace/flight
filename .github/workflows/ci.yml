@@ -45,6 +45,8 @@ jobs:
           components: llvm-tools
       - name: Full bench matrix
         run: ./scripts/bench.sh
+      - name: KAT coverage (quick sample)
+        run: ./scripts/kat-coverage.sh --quick
       - uses: actions/upload-artifact@v4
         with:
           name: bench-${{ matrix.os }}
@@ -132,6 +134,16 @@ jobs:
           cut -d, -f1-17 native/*.csv >native.txt
           cut -d, -f1-17 emulated/*.csv >emulated.txt
           cmp native.txt emulated.txt && echo "same results on ${{ matrix.platform }} as native"
+      - name: KAT coverage counts under emulation match a native run
+        run: |
+          BENCH_OUT=native-kat ./scripts/kat-coverage.sh --quick
+          docker run --rm --platform ${{ matrix.platform }} -v "$PWD:/w" -w /w \
+            -e QUORUM_BIN=target/${{ matrix.target }}/release/quorum -e BENCH_OUT=emulated-kat alpine:3 \
+            ./scripts/kat-coverage.sh --quick
+          # columns 1-17: everything before the timing columns (cpu_s, wall_s)
+          cut -d, -f1-17 native-kat/*.csv >native-kat.txt
+          cut -d, -f1-17 emulated-kat/*.csv >emulated-kat.txt
+          cmp native-kat.txt emulated-kat.txt && echo "same KAT coverage on ${{ matrix.platform }} as native"
       - uses: actions/upload-artifact@v4
         with:
           name: quorum-${{ matrix.target }}
