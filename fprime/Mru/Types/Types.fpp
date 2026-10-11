@@ -51,4 +51,28 @@ module Mru {
   @ Strike count per replica
   array StrikeCounts = [Replicas] U32
 
+  @ State of a replica slot (MRU-RM-018)
+  enum SlotState : U8 {
+    ACTIVE = 0 @< Receives requests and counts as live
+    STANDBY = 1 @< Set aside to save power; can be admitted again
+    RETIRED = 2 @< Failed; the slot can take a spare
+  }
+
+  @ State of every slot
+  array SlotStates = [Replicas] SlotState
+
+  @ Why a slot command was refused
+  enum RefuseReason : U8 {
+    NO_SUCH_SLOT = 0 @< The slot is not 0 to 2
+    WRONG_STATE = 1 @< The slot is not in a state the command applies to
+    WOULD_HALT = 2 @< The policy could not run on the slots left
+    BUSY = 3 @< An admission is already waiting for its known answer
+  }
+
+  @ Why an admission failed
+  enum AdmitFailure : U8 {
+    KNOWN_ANSWER_FAILED = 0 @< The known-answer result was wrong
+    KNOWN_ANSWER_MISSING = 1 @< No known-answer result by the next cycle
+  }
+
 }

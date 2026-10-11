@@ -1,8 +1,11 @@
 # F´ components: requirements
 
-Status: **approved on 11 October 2026**, with decisions D1 to D8 as
-recommended. A change to MRU-SYS-001 is proposed in the
-[design](fprime-design-fpp.md#change-to-mru-sys-001-for-approval). F´'s
+Status: **approved on 11 October 2026**, with decisions D1 to D7 as
+recommended. After a comparison with the whitepaper, three additions were
+approved the same day: spares and standby (MRU-RM-018 to 021), reset
+survival (MRU-RM-022, which replaces D8), and Kani proofs on the C interface
+(MRU-FFI-005). MRU-SYS-001 was changed as the
+[design](fprime-design-fpp.md#change-to-mru-sys-001) proposed. F´'s
 development process
 ([nasa/fprime](https://github.com/nasa/fprime/blob/devel/docs/user-manual/overview/development-practice.md))
 gates each phase: requirements are approved before the FPP design, and the
@@ -27,7 +30,7 @@ Each has a recommended answer. The requirements below assume it.
 | D5 | Strike limits | Fixed in the `quorum` crate (3 outvotes in 200 cycles), reported, not changeable at run time | They are compile-time constants in the core today. `KAT_PERIOD` is an F´ parameter. |
 | D6 | Payload | A result is one 64-bit value per cycle. The reference payload is the demo's task (a hash over a 4 KiB block). A mission replaces it. | Keeps the manager independent of the payload. |
 | D7 | Known answer | The payload gives the known-answer input and its expected result at start-up | The manager cannot know the payload. |
-| D8 | Reset survival in F´ | Not in this first version | The demo's checkpoint covers the bench. F´ state across resets uses F´'s own parameter and file services and comes later. |
+| D8 | Reset survival in F´ | ~~Not in this first version~~ Replaced by MRU-RM-022 | The whitepaper's transit is years of hibernation with periodic wakes (§13), and every real board reboots. |
 
 ## C interface to the core: `quorum-ffi`
 
@@ -37,6 +40,7 @@ Each has a recommended answer. The requirements below assume it.
 | MRU-FFI-002 | Only plain values shall cross the interface: integers, fixed-size arrays and structs of them. No Rust type, pointer to Rust memory or allocation. | Inspection |
 | MRU-FFI-003 | The C header shall match the Rust definitions. A test shall check sizes and values of every type and constant. | Unit test |
 | MRU-FFI-004 | The library shall add no decision logic. Each function shall call the crate and convert its inputs and outputs. | Inspection |
+| MRU-FFI-005 | Kani proofs shall show that each function gives the crate's answer for every valid input, and the safe answer (Halted, no change, false) for every out-of-range input. | Kani, in CI |
 
 ## `RedundancyManager` (active)
 
@@ -52,13 +56,18 @@ Each has a recommended answer. The requirements below assume it.
 | MRU-RM-008 | With one live replica under the shrinking quorum, the component shall request a known-answer test every `KAT_PERIOD` cycles. | Unit test |
 | MRU-RM-009 | A replica whose known-answer result is wrong, or missing by the next cycle, shall be retired. A replica that passes shall have its strikes cleared. | Unit test |
 | MRU-RM-010 | A replica that misses three cycles in a row shall be marked lost and retired. | Unit test |
-| MRU-RM-011 | Each retirement shall emit an event with the replica and the reason: failed known-answer test, no known-answer result, or lost. A retired replica shall receive no further requests. | Unit test |
-| MRU-RM-012 | When the mode is Halted, the component shall stop requesting results and emit one event. | Unit test |
+| MRU-RM-011 | Each retirement shall emit an event with the replica and the reason: failed known-answer test, no known-answer result, or lost. A retired replica shall be disabled and receive no further requests. | Unit test |
+| MRU-RM-012 | When the mode is Halted, the component shall stop requesting results and emit one event, until a replica is admitted (MRU-RM-020). | Unit test |
 | MRU-RM-013 | A `SET_POLICY` command shall choose the shrinking quorum or fixed TMR. | Unit test |
 | MRU-RM-014 | The component shall report as telemetry: mode, live replicas, results delivered, disagreements caught, replicas retired. | Unit test |
 | MRU-RM-015 | `KAT_PERIOD` shall be an F´ parameter, default 64 cycles. | Unit test |
 | MRU-RM-016 | The component shall make no decision itself: votes, comparisons, self-checks and modes come from the `quorum` crate. | Inspection |
 | MRU-RM-017 | The component shall allocate no memory after initialization. | Inspection |
+| MRU-RM-018 | Each replica slot shall be ACTIVE, STANDBY or RETIRED. Only ACTIVE slots shall receive requests and count as live. | Unit test |
+| MRU-RM-019 | A `STANDBY_REPLICA` command shall disable an ACTIVE slot and set it to STANDBY, to save power (whitepaper §4.5, §8). The command shall be refused if the policy could not run on the slots left. | Unit test |
+| MRU-RM-020 | An `ADMIT_REPLICA` command on a STANDBY or RETIRED slot shall enable it and request a known-answer test. If the result is right by the next cycle, the slot shall become ACTIVE with no strikes. If not, it shall be disabled and keep its state. A RETIRED slot admitted this way holds new hardware: a spare or salvaged processor (whitepaper §4.5, §8). | Unit test |
+| MRU-RM-021 | The component shall report the state of each slot as telemetry. | Unit test |
+| MRU-RM-022 | The component shall save the slot states, the policy and the cycle counter to a state file when any of them changes, and every `StateSavePeriod` cycles (a parameter, default 1000; 0 saves on change only). It shall replace the file atomically. At start, it shall restore them from a valid file and emit an event, or start with all slots ACTIVE and emit a warning. Strikes are not saved. | Unit test |
 
 ## `HealthRegistry` (passive)
 
@@ -89,9 +98,22 @@ Each has a recommended answer. The requirements below assume it.
 
 | ID | Requirement | Verification |
 |---|---|---|
-| MRU-SYS-001 | On the schedules of the bench (`scripts/bench.sh`), the F´ deployment shall give the same correct, caught and wrong counts as the demo for the same seed. (Change proposed in the design: each kill or hang fault may cost up to three correct results.) | Integration test |
+| MRU-SYS-001 | On the schedules of the bench (`scripts/bench.sh`), the F´ deployment shall give the same correct, caught and wrong counts as the demo for the same seed, except that each kill or hang fault may cost up to three correct results. | Integration test |
 
 ## Not in this version
 
-`PowerAccountant`, `ScrubScheduler`, reset survival (D8), three processes
-(D1 step 2), separate processors (D1 step 3).
+Compared with Layer 1 in the whitepaper (§8):
+
+| Whitepaper | Status after this version |
+|---|---|
+| Shrinking quorum: vote, compare, self-check | Built (core and components) |
+| Dual redundancy **with checkpointing**: on a caught disagreement with two replicas, roll back and recompute the cycle | Not built. A retry rule belongs in the core, with its own Kani proofs. Today the cycle is lost. |
+| Health registry scoring error rate, response time and gate use; gradual deprioritization; donors | Strikes only. Response time is measurable from reply arrival and comes next. Gate use needs FPGA hardware. |
+| Spares from salvaged hardware; deprioritized nodes | Slots can be admitted and put on standby (MRU-RM-018 to 020). Choosing when is for the hardware inventory and the power accountant, not built. |
+| Power accountant | Not built. STANDBY_REPLICA is the hook it will use. |
+| Memory scrubbing by tier | Not built (`ScrubScheduler`). |
+| Duty cycling and hibernation | The components count in cycles, not time, so gaps between wakes do not break the strike window or the lost rule. State survives resets (MRU-RM-022). The scheduler is not built. |
+| Layer 0 | Not built. All decisions stay in the `no_std` core, so they can move under Layer 0 unchanged. |
+
+Also not in this version: three processes (D1 step 2), separate processors
+(D1 step 3).

@@ -15,6 +15,11 @@ module Mru {
     second: U64 @< The second result, for COMPUTE_TWICE
   )
 
+  @ Enable or disable a replica: a disabled replica does not answer
+  port ReplicaEnable(
+    enabled: bool @< True to answer requests
+  )
+
   @ A delivered result
   port Result(
     cycle: U64 @< The cycle it belongs to

@@ -1,9 +1,10 @@
 # F´ components: design (draft for review)
 
-Status: **draft, not approved.** This is the second gate of F´'s development
-process. The [requirements](fprime-requirements.md) were approved on
-11 October 2026 with decisions D1 to D8 as recommended. No implementation is
-written until this design is approved.
+Status: **approved on 11 October 2026**, with the change to MRU-SYS-001 and
+three additions from a comparison with the whitepaper: spares and standby,
+reset survival and Kani proofs on the C interface. This is the second gate of
+F´'s development process; the [requirements](fprime-requirements.md) are the
+first.
 
 The models are in [`fprime/Mru`](../fprime/Mru). They compile with F´ v4.4.1
 (`fprime-util build` builds the generated base classes of all four
@@ -15,8 +16,9 @@ components).
 fprime/                    F´ project (settings.ini, CMakeLists.txt)
   lib/fprime               F´ v4.4.1, git submodule
   Mru/Types/Types.fpp      Replicas = 3, Policy, Mode, RequestKind, RetireReason,
-                           Upset, FaultKind, StrikeCounts
-  Mru/Ports/Ports.fpp      ReplicaRequest, ReplicaReply, Result,
+                           Upset, FaultKind, StrikeCounts, SlotState, SlotStates,
+                           RefuseReason, AdmitFailure
+  Mru/Ports/Ports.fpp      ReplicaRequest, ReplicaReply, ReplicaEnable, Result,
                            HealthStrike, HealthClear
   Mru/Components/          RedundancyManager, HealthRegistry, ReplicaHost,
                            FaultInjector
@@ -44,14 +46,27 @@ The full models: [RedundancyManager.fpp](../fprime/Mru/Components/RedundancyMana
 | Input | `schedIn: Svc.Sched` (async) | From a rate group, once per cycle |
 | Output | `requestOut[3]: ReplicaRequest` | Cycle, kind (`COMPUTE`, `COMPUTE_TWICE`, `KNOWN_ANSWER`), upset (always none from the manager) |
 | Input | `replyIn[3]: ReplicaReply` (async) | Cycle, kind, first, second |
-| Output | `retireOut[3]: Fw.Signal` | Stops a retired replica |
+| Output | `enableOut[3]: ReplicaEnable` | Disables a retired or standby replica, enables one being admitted |
 | Output | `resultOut: Result` | Cycle and delivered value |
 | Output | `healthStrike`, `healthClear` | To HealthRegistry |
 | Ping | `pingIn` / `pingOut` | F´ `Svc.Health` |
-| Command | `SET_POLICY(policy)` (async) | |
-| Parameter | `KatPeriod: U32`, default 64 | |
-| Events | `PolicySet` (activity high), `ModeChanged` (activity high), `DisagreementCaught` (warning low, throttled at 10), `DiagnosisRequested` (activity low), `ReplicaCleared` (activity low), `ReplicaRetired` with a reason (warning high), `Halted` (warning high) | |
-| Telemetry | `CurrentPolicy`, `CurrentMode`, `LiveReplicas`, `Retired` on change; `Delivered`, `Caught` each cycle | |
+| Commands | `SET_POLICY(policy)`, `STANDBY_REPLICA(slot)`, `ADMIT_REPLICA(slot)` (all async) | |
+| Parameters | `KatPeriod: U32`, default 64; `StateSavePeriod: U32`, default 1000 | |
+| Events | `PolicySet`, `ModeChanged`, `ReplicaStandby`, `AdmitRequested`, `ReplicaAdmitted`, `StateRestored` (activity high); `DiagnosisRequested`, `ReplicaCleared` (activity low); `DisagreementCaught` (warning low, throttled at 10), `AdmitFailed`, `SlotCommandRefused`, `StateNotRestored` (warning low); `ReplicaRetired`, `Halted`, `StateSaveFailed` (warning high, the last throttled at 5) | |
+| Telemetry | `CurrentPolicy`, `CurrentMode`, `LiveReplicas`, `Retired`, `Slots` on change; `Delivered`, `Caught` each cycle | |
+
+**Slots.** Each slot is ACTIVE, STANDBY or RETIRED. Only ACTIVE slots get
+requests. `STANDBY_REPLICA` disables an ACTIVE slot, unless the policy could
+not run on the slots left. `ADMIT_REPLICA` enables a STANDBY or RETIRED slot
+and requests a known-answer test; the slot becomes ACTIVE only if the right
+answer arrives by the next cycle. One admission runs at a time.
+
+**State file.** The manager saves the policy, the slot states and the cycle
+counter when any of them changes, and every `StateSavePeriod` cycles. It
+writes a new file and renames it over the old one, as the demo's checkpoint
+does, through F´'s `Os::File`. The path is set in `configure()`. At start it
+restores a valid file, or starts with all slots ACTIVE. Strikes are not saved:
+after a reset, a replica gets a fresh window.
 
 ### HealthRegistry
 
@@ -61,7 +76,8 @@ through the C interface.
 
 ### ReplicaHost
 
-`requestIn` (async), `replyOut`, `retireIn: Fw.Signal` (async), ping. The
+`requestIn` (async), `replyOut`, `enableIn: ReplicaEnable` (async), ping.
+A disabled host does not answer. The
 payload is the demo's task: a hash over a 4 KiB block derived from the cycle
 (D6). It applies the request's upset to its working memory during the
 computation, so an injected fault travels through the real calculation.
@@ -121,10 +137,10 @@ cycles in which the manager still asks for single results end as caught
 disagreements. That costs up to three results per death, compared with the
 demo.
 
-## Change to MRU-SYS-001 (for approval)
+## Change to MRU-SYS-001
 
-The approved MRU-SYS-001 asks for the same counts as the demo on the bench
-schedules. Because of the point above, the proposed text is:
+The first MRU-SYS-001 asked for the same counts as the demo on the bench
+schedules. Because of the point above, the approved text is:
 
 > On the bench schedules, the F´ deployment shall give the same correct,
 > caught and wrong counts as the demo for the same seed, except that each kill
@@ -180,7 +196,7 @@ a replica above 2) return the safe answer: `HALTED`, or no change and `false`.
 
 | Level | What |
 |---|---|
-| `quorum-ffi` | A C test checks sizes, constants and every function against known cases. |
+| `quorum-ffi` | Kani proofs: each function equals the core for every valid input, and gives the safe answer for every out-of-range input (MRU-FFI-005). A C test checks sizes, constants and known cases. |
 | Each component | F´ unit tests (`fprime-util check`) for each requirement marked "Unit test". |
 | System | A test deployment runs the bench schedules through FaultInjector and compares the counts with the demo (MRU-SYS-001). |
 | CI | A new job installs F´, builds, and runs all of the above. |

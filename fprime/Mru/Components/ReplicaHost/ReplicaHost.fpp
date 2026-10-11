@@ -10,8 +10,8 @@ module Mru {
     @ The answer
     output port replyOut: ReplicaReply
 
-    @ Retirement: stop answering (MRU-RH-004)
-    async input port retireIn: Fw.Signal
+    @ Enable or disable: a disabled replica does not answer (MRU-RH-004)
+    async input port enableIn: ReplicaEnable
 
     @ Health ping
     async input port pingIn: Svc.Ping
