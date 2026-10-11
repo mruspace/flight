@@ -9,6 +9,8 @@
 # BENCH_HOST names the host in the file name (default: os-arch).
 # BENCH_OUT sets the output folder (default: bench/results).
 # QUORUM_BIN tests a prebuilt binary, as in scenarios.sh.
+# BENCH_COMMIT records the commit when there is no git checkout (on a board).
+# CORE_BIN is a prebuilt bench binary for the timing of the core (on a board).
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -71,8 +73,8 @@ case "$(uname -s)" in
     Darwin) cpu=$(sysctl -n machdep.cpu.brand_string) ;;
     *) cpu=$( (lscpu 2>/dev/null || true) | sed -n 's/^Model name: *//p' | head -n 1) ;;
 esac
-commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
-[ -n "$(git status --porcelain 2>/dev/null)" ] && commit="$commit-dirty"
+commit=${BENCH_COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}
+[ -z "${BENCH_COMMIT:-}" ] && [ -n "$(git status --porcelain 2>/dev/null)" ] && commit="$commit-dirty"
 rustc=$(rustc -V 2>/dev/null || echo unknown)
 date=$(date -u +%Y-%m-%d)
 out=${BENCH_OUT:-bench/results}
@@ -83,7 +85,10 @@ base="$out/$date-$host"
 # ---- core cost
 
 echo "core cost (ns per call)" >&2
-if [ -z "${QUORUM_BIN:-}" ]; then
+# CORE_BIN runs a prebuilt bench binary (on a board)
+if [ -n "${CORE_BIN:-}" ]; then
+    micro=$("$CORE_BIN")
+elif [ -z "${QUORUM_BIN:-}" ]; then
     micro=$(cargo run --release --quiet -p bench)
 else
     micro=""
@@ -105,7 +110,7 @@ fi
 # ---- system runs
 
 csv="$base.csv"
-echo "policy,seed,upset_rate,schedule,ticks,useful,detected,wrong,halted_at,survival_ticks,alive_at_end,capacity,gdi,faults,caught,latency_mean,latency_max,cpu_s,wall_s,voter_rss_kib,replica_rss_kib" >"$csv"
+echo "policy,seed,upset_rate,schedule,ticks,useful,detected,wrong,halted_at,survival_ticks,alive_at_end,capacity,gdi,faults,caught,latency_mean,latency_max,cpu_s,wall_s,voter_rss_kib,replica_rss_kib,common_mode,fault_schedule" >"$csv"
 n=0
 for s in $schedules; do
     spec=$(faults "$s")
@@ -121,14 +126,15 @@ for s in $schedules; do
                 surv=$(field last_useful "$o") # survival: ticks until the last correct result
                 gdi=$(awk -v u="$useful" -v c="$cap" 'BEGIN { printf "%.4f", u / c }')
                 f=$(field faults "$o")
-                printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+                printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
                     "$p" "$seed" "$r" "$s" "$T" "$useful" "$(field detected "$o")" \
                     "$(field wrong "$o")" "$halted" "$surv" "$(field alive_at_end "$o")" \
                     "$cap" "$gdi" "${f:-0}" "$(field caught "$o")" \
                     "$(field latency_mean "$o")" "$(field latency_max "$o")" \
                     "$(field cpu "$o" | tr -d s)" "$(field wall "$o" | tr -d s)" \
                     "$(field voter_max_rss "$o" | tr -dc 0-9)" \
-                    "$(field replica_max_rss "$o" | tr -dc 0-9)" >>"$csv"
+                    "$(field replica_max_rss "$o" | tr -dc 0-9)" 0.05 \
+                    "$(echo "$opts" | sed 's/--fault //g')" >>"$csv"
                 n=$((n + 1))
             done
         done

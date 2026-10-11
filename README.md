@@ -84,6 +84,10 @@ Kani over every possible input (4 proofs, verified in CI on every change):
   summary can be written to a file for downlink (`--summary`), and
   [`opssat/run.sh`](opssat/run.sh) starts, checks and stops a run with all the
   limits set.
+- **Survives resets and power cuts**: with `--checkpoint`, the voter saves its
+  state every 100 ticks (written, flushed and renamed, so a power cut leaves the
+  old file or the new one). After a reset, the same command resumes and ends
+  with the same counts as a run that was never interrupted.
 - **Every run is reproducible** from its seed.
 
 ## Run it
@@ -165,6 +169,10 @@ The counts are the same on
 every host, and CI checks that the emulated ARM binaries match a native run.
 Method, results and limits: [docs.mru.space/core/bench](https://docs.mru.space/core/bench/).
 
+`scripts/board.sh` runs the scenario checks, the bench and a reset test on a
+Linux board over SSH, with reboots or real power cuts. No board run has been
+done yet. The procedure is in [docs/board.md](docs/board.md).
+
 ### Footprint and limits
 
 Measured in CI on every change, 20,000 results (the shrinking-quorum demo run):
@@ -194,7 +202,8 @@ schedule and the operations note.
 2. **Measurements on representative processors**: static ARM Linux binaries are
    built and tested today; next, real boards.
 3. **Hardware-in-the-loop bench**: real boards with injected faults (bit flips,
-   resets, power cuts).
+   resets, power cuts). The scripts and the procedure are ready
+   ([docs/board.md](docs/board.md)).
 4. **In orbit**: an experiment proposed for ESA's
    [OPS-SAT Space Lab](https://opssat.esa.int/missions) (OPS-SAT PRETTY),
    logging real radiation upsets next to the satellite's own dosimetry.

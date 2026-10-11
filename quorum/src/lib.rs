@@ -189,6 +189,16 @@ impl Health {
         self.strikes[i] = [0; STRIKES];
         self.count[i] = 0;
     }
+
+    /// The record as plain values, to save it across a reset.
+    pub fn to_raw(&self) -> ([[u64; STRIKES]; REPLICAS], [usize; REPLICAS]) {
+        (self.strikes, self.count)
+    }
+
+    /// Rebuild a record saved with [`Health::to_raw`].
+    pub fn from_raw(strikes: [[u64; STRIKES]; REPLICAS], count: [usize; REPLICAS]) -> Self {
+        Self { strikes, count }
+    }
 }
 
 #[cfg(test)]
@@ -278,6 +288,17 @@ mod tests {
         assert!(!h.strike(0, 1000));
         assert!(!h.strike(0, 1100));
         assert!(!h.strike(0, 1300)); // 1000..1300 is wider than the window
+    }
+
+    #[test]
+    fn health_survives_a_round_trip() {
+        let mut h = Health::new();
+        h.strike(1, 10);
+        h.strike(1, 20);
+        let (strikes, count) = h.to_raw();
+        let mut back = Health::from_raw(strikes, count);
+        assert!(back.strike(1, 30));
+        assert!(h.strike(1, 30));
     }
 }
 

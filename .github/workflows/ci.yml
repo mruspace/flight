@@ -68,7 +68,7 @@ jobs:
           args: -p quorum
 
   static-arm:
-    name: static ARM binary (${{ matrix.target }})
+    name: static binary (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
@@ -79,6 +79,8 @@ jobs:
             platform: linux/arm/v7
           - target: armv7-unknown-linux-musleabi
             platform: linux/arm/v7
+          - target: x86_64-unknown-linux-musl
+            platform: linux/amd64
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,9 +88,9 @@ jobs:
       - name: Install cross
         run: cargo install cross --locked
       - name: Build a fully static binary
-        run: cross build -p demo --release --target ${{ matrix.target }}
+        run: cross build -p demo -p bench --release --target ${{ matrix.target }}
       - uses: docker/setup-qemu-action@v3
-      - name: Scenario tests on ${{ matrix.platform }} (emulated)
+      - name: Scenario tests in a ${{ matrix.platform }} container
         run: |
           bin=target/${{ matrix.target }}/release/quorum
           file "$bin"
@@ -108,4 +110,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: quorum-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/quorum
+          path: |
+            target/${{ matrix.target }}/release/quorum
+            target/${{ matrix.target }}/release/bench

@@ -200,5 +200,31 @@ else
     fail "detection latency ($det)"
 fi
 
+# 18. A reset loses nothing: kill -9 the voter during the run, start it again
+#     with the same options, and it resumes from its checkpoint to the same
+#     counts as a run that was never interrupted. A checkpoint from another
+#     run is refused.
+dir=$(mktemp -d)
+set -- --policy shrink --ticks 12000 --seed 2 --upset-rate 0.01 --cpu-percent 60 \
+    --fault kill:0@3000 --fault kill:1@5000 --fault stuck:2@9000
+want=$("$Q" "$@" | sed -n '2p;5p')
+"$Q" "$@" --checkpoint "$dir/cp" --log "$dir/log.csv" >/dev/null &
+pid=$!
+sleep 1
+kill -KILL "$pid"
+wait "$pid" 2>/dev/null || true
+sleep 0.3
+got=$("$Q" "$@" --checkpoint "$dir/cp" --log "$dir/log.csv" | sed -n '2p;5p')
+at=$(sed -n 's/^\([0-9]*\),resumed,1$/\1/p' "$dir/log.csv")
+printf 'run=other\ntick=5\n' >"$dir/other"
+if [ -n "$at" ] && [ "$got" = "$want" ] && [ ! -e "$dir/cp" ] &&
+    ! "$Q" "$@" --checkpoint "$dir/other" >/dev/null 2>&1; then
+    pass "reset: killed at tick $at, resumed to the same counts"
+else
+    fail "reset: resume ($want / $got, resumed at '$at')"
+fi
+set --
+rm -rf "$dir"
+
 echo
 if [ "$fails" -eq 0 ]; then echo "all checks passed"; else echo "$fails check(s) failed"; exit 1; fi
