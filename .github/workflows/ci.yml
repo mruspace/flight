@@ -68,7 +68,8 @@ jobs:
           args: -p quorum
 
   static-arm:
-    name: static binary (${{ matrix.target }})
+    # ARM jobs keep the names the main-branch ruleset requires
+    name: ${{ startsWith(matrix.target, 'x86_64') && 'static binary' || 'static ARM binary' }} (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
