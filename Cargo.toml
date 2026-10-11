@@ -1,5 +1,5 @@
 [workspace]
-members = ["quorum", "demo", "bench"]
+members = ["quorum", "quorum-ffi", "demo", "bench"]
 resolver = "2"
 
 [workspace.package]

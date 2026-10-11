@@ -19,6 +19,8 @@ jobs:
         run: cargo test --workspace --release
       - name: Scenario tests
         run: ./scripts/scenarios.sh
+      - name: C interface (quorum.h against the static library)
+        run: ./quorum-ffi/tests/c.sh
       - name: Demo and footprint
         run: |
           uname -sm
@@ -65,7 +67,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: model-checking/kani-github-action@v1
         with:
-          args: -p quorum
+          args: -p quorum -p quorum-ffi
 
   static-arm:
     # ARM jobs keep the names the main-branch ruleset requires

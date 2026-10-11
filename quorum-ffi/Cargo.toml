@@ -1,0 +1,24 @@
+[package]
+name = "quorum-ffi"
+description = "C interface to the quorum decision core, for F´ and other C or C++ frameworks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[lib]
+name = "quorum_ffi"
+
+[features]
+# Adds a panic handler, for the no_std static library linked into C or C++:
+#   cargo rustc -p quorum-ffi --release --features c-staticlib \
+#     --crate-type staticlib -- -C panic=abort
+c-staticlib = []
+
+[dependencies]
+quorum = { path = "../quorum" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
