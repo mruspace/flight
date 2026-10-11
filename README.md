@@ -370,7 +370,7 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
 
 - Whitepaper: W. Binns, *Mru: A Fault-Tolerant Operating System for
   Thousand-Year Autonomous Operation*, 2026.
-  [doi:10.5281/zenodo.20579438](https://doi.org/10.5281/zenodo.20579438)
+  [doi:10.5281/zenodo.20580927](https://doi.org/10.5281/zenodo.20580927)
 - Simulator: [dusk](https://github.com/mruspace/dusk), interactive at
   [dusk.mru.space](https://dusk.mru.space)
 - Website: [mru.space](https://mru.space)
