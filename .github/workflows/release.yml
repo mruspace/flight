@@ -39,12 +39,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo install cross --locked
-      - run: cross build -p demo --release --target ${{ matrix.target }}
-      - name: Package binary, launcher, fault schedule and operations note
+      - run: cross build -p demo -p bench --release --target ${{ matrix.target }}
+      - name: Package binaries, launcher, fault schedule and operations note
         run: |
           name=quorum-${{ github.ref_name }}-${{ matrix.target }}
           mkdir -p "pkg/$name" dist
-          cp target/${{ matrix.target }}/release/quorum "pkg/$name/"
+          cp target/${{ matrix.target }}/release/quorum target/${{ matrix.target }}/release/bench "pkg/$name/"
           cp opssat/run.sh opssat/faults.example.txt "pkg/$name/"
           cp docs/opssat.md "pkg/$name/OPSSAT.md"
           cp LICENSE "pkg/$name/"

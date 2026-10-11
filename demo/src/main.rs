@@ -344,6 +344,8 @@ struct Options {
     sensor_mb: u64,
     sensor_every: u64,
     progress_every: u64,
+    checkpoint: Option<String>,
+    checkpoint_every: u64,
 }
 
 fn usage() -> ! {
@@ -354,7 +356,8 @@ fn usage() -> ! {
          \x20             [--max-memory-mb M] [--max-cpu-seconds S] [--cpu-percent P]\n\
          \x20             [--max-seconds S] [--reply-timeout-ms T]\n\
          \x20             [--sensor-mb M] [--sensor-every N]\n\
-         \x20             [--log file.csv] [--progress-every N] [--summary file.txt]"
+         \x20             [--log file.csv] [--progress-every N] [--summary file.txt]\n\
+         \x20             [--checkpoint file] [--checkpoint-every N]"
     );
     std::process::exit(2)
 }
@@ -415,6 +418,8 @@ fn parse(args: &[String]) -> Options {
         sensor_mb: 0,
         sensor_every: 1000,
         progress_every: 0,
+        checkpoint: None,
+        checkpoint_every: 100,
     };
     let mut args = args.iter();
     while let Some(a) = args.next() {
@@ -449,6 +454,8 @@ fn parse(args: &[String]) -> Options {
             "--sensor-mb" => o.sensor_mb = next().parse().unwrap_or_else(|_| usage()),
             "--sensor-every" => o.sensor_every = next().parse().unwrap_or_else(|_| usage()),
             "--progress-every" => o.progress_every = next().parse().unwrap_or_else(|_| usage()),
+            "--checkpoint" => o.checkpoint = Some(next()),
+            "--checkpoint-every" => o.checkpoint_every = next().parse().unwrap_or_else(|_| usage()),
             "--max-memory-mb" | "--max-cpu-seconds" => {
                 next(); // read by parse_limits
             }
@@ -493,6 +500,186 @@ fn usage_of(who: libc::c_int) -> (i64, f64) {
     (kib, secs(u.ru_utime) + secs(u.ru_stime))
 }
 
+// ---- checkpoint: the run's state on disk, to resume after a reset or power cut
+
+/// Everything a run needs to carry on where it stopped. The replicas are new
+/// processes after a reset; which slots are dead, stuck or hung is hardware
+/// state, so it is saved and applied to them.
+#[derive(Default)]
+struct Checkpoint {
+    /// The options that decide the results; a checkpoint resumes only the same run.
+    run: String,
+    /// Last tick completed.
+    tick: u64,
+    useful: u64,
+    detected: u64,
+    wrong: u64,
+    last_useful: u64,
+    rng: u64,
+    alive: [bool; REPLICAS],
+    stuck: [bool; REPLICAS],
+    hung: [bool; REPLICAS],
+    strikes: [[u64; quorum::STRIKES]; REPLICAS],
+    strike_count: [usize; REPLICAS],
+    fault_at: [Option<u64>; REPLICAS],
+    faults_injected: u64,
+    caught: u64,
+    latency_sum: u64,
+    latency_max: u64,
+    sensor_scans: u64,
+    sensor_flips: u64,
+    resumes: u64,
+}
+
+fn run_identity(o: &Options) -> String {
+    let faults: Vec<String> = o
+        .faults
+        .iter()
+        .map(|f| {
+            let kind = match f.kind {
+                FaultKind::Kill => "kill",
+                FaultKind::Corrupt => "corrupt",
+                FaultKind::Stuck => "stuck",
+                FaultKind::Hang => "hang",
+                FaultKind::Sensor => "sensor",
+            };
+            format!("{kind}:{}@{}", f.replica, f.tick)
+        })
+        .collect();
+    format!(
+        "{:?}/{}/{}/{}/{}/{}/{}/{}",
+        o.policy,
+        o.ticks,
+        o.seed,
+        o.upset_rate,
+        o.common_mode,
+        o.kat_period,
+        o.sensor_mb,
+        faults.join(",")
+    )
+}
+
+impl Checkpoint {
+    fn to_text(&self) -> String {
+        let list = |v: &[bool]| {
+            v.iter()
+                .map(|&b| u8::from(b).to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        let strikes: Vec<String> = self.strikes.iter().flatten().map(u64::to_string).collect();
+        let counts: Vec<String> = self.strike_count.iter().map(usize::to_string).collect();
+        let fault_at: Vec<String> = self
+            .fault_at
+            .iter()
+            .map(|t| t.map_or("-".into(), |t| t.to_string()))
+            .collect();
+        format!(
+            "run={}\ntick={}\nuseful={}\ndetected={}\nwrong={}\nlast_useful={}\nrng={}\n\
+             alive={}\nstuck={}\nhung={}\nstrikes={}\nstrike_count={}\nfault_at={}\n\
+             faults_injected={}\ncaught={}\nlatency_sum={}\nlatency_max={}\n\
+             sensor_scans={}\nsensor_flips={}\nresumes={}\n",
+            self.run,
+            self.tick,
+            self.useful,
+            self.detected,
+            self.wrong,
+            self.last_useful,
+            self.rng,
+            list(&self.alive),
+            list(&self.stuck),
+            list(&self.hung),
+            strikes.join(","),
+            counts.join(","),
+            fault_at.join(","),
+            self.faults_injected,
+            self.caught,
+            self.latency_sum,
+            self.latency_max,
+            self.sensor_scans,
+            self.sensor_flips,
+            self.resumes
+        )
+    }
+
+    fn from_text(text: &str) -> Option<Checkpoint> {
+        let get = |key: &str| {
+            text.lines()
+                .find_map(|l| l.strip_prefix(key)?.strip_prefix('='))
+                .map(str::to_string)
+        };
+        let num = |key: &str| get(key)?.parse::<u64>().ok();
+        let items = |key: &str| -> Option<Vec<String>> {
+            Some(get(key)?.split(',').map(str::to_string).collect())
+        };
+        let flags = |key: &str| -> Option<[bool; REPLICAS]> {
+            let v = items(key)?;
+            let mut out = [false; REPLICAS];
+            for i in 0..REPLICAS {
+                out[i] = v.get(i)? == "1";
+            }
+            Some(out)
+        };
+        let strikes = items("strikes")?;
+        let counts = items("strike_count")?;
+        let fault_at = items("fault_at")?;
+        let mut c = Checkpoint {
+            run: get("run")?,
+            tick: num("tick")?,
+            useful: num("useful")?,
+            detected: num("detected")?,
+            wrong: num("wrong")?,
+            last_useful: num("last_useful")?,
+            rng: num("rng")?,
+            alive: flags("alive")?,
+            stuck: flags("stuck")?,
+            hung: flags("hung")?,
+            faults_injected: num("faults_injected")?,
+            caught: num("caught")?,
+            latency_sum: num("latency_sum")?,
+            latency_max: num("latency_max")?,
+            sensor_scans: num("sensor_scans")?,
+            sensor_flips: num("sensor_flips")?,
+            resumes: num("resumes")?,
+            ..Checkpoint::default()
+        };
+        for i in 0..REPLICAS {
+            for k in 0..quorum::STRIKES {
+                c.strikes[i][k] = strikes.get(i * quorum::STRIKES + k)?.parse().ok()?;
+            }
+            c.strike_count[i] = counts.get(i)?.parse().ok()?;
+            let t = fault_at.get(i)?;
+            c.fault_at[i] = if t == "-" {
+                None
+            } else {
+                Some(t.parse().ok()?)
+            };
+        }
+        Some(c)
+    }
+
+    /// Write atomically: a power cut leaves either the old file or the new one.
+    fn save(&self, path: &str) {
+        let tmp = format!("{path}.tmp");
+        let written = File::create(&tmp).and_then(|mut f| {
+            f.write_all(self.to_text().as_bytes())?;
+            f.sync_all()
+        });
+        if let Err(e) = written.and_then(|_| std::fs::rename(&tmp, path)) {
+            eprintln!("could not write checkpoint {path}: {e}");
+            return;
+        }
+        // make the rename itself durable
+        let dir = std::path::Path::new(path)
+            .parent()
+            .filter(|d| !d.as_os_str().is_empty())
+            .unwrap_or(std::path::Path::new("."));
+        if let Ok(d) = File::open(dir) {
+            let _ = d.sync_all();
+        }
+    }
+}
+
 // ---- run
 
 fn main() {
@@ -504,43 +691,127 @@ fn main() {
     o.limits.apply();
     install_stop_handlers();
 
-    let mut log = o
-        .log
-        .as_ref()
-        .map(|p| BufWriter::new(File::create(p).expect("log file")));
-    if let Some(l) = log.as_mut() {
-        let _ = writeln!(l, "tick,event,detail");
+    // resume from a checkpoint of the same run, if there is one
+    let identity = run_identity(&o);
+    let resumed = o.checkpoint.as_ref().and_then(|p| {
+        let text = std::fs::read_to_string(p).ok()?;
+        match Checkpoint::from_text(&text) {
+            Some(c) if c.run == identity => Some(c),
+            _ => {
+                eprintln!("checkpoint {p} is not from this run; refusing to overwrite it");
+                std::process::exit(2);
+            }
+        }
+    });
+    let mut cp = resumed.unwrap_or_default();
+    let resuming = cp.tick > 0 || cp.resumes > 0 || !cp.run.is_empty();
+    if resuming {
+        cp.resumes += 1;
+    } else {
+        cp.alive = [true; REPLICAS];
+        cp.rng = o.seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(7);
     }
-    let mut event = |tick: u64, what: &str, detail: String| {
-        if let Some(l) = log.as_mut() {
+    cp.run = identity;
+
+    // shared by the event closure and the checkpoint, which flushes it
+    let log = std::cell::RefCell::new(o.log.as_ref().map(|p| {
+        let f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(resuming)
+            .write(true)
+            .truncate(!resuming)
+            .open(p)
+            .expect("log file");
+        BufWriter::new(f)
+    }));
+    if let Some(l) = log.borrow_mut().as_mut() {
+        if resuming {
+            let _ = writeln!(l, "{},resumed,{}", cp.tick, cp.resumes);
+        } else {
+            let _ = writeln!(l, "tick,event,detail");
+        }
+    }
+    let event = |tick: u64, what: &str, detail: String| {
+        if let Some(l) = log.borrow_mut().as_mut() {
             let _ = writeln!(l, "{tick},{what},{detail}");
         }
     };
 
     let mut replicas: Vec<Option<Replica>> = (0..REPLICAS)
-        .map(|_| Some(Replica::spawn(o.limits)))
+        .map(|i| {
+            cp.alive[i].then(|| {
+                let mut r = Replica::spawn(o.limits);
+                r.stuck = cp.stuck[i];
+                r.hung = cp.hung[i];
+                r
+            })
+        })
         .collect();
-    let mut health = Health::new();
-    let mut sensor = (o.sensor_mb > 0).then(|| Sensor::new(o.sensor_mb));
+    let mut health = Health::from_raw(cp.strikes, cp.strike_count);
+    let mut sensor = (o.sensor_mb > 0).then(|| {
+        let mut s = Sensor::new(o.sensor_mb);
+        s.scans = cp.sensor_scans;
+        s.flips = cp.sensor_flips;
+        s
+    });
     let kat = truth(KAT_INPUT);
     let timeout = o.reply_timeout;
-    let mut rng = o.seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(7);
+    let mut rng = cp.rng;
 
-    let (mut useful, mut detected, mut wrong, mut halted_at) = (0u64, 0u64, 0u64, None);
-    let mut last_useful = 0; // tick of the last correct result
-                             // detection latency: ticks from a scheduled corrupt, stuck or hang fault to
-                             // the first tick the voter reacts to that replica (outvote, caught
-                             // disagreement, loss or retirement). Kills are excluded: the voter does them.
-    let mut fault_at: [Option<u64>; REPLICAS] = [None; REPLICAS];
-    let (mut faults_injected, mut latencies) = (0u64, Vec::new());
+    let (mut useful, mut detected, mut wrong, mut halted_at) =
+        (cp.useful, cp.detected, cp.wrong, None);
+    let mut last_useful = cp.last_useful; // tick of the last correct result
+
+    // detection latency: ticks from a scheduled corrupt, stuck or hang fault to
+    // the first tick the voter reacts to that replica (outvote, caught
+    // disagreement, loss or retirement). Kills are excluded: the voter does them.
+    let mut fault_at = cp.fault_at;
+    let mut faults_injected = cp.faults_injected;
+    let (mut caught, mut latency_sum, mut latency_max) =
+        (cp.caught, cp.latency_sum, cp.latency_max);
     let mut stopped = "completed";
     let start = Instant::now();
-    let mut last_tick = 0;
+    let mut last_tick = cp.tick;
+    let save = |cp: &mut Checkpoint,
+                tick: u64,
+                counts: (u64, u64, u64, u64),
+                rng: u64,
+                replicas: &[Option<Replica>],
+                health: &Health,
+                detection: ([Option<u64>; REPLICAS], u64, u64, u64, u64),
+                sensor: &Option<Sensor>| {
+        let Some(path) = &o.checkpoint else { return };
+        cp.tick = tick;
+        (cp.useful, cp.detected, cp.wrong, cp.last_useful) = counts;
+        cp.rng = rng;
+        for i in 0..REPLICAS {
+            cp.alive[i] = replicas[i].is_some();
+            cp.stuck[i] = replicas[i].as_ref().is_some_and(|r| r.stuck);
+            cp.hung[i] = replicas[i].as_ref().is_some_and(|r| r.hung);
+        }
+        (cp.strikes, cp.strike_count) = health.to_raw();
+        (
+            cp.fault_at,
+            cp.faults_injected,
+            cp.caught,
+            cp.latency_sum,
+            cp.latency_max,
+        ) = detection;
+        if let Some(s) = sensor {
+            (cp.sensor_scans, cp.sensor_flips) = (s.scans, s.flips);
+        }
+        // the log first, so after a reset it holds every event up to the checkpoint
+        if let Some(l) = log.borrow_mut().as_mut() {
+            let _ = l.flush();
+            let _ = l.get_ref().sync_data();
+        }
+        cp.save(path);
+    };
     let progress = |useful: u64, detected: u64, wrong: u64, alive: usize| {
         format!("useful={useful} detected={detected} wrong={wrong} alive={alive}")
     };
 
-    for tick in 1..=o.ticks {
+    for tick in cp.tick + 1..=o.ticks {
         // progress: the running totals up to the previous tick, for plots and
         // for a heartbeat in the downlinked log
         if o.progress_every > 0 && last_tick > 0 && last_tick % o.progress_every == 0 {
@@ -708,7 +979,9 @@ fn main() {
 
         for i in 0..REPLICAS {
             if let (Some(at), true) = (fault_at[i], flagged[i]) {
-                latencies.push(tick - at);
+                caught += 1;
+                latency_sum += tick - at;
+                latency_max = latency_max.max(tick - at);
                 fault_at[i] = None;
             }
         }
@@ -736,10 +1009,41 @@ fn main() {
             }
         }
 
+        if o.checkpoint_every > 0 && tick % o.checkpoint_every == 0 {
+            save(
+                &mut cp,
+                tick,
+                (useful, detected, wrong, last_useful),
+                rng,
+                &replicas,
+                &health,
+                (fault_at, faults_injected, caught, latency_sum, latency_max),
+                &sensor,
+            );
+        }
+
         // CPU share: sleep so that work takes at most cpu_percent of wall time
         if o.cpu_percent > 0.0 && o.cpu_percent < 100.0 {
             let work = tick_start.elapsed();
             std::thread::sleep(work.mul_f64((100.0 - o.cpu_percent) / o.cpu_percent));
+        }
+    }
+
+    // a stopped run keeps its checkpoint so it can resume; a finished one removes it
+    if let Some(path) = &o.checkpoint {
+        if stopped == "signal" || stopped == "time-limit" {
+            save(
+                &mut cp,
+                last_tick,
+                (useful, detected, wrong, last_useful),
+                rng,
+                &replicas,
+                &health,
+                (fault_at, faults_injected, caught, latency_sum, latency_max),
+                &sensor,
+            );
+        } else {
+            let _ = std::fs::remove_file(path);
         }
     }
 
@@ -796,19 +1100,22 @@ fn main() {
         ));
     }
     if faults_injected > 0 {
-        let caught = latencies.len();
-        let (mean, max) = match latencies.iter().max() {
-            Some(max) => (
-                format!(
-                    "{:.1}",
-                    latencies.iter().sum::<u64>() as f64 / caught as f64
-                ),
-                max.to_string(),
-            ),
-            None => (none(), none()),
+        let (mean, max) = if caught > 0 {
+            (
+                format!("{:.1}", latency_sum as f64 / caught as f64),
+                latency_max.to_string(),
+            )
+        } else {
+            (none(), none())
         };
         summary.push(format!(
             "detection: faults={faults_injected} caught={caught} latency_mean={mean} latency_max={max} (ticks)"
+        ));
+    }
+    if o.checkpoint.is_some() {
+        summary.push(format!(
+            "checkpoint: every={} resumes={}",
+            o.checkpoint_every, cp.resumes
         ));
     }
     let text = summary.join("\n") + "\n";
