@@ -1,0 +1,2 @@
+# F´ framework requirements, pinned by the submodule at lib/fprime (v4.4.1)
+-r ./lib/fprime/requirements.txt

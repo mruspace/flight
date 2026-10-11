@@ -1,0 +1,4 @@
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/RedundancyManager")
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/HealthRegistry")
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/ReplicaHost")
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/FaultInjector")

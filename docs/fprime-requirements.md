@@ -1,6 +1,9 @@
-# F´ components: requirements (draft for review)
+# F´ components: requirements
 
-Status: **draft, not approved.** F´'s development process
+Status: **approved on 11 October 2026**, with decisions D1 to D8 as
+recommended. A change to MRU-SYS-001 is proposed in the
+[design](fprime-design-fpp.md#change-to-mru-sys-001-for-approval). F´'s
+development process
 ([nasa/fprime](https://github.com/nasa/fprime/blob/devel/docs/user-manual/overview/development-practice.md))
 gates each phase: requirements are approved before the FPP design, and the
 design is approved before any implementation. This file is the first gate.
@@ -86,7 +89,7 @@ Each has a recommended answer. The requirements below assume it.
 
 | ID | Requirement | Verification |
 |---|---|---|
-| MRU-SYS-001 | On the schedules of the bench (`scripts/bench.sh`), the F´ deployment shall give the same correct, caught and wrong counts as the demo for the same seed. | Integration test |
+| MRU-SYS-001 | On the schedules of the bench (`scripts/bench.sh`), the F´ deployment shall give the same correct, caught and wrong counts as the demo for the same seed. (Change proposed in the design: each kill or hang fault may cost up to three correct results.) | Integration test |
 
 ## Not in this version
 

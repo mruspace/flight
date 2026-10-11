@@ -1,0 +1,192 @@
+# F´ components: design (draft for review)
+
+Status: **draft, not approved.** This is the second gate of F´'s development
+process. The [requirements](fprime-requirements.md) were approved on
+11 October 2026 with decisions D1 to D8 as recommended. No implementation is
+written until this design is approved.
+
+The models are in [`fprime/Mru`](../fprime/Mru). They compile with F´ v4.4.1
+(`fprime-util build` builds the generated base classes of all four
+components).
+
+## Layout
+
+```
+fprime/                    F´ project (settings.ini, CMakeLists.txt)
+  lib/fprime               F´ v4.4.1, git submodule
+  Mru/Types/Types.fpp      Replicas = 3, Policy, Mode, RequestKind, RetireReason,
+                           Upset, FaultKind, StrikeCounts
+  Mru/Ports/Ports.fpp      ReplicaRequest, ReplicaReply, Result,
+                           HealthStrike, HealthClear
+  Mru/Components/          RedundancyManager, HealthRegistry, ReplicaHost,
+                           FaultInjector
+quorum-ffi/                Rust static library with the C interface (new crate)
+```
+
+## Components
+
+| Component | Kind | Why this kind |
+|---|---|---|
+| `RedundancyManager` | active | Replies arrive from three replica threads. One queue and one thread order them with the cycle, so the decision needs no locks. |
+| `HealthRegistry` | passive, guarded ports | Called synchronously by the manager. Guarded so telemetry and calls cannot interleave. |
+| `ReplicaHost` | active, one per replica | Each replica runs on its own thread (D1). |
+| `FaultInjector` | passive, guarded ports | Test builds only. Sits between the manager and the replicas. |
+
+The full models: [RedundancyManager.fpp](../fprime/Mru/Components/RedundancyManager/RedundancyManager.fpp),
+[HealthRegistry.fpp](../fprime/Mru/Components/HealthRegistry/HealthRegistry.fpp),
+[ReplicaHost.fpp](../fprime/Mru/Components/ReplicaHost/ReplicaHost.fpp),
+[FaultInjector.fpp](../fprime/Mru/Components/FaultInjector/FaultInjector.fpp).
+
+### RedundancyManager
+
+| Element | Name | Notes |
+|---|---|---|
+| Input | `schedIn: Svc.Sched` (async) | From a rate group, once per cycle |
+| Output | `requestOut[3]: ReplicaRequest` | Cycle, kind (`COMPUTE`, `COMPUTE_TWICE`, `KNOWN_ANSWER`), upset (always none from the manager) |
+| Input | `replyIn[3]: ReplicaReply` (async) | Cycle, kind, first, second |
+| Output | `retireOut[3]: Fw.Signal` | Stops a retired replica |
+| Output | `resultOut: Result` | Cycle and delivered value |
+| Output | `healthStrike`, `healthClear` | To HealthRegistry |
+| Ping | `pingIn` / `pingOut` | F´ `Svc.Health` |
+| Command | `SET_POLICY(policy)` (async) | |
+| Parameter | `KatPeriod: U32`, default 64 | |
+| Events | `PolicySet` (activity high), `ModeChanged` (activity high), `DisagreementCaught` (warning low, throttled at 10), `DiagnosisRequested` (activity low), `ReplicaCleared` (activity low), `ReplicaRetired` with a reason (warning high), `Halted` (warning high) | |
+| Telemetry | `CurrentPolicy`, `CurrentMode`, `LiveReplicas`, `Retired` on change; `Delivered`, `Caught` each cycle | |
+
+### HealthRegistry
+
+`strikeIn(replica, cycle) -> bool` and `clearIn(replica)`, guarded.
+Telemetry `Strikes: [3] U32` on change. It holds a `quorum::Health` record
+through the C interface.
+
+### ReplicaHost
+
+`requestIn` (async), `replyOut`, `retireIn: Fw.Signal` (async), ping. The
+payload is the demo's task: a hash over a 4 KiB block derived from the cycle
+(D6). It applies the request's upset to its working memory during the
+computation, so an injected fault travels through the real calculation.
+
+### FaultInjector
+
+Guarded `requestIn[3]` → `requestOut[3]` and `replyIn[3]` → `replyOut[3]`.
+Commands `INJECT(kind, replica, cycle)` and `SET_UPSETS(rate, commonMode,
+seed)`. Events `FaultScheduled`, `FaultApplied`, `FaultRefused`,
+`UpsetsSet`.
+
+- **Kill and hang**: it drops the replica's requests from that cycle.
+- **Stuck**: it replaces the replica's replies with a fixed wrong value.
+- **Corrupt and random upsets**: it sets the request's upset.
+- **Same upsets as the demo**: the manager sends requests on its own thread,
+  replica 0, then 1, then 2. The injector draws in that order with the
+  demo's generator and seed, and draws nothing for known-answer requests, as
+  the demo does.
+
+## Topologies
+
+```
+Flight:  RateGroup ─▶ RedundancyManager ─requestOut[i]─▶ ReplicaHost[i]
+                         ▲      │   └──────resultOut──▶ (payload consumer)
+                         │      └──healthStrike/Clear─▶ HealthRegistry
+                         └────────replyIn[i]─────────── ReplicaHost[i]
+
+Test:    RedundancyManager ─▶ FaultInjector ─▶ ReplicaHost[i]
+                         ◀──  FaultInjector ◀──
+```
+
+The manager and the replicas are the same in both. Only the wiring changes,
+so no test code is in the flight components.
+
+## One cycle
+
+At `schedIn` for cycle N:
+
+1. Decide cycle N−1 with `decide()` from the replies received for it. A missing
+   reply is `Absent` (MRU-RM-002). Deliver, count a disagreement, or halt.
+2. Pass outvotes to HealthRegistry. Request known-answer tests where needed
+   (MRU-RM-006 to 008). Retire replicas whose known-answer results were wrong
+   or missing (MRU-RM-009), or that missed three cycles (MRU-RM-010).
+3. Request cycle N from every live replica.
+
+**Self-check delivers every other cycle.** On one replica, the manager asks
+for two results of the same computation on even cycles only. The replica gets
+two cycles of time for the double work, and throughput is half, as in the
+demo and Dusk. The alternative, both computations in one cycle, needs a cycle
+long enough for twice the work.
+
+**A dead replica is found by silence.** The demo kills a replica from the
+voter, so the voter knows at once. In F´ a replica that dies simply stops
+answering. The manager treats a missing reply as absent at once, and as lost
+after three cycles in a row (D3). When the death leaves one replica, the
+cycles in which the manager still asks for single results end as caught
+disagreements. That costs up to three results per death, compared with the
+demo.
+
+## Change to MRU-SYS-001 (for approval)
+
+The approved MRU-SYS-001 asks for the same counts as the demo on the bench
+schedules. Because of the point above, the proposed text is:
+
+> On the bench schedules, the F´ deployment shall give the same correct,
+> caught and wrong counts as the demo for the same seed, except that each kill
+> or hang fault may cost up to three correct results.
+
+## C interface: `quorum-ffi`
+
+A new crate in the workspace, built as a static library by `cargo` from a CMake
+step in the F´ build (F´ v4.4.1 finds `cargo` but has no Rust build support).
+Header:
+
+```c
+#include <stdbool.h>
+#include <stdint.h>
+
+#define QUORUM_REPLICAS 3
+
+enum { QUORUM_SHRINK = 0, QUORUM_TMR = 1 };                  /* policy */
+enum { QUORUM_VOTE = 0, QUORUM_COMPARE = 1,
+       QUORUM_SELF_CHECK = 2, QUORUM_HALTED = 3 };           /* mode */
+enum { QUORUM_ABSENT = 0, QUORUM_SINGLE = 1, QUORUM_PAIR = 2 }; /* reply */
+enum { QUORUM_DELIVER = 0, QUORUM_DETECTED = 1,
+       QUORUM_OUTCOME_HALTED = 2 };                           /* outcome */
+
+typedef struct { uint8_t kind; uint64_t first; uint64_t second; } quorum_reply;
+
+typedef struct {
+    uint8_t mode;
+    uint8_t outcome;
+    uint64_t value;                     /* valid when outcome is DELIVER */
+    bool dissent[QUORUM_REPLICAS];
+    bool diagnose;
+} quorum_verdict;
+
+typedef struct {                        /* quorum::Health, owned by the caller */
+    uint64_t strikes[QUORUM_REPLICAS][3];
+    uint64_t count[QUORUM_REPLICAS];
+} quorum_health;
+
+uint8_t quorum_mode(uint8_t policy, uint32_t alive);
+quorum_verdict quorum_decide(uint8_t policy, const quorum_reply replies[QUORUM_REPLICAS]);
+void quorum_health_init(quorum_health *h);
+bool quorum_health_strike(quorum_health *h, uint32_t replica, uint64_t cycle);
+void quorum_health_clear(quorum_health *h, uint32_t replica);
+```
+
+The health record lives in the caller's memory (HealthRegistry), and each call
+converts it with `Health::to_raw` and `Health::from_raw`. No pointer to Rust
+memory crosses (MRU-FFI-002). Out-of-range values (a policy other than 0 or 1,
+a replica above 2) return the safe answer: `HALTED`, or no change and `false`.
+
+## Verification plan
+
+| Level | What |
+|---|---|
+| `quorum-ffi` | A C test checks sizes, constants and every function against known cases. |
+| Each component | F´ unit tests (`fprime-util check`) for each requirement marked "Unit test". |
+| System | A test deployment runs the bench schedules through FaultInjector and compares the counts with the demo (MRU-SYS-001). |
+| CI | A new job installs F´, builds, and runs all of the above. |
+
+## Toolchain note
+
+On this macOS (Darwin 27), the CMake 3.26 that F´ v4.4.1 pins fails with a
+recursion error, also on F´'s own sample project. CMake 4.4 works. CI on Linux
+can use the pinned version.
