@@ -11,10 +11,10 @@
 
 [![ci](https://github.com/mruspace/flight/actions/workflows/ci.yml/badge.svg)](https://github.com/mruspace/flight/actions/workflows/ci.yml)
 
-Onboard software that keeps a spacecraft doing useful work as its computers
+Onboard software that keeps a spacecraft doing useful work as its processors
 fail. Part of [Mru](https://mru.space).
 
-Classic triple modular redundancy votes on three computers and stops when it
+Classic triple modular redundancy votes on three processors and stops when it
 can no longer form a majority. Mru's **shrinking quorum** keeps going: vote on
 three, compare on two, self-check on one. In 10,000 simulated missions it
 delivered 1.34× the useful work of fixed triple redundancy on the same hardware,
@@ -38,6 +38,7 @@ real processes, with faults injected, work today. The F´ components come next
 | Crate | What it is |
 |---|---|
 | [`quorum`](quorum/src/lib.rs) | The decision core: vote, compare, self-check, and the health record that decides when a replica must be diagnosed. `no_std`, no allocation, no dependencies. Unit-tested, checked with [Kani](https://github.com/model-checking/kani), and built in CI for a bare-metal ARM Cortex-M target. |
+| [`bench`](bench/src/main.rs) | Times the decision core on the host: nanoseconds per call of `decide()` for each policy and mode, and of `Health::strike()`. No dependencies. |
 | [`demo`](demo/src/main.rs) | The `quorum` program: three replica processes, a voter built on the core, fault injection, enforced resource limits, and a report of what was delivered and what it cost. Runs on Linux and macOS; release builds are fully static binaries for 64-bit and 32-bit ARM Linux. Its only dependency is `libc`, for the system calls behind the limits. |
 
 ### What the core guarantees
@@ -90,6 +91,7 @@ Kani over every possible input (4 proofs, verified in CI on every change):
 ```sh
 cargo test --workspace         # unit tests
 ./scripts/scenarios.sh         # scenario tests against the real program
+./scripts/bench.sh             # bench: 300 runs, TMR vs shrinking quorum (below)
 cargo run --release -- --policy shrink --ticks 20000 --seed 1 --upset-rate 0.001 \
   --fault stuck:1@4000 --fault kill:0@9000
 ```
@@ -144,6 +146,25 @@ fixed TMR. Diagnosing with a known-answer test before retiring fixed it, and
 `scripts/scenarios.sh` now checks over ten seeds that the shrinking quorum never
 delivers fewer correct results than fixed TMR.
 
+### Bench
+
+`scripts/bench.sh` runs both policies over 10 seeds, three upset rates
+(0.0001, 0.001, 0.01) and five fault schedules, 20,000 ticks per run, and
+times the core with the `bench` crate. It writes one JSON and one CSV file per
+host to [`bench/results`](bench/results): correct and wrong results, the tick
+of the last correct result, the Graceful Degradation Index and detection
+latency, with the host, processor, commit and build flags.
+
+In all 150 pairs of runs, the shrinking quorum delivered at least as many
+correct results as fixed TMR on the same faults: 1.50× with two replicas lost,
+3.00× with two lost early, 1.61× with a stuck replica. Fixed TMR delivered no
+wrong result. The shrinking quorum delivered some on its last replica: at most
+3.6 per run on average from common-mode upsets (upset rate 0.01), and 20 when
+that replica got stuck, before the known-answer test caught it 40 ticks later.
+The counts are the same on
+every host, and CI checks that the emulated ARM binaries match a native run.
+Method, results and limits: [docs.mru.space/core/bench](https://docs.mru.space/core/bench/).
+
 ### Footprint and limits
 
 Measured in CI on every change, 20,000 results (the shrinking-quorum demo run):
@@ -195,7 +216,7 @@ To cite this work, see [CITATION.cff](CITATION.cff).
 
 Email [contact@mru.space](mailto:contact@mru.space).
 
-## Licence
+## License
 
 Code under [Apache License 2.0](./LICENSE). The **Mru** name and mark are
 trademarks; see [TRADEMARK.md](./TRADEMARK.md).

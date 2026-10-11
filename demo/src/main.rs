@@ -527,6 +527,12 @@ fn main() {
     let mut rng = o.seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(7);
 
     let (mut useful, mut detected, mut wrong, mut halted_at) = (0u64, 0u64, 0u64, None);
+    let mut last_useful = 0; // tick of the last correct result
+                             // detection latency: ticks from a scheduled corrupt, stuck or hang fault to
+                             // the first tick the voter reacts to that replica (outvote, caught
+                             // disagreement, loss or retirement). Kills are excluded: the voter does them.
+    let mut fault_at: [Option<u64>; REPLICAS] = [None; REPLICAS];
+    let (mut faults_injected, mut latencies) = (0u64, Vec::new());
     let mut stopped = "completed";
     let start = Instant::now();
     let mut last_tick = 0;
@@ -559,6 +565,7 @@ fn main() {
 
         // scheduled faults
         let mut corrupt = [false; REPLICAS];
+        let mut flagged = [false; REPLICAS];
         for f in o.faults.iter().filter(|f| f.tick == tick) {
             if f.kind == FaultKind::Sensor {
                 if let Some(s) = sensor.as_mut() {
@@ -570,6 +577,10 @@ fn main() {
             let Some(r) = replicas[f.replica].as_mut() else {
                 continue;
             };
+            if f.kind != FaultKind::Kill && fault_at[f.replica].is_none() {
+                faults_injected += 1;
+                fault_at[f.replica] = Some(tick);
+            }
             match f.kind {
                 FaultKind::Kill => {
                     replicas[f.replica].take().unwrap().retire();
@@ -633,6 +644,7 @@ fn main() {
                 None => {
                     // died or stopped answering within the timeout
                     replicas[i].take().unwrap().retire();
+                    flagged[i] = true;
                     event(tick, "lost", i.to_string());
                 }
             }
@@ -640,6 +652,10 @@ fn main() {
 
         let verdict = decide(o.policy, &replies);
         let mut outcome = verdict.outcome;
+        for i in 0..REPLICAS {
+            flagged[i] |= verdict.dissent[i]
+                || (replies[i] != Reply::Absent && verdict.outcome == Outcome::Detected);
+        }
 
         if o.policy == Policy::Shrink {
             // health scoring: three outvotes in the window trigger a known-answer
@@ -657,6 +673,7 @@ fn main() {
                     event(tick, "cleared", i.to_string());
                 } else if let Some(r) = replicas[i].take() {
                     r.retire();
+                    flagged[i] = true;
                     event(tick, "retired", i.to_string());
                 }
             }
@@ -668,6 +685,7 @@ fn main() {
                         .is_some_and(|r| !r.known_answer_ok(kat, timeout));
                     if failed {
                         replicas[i].take().unwrap().retire();
+                        flagged[i] = true;
                         event(tick, "retired", i.to_string());
                     }
                 }
@@ -680,6 +698,7 @@ fn main() {
                         .is_some_and(|r| !r.known_answer_ok(kat, timeout));
                     if failed {
                         replicas[i].take().unwrap().retire();
+                        flagged[i] = true;
                         event(tick, "retired", i.to_string());
                         outcome = Outcome::Detected;
                     }
@@ -687,8 +706,18 @@ fn main() {
             }
         }
 
+        for i in 0..REPLICAS {
+            if let (Some(at), true) = (fault_at[i], flagged[i]) {
+                latencies.push(tick - at);
+                fault_at[i] = None;
+            }
+        }
+
         match outcome {
-            Outcome::Deliver(v) if v == truth(tick) => useful += 1,
+            Outcome::Deliver(v) if v == truth(tick) => {
+                useful += 1;
+                last_useful = tick;
+            }
             Outcome::Deliver(_) => {
                 wrong += 1;
                 event(tick, "wrong", format!("{:?}", verdict.mode));
@@ -744,7 +773,7 @@ fn main() {
     let mut summary = vec![
         format!("policy={policy} ticks={} seed={} upset_rate={}", o.ticks, o.seed, o.upset_rate),
         format!(
-            "useful={useful} detected={detected} wrong={wrong} halted_at={} alive_at_end={alive_at_end} stopped={stopped}",
+            "useful={useful} detected={detected} wrong={wrong} halted_at={} alive_at_end={alive_at_end} stopped={stopped} last_useful={last_useful}",
             halted_at.map_or("never".to_string(), |t| t.to_string())
         ),
         format!(
@@ -764,6 +793,22 @@ fn main() {
         summary.push(format!(
             "sensor: size={}MB scans={} flips={}",
             o.sensor_mb, s.scans, s.flips
+        ));
+    }
+    if faults_injected > 0 {
+        let caught = latencies.len();
+        let (mean, max) = match latencies.iter().max() {
+            Some(max) => (
+                format!(
+                    "{:.1}",
+                    latencies.iter().sum::<u64>() as f64 / caught as f64
+                ),
+                max.to_string(),
+            ),
+            None => (none(), none()),
+        };
+        summary.push(format!(
+            "detection: faults={faults_injected} caught={caught} latency_mean={mean} latency_max={max} (ticks)"
         ));
     }
     let text = summary.join("\n") + "\n";
