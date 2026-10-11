@@ -342,7 +342,8 @@ mod proofs {
     /// `quorum_health_strike` gives the core's answer and leaves the core's
     /// record, for any record; an index above 2 changes nothing.
     #[kani::proof]
-    #[kani::unwind(5)]
+    // comparing two records walks 12 values
+    #[kani::unwind(16)]
     fn strike_is_the_core() {
         let strikes: [[u64; STRIKES]; REPLICAS] = kani::any();
         let count: [u64; REPLICAS] = [
@@ -367,7 +368,8 @@ mod proofs {
 
     /// `quorum_health_clear` is the core's `clear`; an index above 2 changes nothing.
     #[kani::proof]
-    #[kani::unwind(5)]
+    // comparing two records walks 12 values
+    #[kani::unwind(16)]
     fn clear_is_the_core() {
         let strikes: [[u64; STRIKES]; REPLICAS] = kani::any();
         let count: [u64; REPLICAS] = [
