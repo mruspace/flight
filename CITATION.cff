@@ -25,7 +25,7 @@ references:
       - family-names: Binns
         given-names: Will
     year: 2026
-    doi: 10.5281/zenodo.20579438
+    doi: 10.5281/zenodo.20580927
   - type: software
     title: "dusk: A Monte Carlo of Redundancy Policies on Hardware That Only Ever Decays"
     authors:
