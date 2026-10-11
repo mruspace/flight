@@ -45,6 +45,11 @@ module Mru {
       cycle: U64 @< The cycle it takes effect
     )
 
+    @ Remove every fault of a replica: new hardware in its slot, such as a spare
+    guarded command CLEAR_FAULTS(
+      replica: U8 @< The replica, 0 to 2
+    )
+
     @ Set random upsets (MRU-FI-002)
     guarded command SET_UPSETS(
       rate: F64 @< Chance per replica per request of a bit flip
@@ -80,6 +85,21 @@ module Mru {
     ) \
       severity warning low \
       format "Fault on replica {} refused"
+
+    @ Every fault of a replica was removed
+    event FaultsCleared(
+      replica: U8 @< The replica
+    ) \
+      severity activity high \
+      format "Faults cleared on replica {}"
+
+    @ Upset settings were refused: rate and common-mode share must be 0 to 1
+    event UpsetsRefused(
+      rate: F64 @< The rate asked for
+      commonMode: F64 @< The common-mode share asked for
+    ) \
+      severity warning low \
+      format "Upsets refused: rate {}, common mode {}"
 
     @ Random upsets were set
     event UpsetsSet(

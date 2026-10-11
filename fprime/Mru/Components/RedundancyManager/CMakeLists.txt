@@ -1,4 +1,11 @@
 register_fprime_module(
   AUTOCODER_INPUTS
     "${CMAKE_CURRENT_LIST_DIR}/RedundancyManager.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/RedundancyManager.cpp"
+  HEADERS
+    "${CMAKE_CURRENT_LIST_DIR}/RedundancyManager.hpp"
+  DEPENDS
+    quorum_ffi
+    Utils_Hash
 )

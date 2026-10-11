@@ -13,7 +13,7 @@ module Mru {
     time get port timeCaller
     telemetry port tlmOut
 
-    @ Strikes in the current window, per replica (MRU-HR-003)
+    @ Strikes since the last clear, per replica, capped at 3 (MRU-HR-003)
     telemetry Strikes: StrikeCounts update on change
 
   }

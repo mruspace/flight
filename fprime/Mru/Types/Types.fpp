@@ -26,9 +26,11 @@ module Mru {
 
   @ Why a replica was retired
   enum RetireReason : U8 {
-    KNOWN_ANSWER_FAILED = 0 @< Its known-answer result was wrong
-    KNOWN_ANSWER_MISSING = 1 @< Its known-answer result did not arrive by the next cycle
+    KNOWN_ANSWER_FAILED = 0 @< Its known-answer result, asked for a diagnosis, was wrong
+    KNOWN_ANSWER_MISSING = 1 @< Its known-answer result, asked for a diagnosis, did not arrive by the next cycle
     LOST = 2 @< It missed three cycles in a row
+    PERIODIC_TEST_FAILED = 3 @< Its periodic known-answer result on one replica was wrong
+    PERIODIC_TEST_MISSING = 4 @< Its periodic known-answer result on one replica did not arrive
   }
 
   @ A bit flip to apply to a replica's working memory during a computation.
