@@ -1,0 +1,21 @@
+register_fprime_module(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/HealthRegistry.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/HealthRegistry.cpp"
+  HEADERS
+    "${CMAKE_CURRENT_LIST_DIR}/HealthRegistry.hpp"
+  DEPENDS
+    quorum_ffi
+)
+
+register_fprime_ut(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/HealthRegistry.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/HealthRegistryTestMain.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/HealthRegistryTester.cpp"
+  DEPENDS
+    STest
+  UT_AUTO_HELPERS
+)

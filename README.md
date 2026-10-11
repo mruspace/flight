@@ -21,12 +21,12 @@ delivered 1.34× the useful work of fixed triple redundancy on the same hardware
 and never less on any single mission ([dusk](https://github.com/mruspace/dusk)).
 
 This repository is where that policy becomes flight software: a small,
-verified Rust core, to be wrapped as components for NASA JPL's open-source
+verified Rust core, wrapped as components for NASA JPL's open-source
 [F´](https://github.com/nasa/fprime) framework.
 
-**Status (October 2026): early prototype.** The decision core and a demo on
-real processes, with faults injected, work today. The F´ components come next
-([design](docs/fprime-design.md)).
+**Status (October 2026): early prototype.** The decision core, a demo on real
+processes with faults injected, and four F´ components work today. They run
+on general-purpose processors, not yet on flight hardware.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/chart-dark.png">
@@ -38,6 +38,8 @@ real processes, with faults injected, work today. The F´ components come next
 | Crate | What it is |
 |---|---|
 | [`quorum`](quorum/src/lib.rs) | The decision core: vote, compare, self-check, and the health record that decides when a replica must be diagnosed. `no_std`, no allocation, no dependencies. Unit-tested, checked with [Kani](https://github.com/model-checking/kani), and built in CI for a bare-metal ARM Cortex-M target. |
+| [`quorum-ffi`](quorum-ffi/src/lib.rs) | The C interface to the core ([`quorum.h`](quorum-ffi/include/quorum.h)), as a `no_std` static library. Kani proves that each function gives the core's answer. Used by the F´ components, and usable from any C or C++ framework. |
+| [`fprime`](fprime) | F´ v4.4.1 components: `RedundancyManager`, `HealthRegistry`, `ReplicaHost` and the test-only `FaultInjector`, with spares, standby and state that survives resets. 37 unit tests, and a system test that gives the demo's counts on the bench schedules ([requirements](docs/fprime-requirements.md), [design and results](docs/fprime-design-fpp.md)). |
 | [`bench`](bench/src/main.rs) | Times the decision core on the host: nanoseconds per call of `decide()` for each policy and mode, and of `Health::strike()`. No dependencies. |
 | [`demo`](demo/src/main.rs) | The `quorum` program: three replica processes, a voter built on the core, fault injection, enforced resource limits, and a report of what was delivered and what it cost. Runs on Linux and macOS; release builds are fully static binaries for 64-bit and 32-bit ARM Linux. Its only dependency is `libc`, for the system calls behind the limits. |
 
@@ -197,9 +199,8 @@ schedule and the operations note.
 ## Roadmap
 
 1. **F´ components**: `RedundancyManager`, `HealthRegistry`, `ReplicaHost` and a
-   test-only `FaultInjector`, as thin C++ shells around the Rust core
-   ([design](docs/fprime-design.md)). `PowerAccountant` and `ScrubScheduler`
-   follow.
+   test-only `FaultInjector` are built ([design](docs/fprime-design.md)). Next:
+   a reference deployment, `PowerAccountant` and `ScrubScheduler`.
 2. **Measurements on representative processors**: static ARM Linux binaries are
    built and tested today; next, real boards.
 3. **Hardware-in-the-loop bench**: real boards with injected faults (bit flips,

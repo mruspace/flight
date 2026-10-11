@@ -1,8 +1,13 @@
 # From prototype to F´ components
 
 How the `quorum` crate and the demo map onto NASA JPL's
-[F´](https://github.com/nasa/fprime) flight software framework. This is the
-plan for the next step; nothing in this document is built yet.
+[F´](https://github.com/nasa/fprime) flight software framework.
+`RedundancyManager`, `HealthRegistry`, `ReplicaHost` and `FaultInjector` are
+built in [`fprime/`](../fprime), with the C interface
+[`quorum-ffi`](../quorum-ffi). Their requirements are in
+[fprime-requirements.md](fprime-requirements.md), the design and results in
+[fprime-design-fpp.md](fprime-design-fpp.md). `PowerAccountant` and
+`ScrubScheduler` are not started.
 
 ## Principle: a verified Rust core inside thin F´ components
 
