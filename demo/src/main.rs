@@ -1280,7 +1280,7 @@ fn main() {
             halted_at.map_or("never".to_string(), |t| t.to_string())
         ),
         format!(
-            "footprint: voter_max_rss={voter_kib}KiB replica_max_rss={replica_kib}KiB cpu={:.2}s wall={wall:.2}s",
+            "footprint: voter_max_rss={voter_kib}KiB replica_max_rss={replica_kib}KiB cpu={:.3}s wall={wall:.3}s",
             voter_cpu + replica_cpu
         ),
         format!(
