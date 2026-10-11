@@ -302,7 +302,13 @@ set -- --policy shrink --ticks 30000 --seed 2 --upset-rate 0 \
 want=$("$Q" "$@" | sed -n '2p;5p')
 "$Q" "$@" --cpu-percent 20 --checkpoint "$dir/cp" --log "$dir/log.csv" >/dev/null &
 pid=$!
-sleep 1
+# Kill only once a checkpoint holds the fault (tick 500 or later): a slow
+# runner may not reach it in a fixed time. Give up after about 30 s.
+n=0
+until grep -q '^stuckbit=-,-,out' "$dir/cp" 2>/dev/null || [ "$n" -ge 150 ]; do
+    sleep 0.2
+    n=$((n + 1))
+done
 kill -KILL "$pid"
 wait "$pid" 2>/dev/null || true
 sleep 0.3
