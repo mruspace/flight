@@ -286,6 +286,19 @@ mod tests {
 mod proofs {
     use super::*;
 
+    /// Two records hold the same values. Compared value by value: `==` on the
+    /// struct becomes a byte-wise memcmp, which needs a much deeper loop bound.
+    fn same(a: &QuorumHealth, b: &QuorumHealth) -> bool {
+        let mut same = true;
+        for i in 0..REPLICAS {
+            for k in 0..STRIKES {
+                same &= a.strikes[i][k] == b.strikes[i][k];
+            }
+            same &= a.count[i] == b.count[i];
+        }
+        same
+    }
+
     fn any_reply() -> QuorumReply {
         QuorumReply {
             kind: kani::any(),
@@ -342,8 +355,7 @@ mod proofs {
     /// `quorum_health_strike` gives the core's answer and leaves the core's
     /// record, for any record; an index above 2 changes nothing.
     #[kani::proof]
-    // comparing two records walks 12 values
-    #[kani::unwind(16)]
+    #[kani::unwind(5)]
     fn strike_is_the_core() {
         let strikes: [[u64; STRIKES]; REPLICAS] = kani::any();
         let count: [u64; REPLICAS] = [
@@ -359,17 +371,16 @@ mod proofs {
         if (replica as usize) < REPLICAS {
             let mut core = to_core(&before);
             assert_eq!(got, core.strike(replica as usize, cycle));
-            assert_eq!(h, from_core(&core));
+            assert!(same(&h, &from_core(&core)));
         } else {
             assert!(!got);
-            assert_eq!(h, before);
+            assert!(same(&h, &before));
         }
     }
 
     /// `quorum_health_clear` is the core's `clear`; an index above 2 changes nothing.
     #[kani::proof]
-    // comparing two records walks 12 values
-    #[kani::unwind(16)]
+    #[kani::unwind(5)]
     fn clear_is_the_core() {
         let strikes: [[u64; STRIKES]; REPLICAS] = kani::any();
         let count: [u64; REPLICAS] = [
@@ -384,9 +395,9 @@ mod proofs {
         if (replica as usize) < REPLICAS {
             let mut core = to_core(&before);
             core.clear(replica as usize);
-            assert_eq!(h, from_core(&core));
+            assert!(same(&h, &from_core(&core)));
         } else {
-            assert_eq!(h, before);
+            assert!(same(&h, &before));
         }
     }
 }
