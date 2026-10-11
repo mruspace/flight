@@ -11,14 +11,31 @@
 
 [![ci](https://github.com/mruspace/flight/actions/workflows/ci.yml/badge.svg)](https://github.com/mruspace/flight/actions/workflows/ci.yml)
 
-Onboard software that keeps a spacecraft doing useful work as its processors
-fail. Part of [Mru](https://mru.space).
+Onboard software for unattended missions with no repair path: it keeps a
+spacecraft doing useful work as its processors fail. Part of
+[Mru](https://mru.space).
 
-Classic triple modular redundancy votes on three processors and stops when it
-can no longer form a majority. Mru's **shrinking quorum** keeps going: vote on
-three, compare on two, self-check on one. In 10,000 simulated missions it
-delivered 1.34× the useful work of fixed triple redundancy on the same hardware,
-and never less on any single mission ([dusk](https://github.com/mruspace/dusk)).
+Fixed triple modular redundancy (TMR) votes on three processors and stops when
+it can no longer form a majority. Most spacecraft fly two strings with
+autonomous fault protection instead, which makes the spacecraft safe and waits
+for the ground. Stepping down from three replicas to two to one is not new: the
+Space Shuttle's computers did it
+([prior art](https://docs.mru.space/concepts/prior-art/)). Mru's **shrinking
+quorum** does it with no ground team: vote on three, compare on two, self-check
+on one.
+
+In 10,000 simulated missions with no ground support after launch, it delivered
+1.34× the useful work of fixed TMR on the same hardware. With ground support
+that never ends, the gain is 1.00×
+([dusk, ground support](https://github.com/mruspace/dusk#when-the-ground-can-help)).
+Against autonomous baselines the result is narrower. A fallback that does not
+check its last processor does more work: the shrinking quorum does 80% of it,
+with 1.00% of its wrong results. Against cold standby with three strings, the
+shrinking quorum does 0.92× to 1.60× the useful work, depending on how fast an
+unpowered spare ages; cold standby wins on work below an aging rate of about
+0.20. Under the shrinking quorum, 20.1% of simulated missions deliver at least
+one wrong result, against 0.0% for fixed TMR
+([dusk, two more baselines](https://github.com/mruspace/dusk#two-more-baselines)).
 
 This repository is where that policy becomes flight software: a small,
 verified Rust core, wrapped as components for NASA JPL's open-source
@@ -38,23 +55,43 @@ on general-purpose processors, not yet on flight hardware.
 | Crate | What it is |
 |---|---|
 | [`quorum`](quorum/src/lib.rs) | The decision core: vote, compare, self-check, and the health record that decides when a replica must be diagnosed. `no_std`, no allocation, no dependencies. Unit-tested, checked with [Kani](https://github.com/model-checking/kani), and built in CI for a bare-metal ARM Cortex-M target. |
-| [`quorum-ffi`](quorum-ffi/src/lib.rs) | The C interface to the core ([`quorum.h`](quorum-ffi/include/quorum.h)), as a `no_std` static library. Kani proves that each function gives the core's answer. Used by the F´ components, and usable from any C or C++ framework. |
-| [`fprime`](fprime) | F´ v4.4.1 components: `RedundancyManager`, `HealthRegistry`, `ReplicaHost` and the test-only `FaultInjector`, with spares, standby and state that survives resets. 37 unit tests, and a system test that gives the demo's counts on the bench schedules ([requirements](docs/fprime-requirements.md), [design and results](docs/fprime-design-fpp.md)). |
+| [`quorum-ffi`](quorum-ffi/src/lib.rs) | The C interface to the core ([`quorum.h`](quorum-ffi/include/quorum.h)), as a `no_std` static library. Kani proves that its decide, mode, strike and clear functions give the core's answer. Used by the F´ components, and usable from any C or C++ framework. |
+| [`fprime`](fprime) | F´ v4.4.1 components: `RedundancyManager`, `HealthRegistry`, `ReplicaHost` and the test-only `FaultInjector`, with spares, standby and state that survives resets. 37 unit tests, and a system test against the demo on the bench schedules: wrong results match in all 60 cases, and correct results match exactly in 36 ([requirements](docs/fprime-requirements.md), [design and results](docs/fprime-design-fpp.md)). |
 | [`bench`](bench/src/main.rs) | Times the decision core on the host: nanoseconds per call of `decide()` for each policy and mode, and of `Health::strike()`. No dependencies. |
-| [`demo`](demo/src/main.rs) | The `quorum` program: three replica processes, a voter built on the core, fault injection, enforced resource limits, and a report of what was delivered and what it cost. Runs on Linux and macOS; release builds are fully static binaries for 64-bit and 32-bit ARM Linux. Its only dependency is `libc`, for the system calls behind the limits. |
+| [`demo`](demo/src/main.rs) | The `quorum` program: three replica processes, a voter built on the core, fault injection, enforced resource limits, and a report of what was delivered and what it cost. Runs on Linux and macOS; release builds are fully static binaries for 64-bit and 32-bit ARM Linux and x86_64 Linux. Its only dependency is `libc`, for the system calls behind the limits. |
 
-### What the core guarantees
+### Proved, per decision
 
-Checked by unit tests over every combination of a small value domain, and by
-Kani over every possible input (4 proofs, verified in CI on every change):
+Kani checks these four properties of `decide()` for every set of three replies
+(each reply absent, one value or two values, any `u64` values). CI runs all 9
+proofs (4 here, 5 for the C interface) on every change. Unit tests also cover
+every combination of a small value domain.
 
-- **Never less than fixed TMR.** While fixed TMR can still run (two or more
-  replicas), both policies make exactly the same decision. The shrinking
-  quorum only differs after fixed TMR has stopped.
-- **Fixed TMR stops below two replicas.** The shrinking quorum halts only when
-  no replica is left.
-- **Only agreed results are delivered.** A delivered value was produced by at
-  least two replicas, or by both runs of the last replica's self-check.
+- **Same outcome as fixed TMR with two or more replicas.** Given the same
+  replies, `decide()` gives the same outcome under both policies
+  ([`identical_while_tmr_can_run`](quorum/src/lib.rs#L331)). It compares the
+  outcome only: with two replicas, the shrinking quorum also sets `diagnose`,
+  so it can retire a stuck replica where fixed TMR stays in disagreement.
+- **Fixed TMR stops below two replicas**
+  ([`tmr_stops_below_two`](quorum/src/lib.rs#L343)). **The shrinking quorum
+  halts only when no replica is left**
+  ([`shrink_halts_only_with_nothing_left`](quorum/src/lib.rs#L352)).
+- **Only agreed results are delivered.** A delivered value came from at least
+  two agreeing replicas, or from both runs of the last replica's self-check
+  ([`delivers_only_agreed_values`](quorum/src/lib.rs#L362)).
+
+Not covered by the proofs: `Health` (unit tests only), diagnosis and the
+known-answer test (they live in the demo and the F´ components), timing, and
+the system over a whole run.
+
+### Tested, per run
+
+**Never less than fixed TMR over a whole run** is tested, not proved. The
+proof above does not carry over, because the shrinking quorum retires replicas
+that fixed TMR keeps. It is checked by `scripts/scenarios.sh` over ten seeds
+(kill faults only), by the bench (150 run pairs on five fault schedules, none
+below fixed TMR), and in [dusk](https://github.com/mruspace/dusk) over 10,000
+simulated missions, where it holds by construction.
 
 ### How the demo works
 
@@ -67,8 +104,9 @@ Kani over every possible input (4 proofs, verified in CI on every change):
   diagnosed with a **known-answer test** (a fixed input whose result is known).
   Passing means the upsets were transient, so its strikes are cleared. Failing
   retires it.
-- **Known-answer tests** also tell which side is wrong when two replicas
-  disagree, and run periodically on the last replica to catch a stuck fault.
+- **Known-answer tests** also try to tell which side is wrong when two
+  replicas disagree (see [Two replicas](#two-replicas)), and run periodically
+  on the last replica to catch a stuck fault.
 - **Fault injection** by schedule or at random: kill a replica, make it hang,
   make it stuck, or flip a bit in its **working memory** during a computation,
   as radiation would, so the fault travels through the real calculation. On
@@ -99,8 +137,10 @@ Kani over every possible input (4 proofs, verified in CI on every change):
 cargo test --workspace         # unit tests
 ./scripts/scenarios.sh         # scenario tests against the real program
 ./scripts/bench.sh             # bench: 300 runs, TMR vs shrinking quorum (below)
-cargo run --release -- --policy shrink --ticks 20000 --seed 1 --upset-rate 0.001 \
-  --fault stuck:1@4000 --fault kill:0@9000
+./scripts/kat-coverage.sh      # known-answer test coverage campaign (below)
+./scripts/check-claims.sh      # README numbers against bench/results
+cargo run --release --bin quorum -- --policy shrink --ticks 20000 --seed 1 \
+  --upset-rate 0.001 --fault stuck:1@4000 --fault kill:0@9000
 ```
 
 `--log file.csv` writes every event (stuck, hang, lost, retired, cleared,
@@ -108,7 +148,8 @@ killed, detected, wrong, stopped, sensor bit flips), and `--progress-every N`
 adds the running totals every N ticks. `quorum` with an unknown option prints
 all options. `python3 scripts/chart.py --png` redraws the chart above from two
 such runs. To run the proofs,
-install Kani and run `cargo kani -p quorum`.
+install Kani (`cargo install --locked kani-verifier && cargo kani setup`) and run
+`cargo kani -p quorum -p quorum-ffi`.
 
 ## Results
 
@@ -138,13 +179,60 @@ over thousands of simulated missions, see [dusk](https://github.com/mruspace/dus
 
 ### The honest cost
 
-On one replica, a stuck fault is only caught by the periodic known-answer test
-(every 64 ticks, `--kat-period`). With replicas lost at 5,000 and 8,000 and the
-last one stuck at 10,000, the demo delivered 24 wrong results before the test
-caught it and the system stopped. Fixed TMR would have stopped long before, at
-the second loss, and delivered none. A shorter test period trades throughput
-for a smaller window. This is the trade the whitepaper and dusk quantify: more
-useful work, at the cost of a small number of unchecked results late in life.
+On one replica, self-check cannot see a fault that gives the same wrong answer
+twice. Only the periodic known-answer test (every 64 ticks by default,
+`--kat-period`) can catch it, and only if the fault changes the test's answer.
+Until then, wrong results get out. Fixed TMR would have stopped at the second
+loss and delivered none.
+
+`scripts/kat-coverage.sh` measures this. It kills two replicas, injects one
+fault into the last one, and records whether the voter caught it, how fast, and
+how many wrong results got out first. Results:
+[`bench/results/2026-10-11-darwin-arm64-kat.json`](bench/results/2026-10-11-darwin-arm64-kat.json).
+
+| Fault on the last replica, test every 64 ticks | Faults | Detected | Ticks to detect, mean (max) | Wrong before detection, mean (max) | Missed, with wrong results |
+|---|---|---|---|---|---|
+| Stuck result (same wrong value every time) | 256 | 100% | 31.5 (63) | 15.5 (31) | 0 |
+| Hang | 64 | 100% | 0.5 (1) | 0 (0) | 0 |
+| Stuck-at bit in the result | 128 | 50% | 31.5 (63) | 7.9 (17) | 64 |
+| Stuck-at bit in the hash accumulator | 128 | 98% | 31.8 (63) | 15.6 (31) | 2 |
+| Stuck-at bit in the working block (128 of 65,536) | 128 | 46% | 32.9 (62) | 8.2 (18) | 69 |
+| Stuck-at bit in the input | 128 | 50% | 31.5 (63) | 15.2 (31) | 10 |
+| Bit flip in working memory, common-mode share 0 | 400 | 100% | 0 (0) | 0 (0) | 0 |
+| Bit flip, common-mode share 0.05 | 400 | 94% | 0 (0) | 0 (0) | 23 |
+| Bit flip, common-mode share 0.2 | 400 | 79% | 0 (0) | 0 (0) | 84 |
+
+What this shows:
+
+- **One known-answer input sees about half of the stuck-at bits.** The test
+  sends one fixed input. A stuck bit shows only when it changes that input's
+  answer. A stuck-at-0 bit on the input is invisible by construction, because
+  the test input is 0. (54 of those 64 missed input faults changed nothing in
+  these short runs, only because the ticks never set those bits. In a longer
+  mission they would.) A second test input would close most of this gap. It is
+  planned, not built.
+- **A missed stuck-at bit keeps delivering wrong results.** For a stuck bit in
+  the result, about half of all later results are wrong, and nothing flags
+  them.
+- **Bit flips are caught by self-check, not by the test.** A flip that hits
+  both self-check runs alike (the common-mode share) gives one wrong result
+  that nothing flags. The test period does not change this.
+- **A shorter period shortens the window for a stuck result.** At every
+  period, all 256 stuck results were caught, within one period. Wrong results
+  before detection averaged 1.5 at 8 ticks, 15.5 at 64 ticks and 63.5 at 256
+  ticks.
+- **Throughput cost.** At period 64 the test runs 0.0312 times per delivered
+  result. Measured CPU cost against no test, median of 10 runs of 100,000
+  ticks: 22.1% at period 8, 10.4% at period 16, and 1.9% at period 64. From
+  period 32 up, the cost is smaller than the run-to-run spread (about 6% of the
+  median), so treat it as "about 2%, within noise". Each test is its own
+  request to the replica, which is why the cost is above one extra computation
+  per period.
+
+Scope: the demo task (a hash over a 4 KiB block) on one Apple M4, three
+replica processes on one host, faults injected in software. This is not
+flight hardware, not a radiation test, and not the F´ components, which do not
+model stuck-at bits.
 
 The scenario tests also caught a real flaw during development: health scoring
 first retired a replica as soon as it was outvoted three times, so random upsets
@@ -178,13 +266,16 @@ done yet. The procedure is in [docs/board.md](docs/board.md).
 
 ### Footprint and limits
 
-Measured in CI on every change, 20,000 results (the shrinking-quorum demo run):
+Largest resident memory of any process over all 300 bench runs per host, from
+[`bench/results`](bench/results):
 
-| Platform | Voter memory | Each replica | Binary |
-|---|---|---|---|
-| Linux ARM64 (aarch64) | about 1.5 MB | about 1.5 MB | about 0.5 MB |
-| Linux x86_64 | about 2.0 MB | about 2.0 MB | about 0.5 MB |
-| macOS (Apple silicon) | about 1.5 MB | about 1.4 MB | about 0.5 MB |
+| Host | Largest process |
+|---|---|
+| Linux ARM64 (Neoverse-N2) | 1.7 MB |
+| Linux x86_64 (EPYC 7763) | 2.1 MB |
+| macOS (Apple M4) | 1.9 MB |
+
+The static `quorum` binaries in the v0.2.0 release packages are 642 to 675 kB.
 
 The scenario tests also check the safety limits: a hung replica is dropped
 after the reply timeout, SIGTERM ends the run cleanly with no replica left, the
@@ -195,6 +286,69 @@ schedule file and the launcher script. In CI the whole suite also runs on the
 static 64-bit and 32-bit (hard and soft float) ARM binaries under emulation.
 Tagged releases package each binary with the launcher, a sample fault
 schedule and the operations note.
+
+## Two replicas
+
+With two replicas, `decide()` compares. On a mismatch, the outcome is
+`Detected` under both policies, and the shrinking quorum also sets `diagnose`.
+The demo then runs a known-answer test on both replicas
+([`demo/src/main.rs`](demo/src/main.rs)):
+
+- **One fails:** it is retired, and the survivor goes to self-check.
+- **Both fail, or both time out:** both are retired, and the run halts, where
+  fixed TMR would keep comparing. If a failure was spurious (for example a
+  timeout on a slow but healthy replica), the shrinking quorum delivers less
+  than fixed TMR from then on.
+- **Both pass:** nothing is retired and the tick is lost. If a persistent fault
+  does not change the test's answer, every later tick is also lost, the test
+  runs on every tick, and nothing escalates. This is the same outcome as fixed
+  TMR, which stays in disagreement.
+
+With three replicas, a three-way split gives `Detected` with no strikes and no
+diagnosis. Two replicas stuck at the same wrong value agree, so both policies
+deliver it.
+
+## Input agreement
+
+Every replica in the demo computes from the same input, because the input is
+derived from the tick. Real sensor inputs differ between replicas unless an
+agreement step makes them equal first. Mru does not provide that step yet, and
+neither dusk nor the bench models it.
+
+## Limits and open questions
+
+- **Common-mode faults.** A shared power supply, clock or thermal fault can
+  hit every replica at once. Dusk models correlated deaths, and the demo models
+  an upset that hits both self-check runs. Neither models a shared power supply
+  or clock.
+- **Replica determinism.** The demo task is a pure function of the tick.
+  Interrupts and scheduling in real flight software can make healthy replicas
+  disagree. This is not modeled.
+- **Known-answer test coverage** is measured for the demo task on
+  general-purpose processors only (above). It is not measured on target
+  hardware or under radiation.
+- **Command path.** Self-check on one replica can deliver a few wrong results
+  before the test catches a stuck fault, and some faults it never catches.
+  Use that mode for data products, not spacecraft commands, unless the mission
+  adds its own command safety layer. Integrators can gate commands on
+  `Verdict.mode` ([example](https://docs.mru.space/core/quorum-crate/#gate)).
+- **Power.** Each extra processor costs power, and self-check doubles the work
+  of the last one. Mru does no power management today.
+
+## Qualification path
+
+No qualification evidence exists yet, and Mru Flight makes no compliance
+claim. [`docs/qualification.md`](docs/qualification.md) maps what exists (unit
+tests, Kani proofs, CI, scenario tests, the bench) to NASA NPR 7150.2,
+NASA-STD-8739.8, ECSS-E-ST-40C and ECSS-Q-ST-80C, and lists what has not
+started.
+
+## Releases
+
+Tagged releases are on the
+[releases page](https://github.com/mruspace/flight/releases), with static
+binaries for 64-bit and 32-bit ARM Linux and x86_64 Linux, and `SHA256SUMS`.
+Changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## Roadmap
 

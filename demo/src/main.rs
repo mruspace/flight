@@ -36,8 +36,15 @@ fn xorshift(s: &mut u64) -> u64 {
 }
 
 /// Fill the working block for `tick`, apply an optional upset (a bit flip in
-/// working memory, as radiation would cause), and hash the block.
-fn compute(block: &mut [u64; BLOCK_WORDS], tick: u64, upset: Option<(usize, u32)>) -> u64 {
+/// working memory, as radiation would cause), and hash the block. A stuck-at
+/// bit in the block is forced after the fill and after the upset; one in the
+/// accumulator is forced after every multiply.
+fn compute(
+    block: &mut [u64; BLOCK_WORDS],
+    tick: u64,
+    upset: Option<(usize, u32)>,
+    stuck: Option<StuckAt>,
+) -> u64 {
     let mut s = tick.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(1);
     for w in block.iter_mut() {
         *w = xorshift(&mut s);
@@ -45,11 +52,34 @@ fn compute(block: &mut [u64; BLOCK_WORDS], tick: u64, upset: Option<(usize, u32)
     if let Some((word, bit)) = upset {
         block[word % BLOCK_WORDS] ^= 1 << (bit % 64);
     }
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325; // FNV-1a over the block
+    match stuck {
+        Some(StuckAt {
+            loc: Loc::Block,
+            bit,
+            value,
+        }) => {
+            let (word, b) = (usize::from(bit) / 64, u32::from(bit % 64));
+            block[word] = set_bit(block[word], b, value);
+        }
+        Some(StuckAt {
+            loc: Loc::Acc,
+            bit,
+            value,
+        }) => return hash(block, |h| set_bit(h, u32::from(bit), value)),
+        _ => {}
+    }
+    hash(block, |h| h)
+}
+
+/// FNV-1a over the block; `after` acts on the accumulator after every
+/// multiply (it does nothing on healthy hardware).
+#[inline(always)]
+fn hash(block: &[u64; BLOCK_WORDS], after: impl Fn(u64) -> u64) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for w in block.iter() {
         for b in 0..8 {
             h ^= (w >> (8 * b)) & 0xff;
-            h = h.wrapping_mul(0x0100_0000_01b3);
+            h = after(h.wrapping_mul(0x0100_0000_01b3));
         }
     }
     h
@@ -57,16 +87,101 @@ fn compute(block: &mut [u64; BLOCK_WORDS], tick: u64, upset: Option<(usize, u32)
 
 /// The correct result for `tick`, computed by the voter for scoring only.
 fn truth(tick: u64) -> u64 {
-    compute(&mut [0; BLOCK_WORDS], tick, None)
+    compute(&mut [0; BLOCK_WORDS], tick, None, None)
 }
 
-// ---- voter <-> replica protocol: 12-byte requests, 16-byte responses
+/// `x` with bit `b` forced to `v`.
+fn set_bit(x: u64, b: u32, v: bool) -> u64 {
+    (x & !(1 << b)) | (u64::from(v) << b)
+}
+
+// ---- stuck-at bits: a permanent hardware fault that holds one bit at 0 or 1
+
+/// Where a stuck-at bit sits in the replica.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Loc {
+    /// The request's input (the tick), bits 0..63, forced before compute.
+    In,
+    /// The 4 KiB working block, bits 0..32767 (word = bit / 64).
+    Block,
+    /// The hash accumulator, bits 0..63, forced after every multiply.
+    Acc,
+    /// The result register, bits 0..63, forced after compute.
+    Out,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct StuckAt {
+    loc: Loc,
+    bit: u16,
+    value: bool,
+}
+
+impl StuckAt {
+    const LOCS: [(Loc, &'static str, u16); 4] = [
+        (Loc::In, "in", 64),
+        (Loc::Block, "block", (BLOCK_WORDS * 64) as u16),
+        (Loc::Acc, "acc", 64),
+        (Loc::Out, "out", 64),
+    ];
+
+    /// Parse `LOC.BIT.V`, for example `out.17.1`.
+    fn parse(s: &str) -> Option<StuckAt> {
+        let mut parts = s.split('.');
+        let (name, bit, value) = (parts.next()?, parts.next()?, parts.next()?);
+        if parts.next().is_some() {
+            return None;
+        }
+        let &(loc, _, bits) = StuckAt::LOCS.iter().find(|l| l.1 == name)?;
+        let bit: u16 = bit.parse().ok()?;
+        let value = match value {
+            "0" => false,
+            "1" => true,
+            _ => return None,
+        };
+        (bit < bits).then_some(StuckAt { loc, bit, value })
+    }
+
+    fn text(self) -> String {
+        let name = StuckAt::LOCS.iter().find(|l| l.0 == self.loc).unwrap().1;
+        format!("{name}.{}.{}", self.bit, u8::from(self.value))
+    }
+
+    /// Request bytes 12..15: location and value, then the bit (little-endian).
+    fn encode(self) -> [u8; 3] {
+        let loc = StuckAt::LOCS.iter().position(|l| l.0 == self.loc).unwrap() as u8;
+        let bit = self.bit.to_le_bytes();
+        [loc | (u8::from(self.value) << 4), bit[0], bit[1]]
+    }
+
+    fn decode(q: [u8; 3]) -> StuckAt {
+        StuckAt {
+            loc: StuckAt::LOCS[usize::from(q[0] & 0x0f) % 4].0,
+            bit: u16::from_le_bytes([q[1], q[2]]),
+            value: q[0] >> 4 & 1 == 1,
+        }
+    }
+
+    /// Apply to a 64-bit register at `loc` (the input or the result).
+    fn force(this: Option<StuckAt>, loc: Loc, x: u64) -> u64 {
+        match this {
+            Some(s) if s.loc == loc => set_bit(x, u32::from(s.bit), s.value),
+            _ => x,
+        }
+    }
+}
+
+// ---- voter <-> replica protocol: 16-byte requests, 16-byte responses
+//
+// Request: tick (8 bytes, little-endian), flags, upset bit, upset word (2),
+// stuck-at location and value, stuck-at bit (2), one spare byte.
 
 const UPSET_FIRST: u8 = 1; // flip a bit in working memory during the (first) run
 const SELF_CHECK: u8 = 2; // compute twice and return both results
 const UPSET_SECOND: u8 = 4; // the same flip during the second run too (common mode)
 const STUCK: u8 = 8; // persistent fault: return a fixed wrong value
 const HANG: u8 = 16; // persistent fault: stop answering
+const STUCK_BIT: u8 = 32; // persistent fault: one bit held at 0 or 1 (bytes 12..15)
 
 /// Known-answer test input; its result is computed once at start-up.
 const KAT_INPUT: u64 = 0;
@@ -76,20 +191,27 @@ fn replica_main(limits: Limits) -> ! {
     let mut input = std::io::stdin().lock();
     let mut output = std::io::stdout().lock();
     let mut block = Box::new([0u64; BLOCK_WORDS]); // working memory, allocated once
-    let mut q = [0u8; 12];
+    let mut q = [0u8; 16];
     while input.read_exact(&mut q).is_ok() {
-        let tick = u64::from_le_bytes(q[..8].try_into().unwrap());
         let (flags, bit) = (q[8], u32::from(q[9]));
         let word = usize::from(u16::from_le_bytes([q[10], q[11]]));
+        let stuck = (flags & STUCK_BIT != 0).then(|| StuckAt::decode([q[12], q[13], q[14]]));
         if flags & HANG != 0 {
             loop {
                 std::thread::sleep(Duration::from_secs(3600));
             }
         }
+        // a stuck input bit changes the input both runs see
+        let tick = StuckAt::force(
+            stuck,
+            Loc::In,
+            u64::from_le_bytes(q[..8].try_into().unwrap()),
+        );
         let at = (word, bit);
-        let mut first = compute(&mut block, tick, (flags & UPSET_FIRST != 0).then_some(at));
+        let upset = |f| (flags & f != 0).then_some(at);
+        let mut first = compute(&mut block, tick, upset(UPSET_FIRST), stuck);
         let mut second = if flags & SELF_CHECK != 0 {
-            compute(&mut block, tick, (flags & UPSET_SECOND != 0).then_some(at))
+            compute(&mut block, tick, upset(UPSET_SECOND), stuck)
         } else {
             0
         };
@@ -97,6 +219,10 @@ fn replica_main(limits: Limits) -> ! {
             first = 0xdead_beef;
             second = 0xdead_beef;
         }
+        // a stuck result bit is forced last, after the STUCK value: it is in
+        // the register the replica answers from
+        first = StuckAt::force(stuck, Loc::Out, first);
+        second = StuckAt::force(stuck, Loc::Out, second);
         let mut r = [0u8; 16];
         r[..8].copy_from_slice(&first.to_le_bytes());
         r[8..].copy_from_slice(&second.to_le_bytes());
@@ -114,6 +240,10 @@ struct Replica {
     from: ChildStdout,
     stuck: bool,
     hung: bool,
+    stuck_bit: Option<StuckAt>,
+    /// A scheduled corrupt fault waiting for the replica's next computation
+    /// (in self-check mode the fault tick can be one without a computation).
+    corrupt_pending: bool,
 }
 
 impl Replica {
@@ -138,6 +268,8 @@ impl Replica {
             from,
             stuck: false,
             hung: false,
+            stuck_bit: None,
+            corrupt_pending: false,
         }
     }
 
@@ -156,11 +288,15 @@ impl Replica {
         if self.hung {
             flags |= HANG;
         }
-        let mut q = [0u8; 12];
+        let mut q = [0u8; 16];
+        if let Some(s) = self.stuck_bit {
+            flags |= STUCK_BIT;
+            q[12..15].copy_from_slice(&s.encode());
+        }
         q[..8].copy_from_slice(&tick.to_le_bytes());
         q[8] = flags;
         q[9] = bit;
-        q[10..].copy_from_slice(&word.to_le_bytes());
+        q[10..12].copy_from_slice(&word.to_le_bytes());
         self.to.write_all(&q).and_then(|_| self.to.flush()).ok()?;
         let mut r = [0u8; 16];
         read_exact_timeout(&mut self.from, &mut r, timeout)?;
@@ -170,7 +306,10 @@ impl Replica {
         ))
     }
 
-    fn known_answer_ok(&mut self, expected: u64, timeout: Duration) -> bool {
+    /// Run the known-answer test and add one to `tests`. The request carries
+    /// the replica's persistent faults, so the test sees the same hardware.
+    fn known_answer_ok(&mut self, expected: u64, timeout: Duration, tests: &mut u64) -> bool {
+        *tests += 1;
         self.ask(KAT_INPUT, 0, 0, 0, timeout).map(|(a, _)| a) == Some(expected)
     }
 
@@ -319,6 +458,8 @@ enum FaultKind {
     Hang,
     /// Flip a bit in the radiation sensor's memory (tests the sensor).
     Sensor,
+    /// Hold one bit at 0 or 1 from the fault tick on.
+    StuckBit(StuckAt),
 }
 
 struct Fault {
@@ -353,6 +494,8 @@ fn usage() -> ! {
         "usage: quorum [--policy shrink|tmr] [--ticks N] [--seed S]\n\
          \x20             [--upset-rate R] [--common-mode C] [--kat-period P]\n\
          \x20             [--fault kill|corrupt|stuck|hang|sensor:I@T] ... [--faults-file F]\n\
+         \x20             [--fault stuckbit:I@T/LOC.BIT.V] (LOC in.0-63, block.0-32767,\n\
+         \x20              acc.0-63 or out.0-63; V 0 or 1)\n\
          \x20             [--max-memory-mb M] [--max-cpu-seconds S] [--cpu-percent P]\n\
          \x20             [--max-seconds S] [--reply-timeout-ms T]\n\
          \x20             [--sensor-mb M] [--sensor-every N]\n\
@@ -365,12 +508,18 @@ fn usage() -> ! {
 fn parse_fault(s: &str) -> Option<Fault> {
     let (kind, rest) = s.split_once(':')?;
     let (replica, tick) = rest.split_once('@')?;
-    let kind = match kind {
-        "kill" => FaultKind::Kill,
-        "corrupt" => FaultKind::Corrupt,
-        "stuck" => FaultKind::Stuck,
-        "hang" => FaultKind::Hang,
-        "sensor" => FaultKind::Sensor,
+    // only a stuck-at bit takes parameters, after a '/'
+    let (tick, params) = match tick.split_once('/') {
+        Some((t, p)) => (t, Some(p)),
+        None => (tick, None),
+    };
+    let kind = match (kind, params) {
+        ("kill", None) => FaultKind::Kill,
+        ("corrupt", None) => FaultKind::Corrupt,
+        ("stuck", None) => FaultKind::Stuck,
+        ("hang", None) => FaultKind::Hang,
+        ("sensor", None) => FaultKind::Sensor,
+        ("stuckbit", Some(p)) => FaultKind::StuckBit(StuckAt::parse(p)?),
         _ => return None,
     };
     let replica: usize = replica.parse().ok()?;
@@ -519,6 +668,8 @@ struct Checkpoint {
     alive: [bool; REPLICAS],
     stuck: [bool; REPLICAS],
     hung: [bool; REPLICAS],
+    stuck_bit: [Option<StuckAt>; REPLICAS],
+    corrupt_pending: [bool; REPLICAS],
     strikes: [[u64; quorum::STRIKES]; REPLICAS],
     strike_count: [usize; REPLICAS],
     fault_at: [Option<u64>; REPLICAS],
@@ -526,6 +677,7 @@ struct Checkpoint {
     caught: u64,
     latency_sum: u64,
     latency_max: u64,
+    kat_tests: u64,
     sensor_scans: u64,
     sensor_flips: u64,
     resumes: u64,
@@ -542,6 +694,9 @@ fn run_identity(o: &Options) -> String {
                 FaultKind::Stuck => "stuck",
                 FaultKind::Hang => "hang",
                 FaultKind::Sensor => "sensor",
+                FaultKind::StuckBit(s) => {
+                    return format!("stuckbit:{}@{}/{}", f.replica, f.tick, s.text())
+                }
             };
             format!("{kind}:{}@{}", f.replica, f.tick)
         })
@@ -574,10 +729,16 @@ impl Checkpoint {
             .iter()
             .map(|t| t.map_or("-".into(), |t| t.to_string()))
             .collect();
+        let stuck_bit: Vec<String> = self
+            .stuck_bit
+            .iter()
+            .map(|s| s.map_or("-".into(), StuckAt::text))
+            .collect();
         format!(
             "run={}\ntick={}\nuseful={}\ndetected={}\nwrong={}\nlast_useful={}\nrng={}\n\
-             alive={}\nstuck={}\nhung={}\nstrikes={}\nstrike_count={}\nfault_at={}\n\
-             faults_injected={}\ncaught={}\nlatency_sum={}\nlatency_max={}\n\
+             alive={}\nstuck={}\nhung={}\nstuckbit={}\ncorrupt_pending={}\n\
+             strikes={}\nstrike_count={}\nfault_at={}\n\
+             faults_injected={}\ncaught={}\nlatency_sum={}\nlatency_max={}\nkat_tests={}\n\
              sensor_scans={}\nsensor_flips={}\nresumes={}\n",
             self.run,
             self.tick,
@@ -589,6 +750,8 @@ impl Checkpoint {
             list(&self.alive),
             list(&self.stuck),
             list(&self.hung),
+            stuck_bit.join(","),
+            list(&self.corrupt_pending),
             strikes.join(","),
             counts.join(","),
             fault_at.join(","),
@@ -596,6 +759,7 @@ impl Checkpoint {
             self.caught,
             self.latency_sum,
             self.latency_max,
+            self.kat_tests,
             self.sensor_scans,
             self.sensor_flips,
             self.resumes
@@ -623,6 +787,7 @@ impl Checkpoint {
         let strikes = items("strikes")?;
         let counts = items("strike_count")?;
         let fault_at = items("fault_at")?;
+        let stuck_bit = items("stuckbit")?;
         let mut c = Checkpoint {
             run: get("run")?,
             tick: num("tick")?,
@@ -634,10 +799,12 @@ impl Checkpoint {
             alive: flags("alive")?,
             stuck: flags("stuck")?,
             hung: flags("hung")?,
+            corrupt_pending: flags("corrupt_pending")?,
             faults_injected: num("faults_injected")?,
             caught: num("caught")?,
             latency_sum: num("latency_sum")?,
             latency_max: num("latency_max")?,
+            kat_tests: num("kat_tests")?,
             sensor_scans: num("sensor_scans")?,
             sensor_flips: num("sensor_flips")?,
             resumes: num("resumes")?,
@@ -653,6 +820,12 @@ impl Checkpoint {
                 None
             } else {
                 Some(t.parse().ok()?)
+            };
+            let s = stuck_bit.get(i)?;
+            c.stuck_bit[i] = if s == "-" {
+                None
+            } else {
+                Some(StuckAt::parse(s)?)
             };
         }
         Some(c)
@@ -743,6 +916,8 @@ fn main() {
                 let mut r = Replica::spawn(o.limits);
                 r.stuck = cp.stuck[i];
                 r.hung = cp.hung[i];
+                r.stuck_bit = cp.stuck_bit[i];
+                r.corrupt_pending = cp.corrupt_pending[i];
                 r
             })
         })
@@ -769,6 +944,7 @@ fn main() {
     let mut faults_injected = cp.faults_injected;
     let (mut caught, mut latency_sum, mut latency_max) =
         (cp.caught, cp.latency_sum, cp.latency_max);
+    let mut kat_tests = cp.kat_tests; // known-answer tests run, of every kind
     let mut stopped = "completed";
     let start = Instant::now();
     let mut last_tick = cp.tick;
@@ -778,7 +954,7 @@ fn main() {
                 rng: u64,
                 replicas: &[Option<Replica>],
                 health: &Health,
-                detection: ([Option<u64>; REPLICAS], u64, u64, u64, u64),
+                detection: ([Option<u64>; REPLICAS], u64, u64, u64, u64, u64),
                 sensor: &Option<Sensor>| {
         let Some(path) = &o.checkpoint else { return };
         cp.tick = tick;
@@ -788,6 +964,8 @@ fn main() {
             cp.alive[i] = replicas[i].is_some();
             cp.stuck[i] = replicas[i].as_ref().is_some_and(|r| r.stuck);
             cp.hung[i] = replicas[i].as_ref().is_some_and(|r| r.hung);
+            cp.stuck_bit[i] = replicas[i].as_ref().and_then(|r| r.stuck_bit);
+            cp.corrupt_pending[i] = replicas[i].as_ref().is_some_and(|r| r.corrupt_pending);
         }
         (cp.strikes, cp.strike_count) = health.to_raw();
         (
@@ -796,6 +974,7 @@ fn main() {
             cp.caught,
             cp.latency_sum,
             cp.latency_max,
+            cp.kat_tests,
         ) = detection;
         if let Some(s) = sensor {
             (cp.sensor_scans, cp.sensor_flips) = (s.scans, s.flips);
@@ -835,7 +1014,6 @@ fn main() {
         let tick_start = Instant::now();
 
         // scheduled faults
-        let mut corrupt = [false; REPLICAS];
         let mut flagged = [false; REPLICAS];
         for f in o.faults.iter().filter(|f| f.tick == tick) {
             if f.kind == FaultKind::Sensor {
@@ -857,7 +1035,9 @@ fn main() {
                     replicas[f.replica].take().unwrap().retire();
                     event(tick, "killed", f.replica.to_string());
                 }
-                FaultKind::Corrupt => corrupt[f.replica] = true,
+                // taken at the replica's next computation, which in
+                // self-check mode is the next even tick
+                FaultKind::Corrupt => r.corrupt_pending = true,
                 FaultKind::Stuck => {
                     r.stuck = true;
                     event(tick, "stuck", f.replica.to_string());
@@ -865,6 +1045,10 @@ fn main() {
                 FaultKind::Hang => {
                     r.hung = true;
                     event(tick, "hang", f.replica.to_string());
+                }
+                FaultKind::StuckBit(s) => {
+                    r.stuck_bit = Some(s);
+                    event(tick, "stuckbit", format!("{}/{}", f.replica, s.text()));
                 }
                 FaultKind::Sensor => {}
             }
@@ -891,7 +1075,8 @@ fn main() {
             };
             let draw = xorshift(&mut rng);
             let (bit, word) = ((draw & 63) as u8, ((draw >> 6) % BLOCK_WORDS as u64) as u16);
-            let upset = corrupt[i] || (o.upset_rate > 0.0 && uniform(&mut rng) < o.upset_rate);
+            let upset = std::mem::take(&mut r.corrupt_pending)
+                || (o.upset_rate > 0.0 && uniform(&mut rng) < o.upset_rate);
             let mut flags = 0;
             if mode == Mode::SelfCheck {
                 flags |= SELF_CHECK;
@@ -938,7 +1123,7 @@ fn main() {
                 }
                 let ok = replicas[i]
                     .as_mut()
-                    .is_some_and(|r| r.known_answer_ok(kat, timeout));
+                    .is_some_and(|r| r.known_answer_ok(kat, timeout, &mut kat_tests));
                 if ok {
                     health.clear(i);
                     event(tick, "cleared", i.to_string());
@@ -953,7 +1138,7 @@ fn main() {
                 for i in 0..REPLICAS {
                     let failed = replicas[i]
                         .as_mut()
-                        .is_some_and(|r| !r.known_answer_ok(kat, timeout));
+                        .is_some_and(|r| !r.known_answer_ok(kat, timeout, &mut kat_tests));
                     if failed {
                         replicas[i].take().unwrap().retire();
                         flagged[i] = true;
@@ -966,7 +1151,7 @@ fn main() {
                 for i in 0..REPLICAS {
                     let failed = replicas[i]
                         .as_mut()
-                        .is_some_and(|r| !r.known_answer_ok(kat, timeout));
+                        .is_some_and(|r| !r.known_answer_ok(kat, timeout, &mut kat_tests));
                     if failed {
                         replicas[i].take().unwrap().retire();
                         flagged[i] = true;
@@ -1017,7 +1202,14 @@ fn main() {
                 rng,
                 &replicas,
                 &health,
-                (fault_at, faults_injected, caught, latency_sum, latency_max),
+                (
+                    fault_at,
+                    faults_injected,
+                    caught,
+                    latency_sum,
+                    latency_max,
+                    kat_tests,
+                ),
                 &sensor,
             );
         }
@@ -1039,7 +1231,14 @@ fn main() {
                 rng,
                 &replicas,
                 &health,
-                (fault_at, faults_injected, caught, latency_sum, latency_max),
+                (
+                    fault_at,
+                    faults_injected,
+                    caught,
+                    latency_sum,
+                    latency_max,
+                    kat_tests,
+                ),
                 &sensor,
             );
         } else {
@@ -1077,11 +1276,11 @@ fn main() {
     let mut summary = vec![
         format!("policy={policy} ticks={} seed={} upset_rate={}", o.ticks, o.seed, o.upset_rate),
         format!(
-            "useful={useful} detected={detected} wrong={wrong} halted_at={} alive_at_end={alive_at_end} stopped={stopped} last_useful={last_useful}",
+            "useful={useful} detected={detected} wrong={wrong} halted_at={} alive_at_end={alive_at_end} stopped={stopped} last_useful={last_useful} kat_tests={kat_tests}",
             halted_at.map_or("never".to_string(), |t| t.to_string())
         ),
         format!(
-            "footprint: voter_max_rss={voter_kib}KiB replica_max_rss={replica_kib}KiB cpu={:.2}s wall={wall:.2}s",
+            "footprint: voter_max_rss={voter_kib}KiB replica_max_rss={replica_kib}KiB cpu={:.3}s wall={wall:.3}s",
             voter_cpu + replica_cpu
         ),
         format!(
@@ -1124,5 +1323,67 @@ fn main() {
         if let Err(e) = std::fs::write(path, &text) {
             eprintln!("could not write summary to {path}: {e}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stuck_at_text_and_bytes_round_trip() {
+        for s in [
+            "in.0.0",
+            "in.63.1",
+            "block.0.1",
+            "block.32767.0",
+            "acc.5.1",
+            "out.17.0",
+        ] {
+            let a = StuckAt::parse(s).unwrap();
+            assert_eq!(a.text(), s);
+            assert_eq!(StuckAt::decode(a.encode()), a);
+        }
+    }
+
+    #[test]
+    fn stuck_at_out_of_range_or_malformed_is_refused() {
+        for s in [
+            "",
+            "out",
+            "out.1",
+            "out.64.1",
+            "in.64.0",
+            "acc.64.0",
+            "block.32768.0",
+            "out.1.2",
+            "out.1.1.1",
+            "pc.1.1",
+        ] {
+            assert_eq!(StuckAt::parse(s), None, "{s}");
+        }
+        assert!(parse_fault("stuckbit:2@500").is_none());
+        assert!(parse_fault("stuck:2@500/x").is_none());
+        assert!(parse_fault("stuckbit:2@500/out.3.1").is_some());
+    }
+
+    #[test]
+    fn set_bit_forces_one_bit() {
+        assert_eq!(set_bit(0, 3, true), 8);
+        assert_eq!(set_bit(u64::MAX, 63, false), u64::MAX >> 1);
+        assert_eq!(set_bit(5, 0, true), 5);
+    }
+
+    #[test]
+    fn healthy_compute_is_unchanged_by_a_stuck_bit_elsewhere() {
+        // a stuck input or result bit is applied by the replica, not by compute
+        let mut b = [0; BLOCK_WORDS];
+        for s in ["in.3.1", "out.3.1"] {
+            assert_eq!(compute(&mut b, 7, None, StuckAt::parse(s)), truth(7));
+        }
+        assert_ne!(
+            compute(&mut b, 7, None, StuckAt::parse("acc.5.1")),
+            truth(7)
+        );
     }
 }

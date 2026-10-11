@@ -3,6 +3,7 @@
 #
 #   scripts/board.sh HOST QUORUM [--quick]      scenario checks, then the bench
 #   scripts/board.sh HOST QUORUM --resets N     N resets during one long run
+#   scripts/board.sh HOST QUORUM --kat [--quick] KAT coverage (kat-coverage.sh)
 #
 # HOST is an ssh destination. QUORUM is a static quorum binary for the board
 # (from a tagged release or the CI artifacts). CORE_BIN, a static bench binary
@@ -22,7 +23,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-[ $# -ge 2 ] || { sed -n '2,23p' "$0"; exit 2; }
+[ $# -ge 2 ] || { sed -n '2,22p' "$0"; exit 2; }
 host=$1
 bin=$2
 shift 2
@@ -32,6 +33,7 @@ resets=0
 case "${1:-}" in
     --quick) quick=--quick ;;
     --resets) mode=resets; resets=${2:?--resets needs a count} ;;
+    --kat) mode=kat; [ "${2:-}" = --quick ] && quick=--quick ;;
     "") ;;
     *) echo "unknown option $1" >&2; exit 2 ;;
 esac
@@ -46,7 +48,7 @@ mkdir -p bench/results
 
 on "mkdir -p $dir/scripts $dir/opssat $dir/state"
 scp -q "$bin" "$host:$dir/quorum"
-scp -q scripts/bench.sh scripts/scenarios.sh "$host:$dir/scripts/"
+scp -q scripts/bench.sh scripts/bench-meta.sh scripts/kat-coverage.sh scripts/scenarios.sh "$host:$dir/scripts/"
 scp -q opssat/run.sh opssat/faults.example.txt "$host:$dir/opssat/"
 [ -n "${CORE_BIN:-}" ] && scp -q "$CORE_BIN" "$host:$dir/bench-core"
 on "chmod +x $dir/quorum $dir/scripts/*.sh $dir/opssat/run.sh; [ -e $dir/bench-core ] && chmod +x $dir/bench-core; true"
@@ -58,6 +60,13 @@ if [ "$mode" = bench ]; then
     on "cd $dir && QUORUM_BIN=./quorum $core BENCH_HOST=$name BENCH_COMMIT=$commit sh scripts/bench.sh $quick"
     scp -q "$host:$dir/bench/results/$date-$name*" bench/results/
     echo "results in bench/results/$date-$name*"
+    exit 0
+fi
+
+if [ "$mode" = kat ]; then
+    on "cd $dir && QUORUM_BIN=./quorum BENCH_HOST=$name BENCH_COMMIT=$commit sh scripts/kat-coverage.sh $quick"
+    scp -q "$host:$dir/bench/results/$date-$name-kat*" bench/results/
+    echo "results in bench/results/$date-$name-kat*"
     exit 0
 fi
 

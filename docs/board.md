@@ -54,10 +54,17 @@ scripts/board.sh board path/to/quorum --resets 5
 
 # 5 power cuts: your command switches the board's power off and on
 RESET_CMD='plug off; sleep 5; plug on' scripts/board.sh board path/to/quorum --resets 5
+
+# KAT coverage: how often the known-answer test catches a persistent fault
+scripts/board.sh board path/to/quorum --kat
 ```
 
+The script copies `bench.sh`, `bench-meta.sh` (the host and commit fields of
+every results file), `kat-coverage.sh` and `scenarios.sh` to the board.
+
 Results come back to `bench/results/`: the bench JSON and CSV, the scenario
-output, and for resets a text file with each reset and the final comparison.
+output, for resets a text file with each reset and the final comparison, and
+for `--kat` the KAT coverage JSON and CSV.
 
 ## How resets are checked
 

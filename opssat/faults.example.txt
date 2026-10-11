@@ -1,11 +1,13 @@
 # Fault schedule for a Mru Flight run: one fault per line, kind:replica@tick.
-# Copy to faults.txt next to run.sh to use it. Times are in steps (ticks);
-# agree them with the OPS-SAT team for the planned run length.
+# Copy to faults.txt next to run.sh to use it. Times are in steps (ticks).
+# The OPS-SAT run is proposed, not accepted; its length is not agreed.
 #
 #   kill     the replica process is terminated
 #   stuck    the replica keeps returning the same wrong value
 #   hang     the replica stops answering
-#   corrupt  one bit flip in the replica's working memory, at that step only
+#   corrupt  one bit flip in the replica's working memory, in its next computation
+#   stuckbit one bit forced to 0 or 1 from that step on: stuckbit:I@T/LOC.BIT.V,
+#            LOC is in, block, acc or out
 #   sensor   one bit flip in the radiation sensor (a self-test of the sensor)
 #
 sensor:0@1000

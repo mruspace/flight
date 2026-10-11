@@ -68,17 +68,8 @@ capacity() {
     }'
 }
 
-host=${BENCH_HOST:-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)}
-case "$(uname -s)" in
-    Darwin) cpu=$(sysctl -n machdep.cpu.brand_string) ;;
-    *) cpu=$( (lscpu 2>/dev/null || true) | sed -n 's/^Model name: *//p' | head -n 1) ;;
-esac
-commit=${BENCH_COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}
-[ -z "${BENCH_COMMIT:-}" ] && [ -n "$(git status --porcelain 2>/dev/null)" ] && commit="$commit-dirty"
-rustc=$(rustc -V 2>/dev/null || echo unknown)
-date=$(date -u +%Y-%m-%d)
-out=${BENCH_OUT:-bench/results}
-mkdir -p "$out"
+# host, cpu, commit, rustc, date and the output folder
+. scripts/bench-meta.sh
 base="$out/$date-$host"
 [ "$quick" = 1 ] && base="$base-quick"
 

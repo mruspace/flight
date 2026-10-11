@@ -1,5 +1,8 @@
 # Running Mru Flight on OPS-SAT
 
+**Status: proposed.** ESA has not accepted this experiment, and nothing has
+run on the satellite.
+
 A note for the OPS-SAT Space Lab team: what the experiment does on the
 satellite, what it touches, its limits, how to start and stop it, what it sends
 down, and what it can and cannot show. It describes the current `quorum`

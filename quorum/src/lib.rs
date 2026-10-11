@@ -302,7 +302,7 @@ mod tests {
     }
 }
 
-/// Kani proofs: the same properties as the tests, for every possible input.
+/// Kani proofs: the same properties as the tests, one decision at a time, for every set of three replies.
 /// Run with `cargo kani -p quorum`.
 #[cfg(kani)]
 mod proofs {

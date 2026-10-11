@@ -228,5 +228,113 @@ fi
 set --
 rm -rf "$dir"
 
+# Checks 19 to 25 run replica 2 alone in self-check mode (replicas 0 and 1
+# killed at ticks 10 and 20), with no random upsets, and put a fault on it.
+# one <options>: the counts and the detection line, on one line
+one() {
+    "$Q" --policy shrink --upset-rate 0 --fault kill:0@10 --fault kill:1@20 "$@" |
+        sed -n '2p;/^detection:/p' | tr '\n' ' '
+}
+caught_halted() { [ "$(field caught "$1")" = 1 ] && [ "$(field halted_at "$1")" != never ]; }
+missed_wrong() {
+    [ "$(field caught "$1")" = 0 ] && [ "$(field wrong "$1")" -gt 0 ] &&
+        [ "$(field halted_at "$1")" = never ]
+}
+
+# 19. A result bit stuck at 0 or 1: the known-answer test catches it only when
+#     the known result has the other value in that bit. Bit 0 of the known
+#     result is 1, so stuck at 0 is caught and stuck at 1 is missed, and the
+#     missed one delivers wrong results.
+a=$(one --ticks 1524 --fault stuckbit:2@500/out.0.0)
+b=$(one --ticks 1524 --fault stuckbit:2@500/out.0.1)
+if caught_halted "$a" && [ "$(field latency_max "$a")" -le 64 ] && missed_wrong "$b"; then
+    pass "stuck-at bit: out.0.0 caught after $(field latency_max "$a") ticks, out.0.1 missed with $(field wrong "$b") wrong results"
+else
+    fail "stuck-at bit in the result ($a / $b)"
+fi
+
+# 20. An input bit stuck at 0 is invisible to the known-answer test, whose
+#     input is 0, but it gives wrong results; stuck at 1, it is caught.
+a=$(one --ticks 1524 --fault stuckbit:2@500/in.3.0)
+b=$(one --ticks 1524 --fault stuckbit:2@500/in.3.1)
+if missed_wrong "$a" && caught_halted "$b"; then
+    pass "stuck-at bit: in.3.0 missed with $(field wrong "$a") wrong results, in.3.1 caught"
+else
+    fail "stuck-at bit in the input ($a / $b)"
+fi
+
+# 21. An accumulator bit stuck at 1, with a test every 8 ticks: caught within 8.
+a=$(one --ticks 1524 --kat-period 8 --fault stuckbit:2@500/acc.5.1)
+if caught_halted "$a" && [ "$(field latency_max "$a")" -le 8 ]; then
+    pass "stuck-at bit: acc.5.1 caught $(field latency_max "$a") ticks after the fault (test every 8)"
+else
+    fail "stuck-at bit in the accumulator ($a)"
+fi
+
+# 22. The last replica hangs: the reply timeout catches it at the fault tick.
+a=$(one --ticks 600 --reply-timeout-ms 100 --fault hang:2@500)
+if [ "$(field caught "$a")" = 1 ] && [ "$(field latency_max "$a")" = 0 ]; then
+    pass "hang: last replica lost at the fault tick (latency 0)"
+else
+    fail "hang on the last replica ($a)"
+fi
+
+# 23. One bit flip in self-check: caught when only one run is hit, delivered
+#     wrong when both runs are hit alike. A flip on an odd tick, which has no
+#     computation in self-check mode, waits for the next one and is caught.
+a=$(one --ticks 600 --common-mode 0 --fault corrupt:2@500)
+b=$(one --ticks 600 --common-mode 1.0 --fault corrupt:2@500)
+c=$(one --ticks 600 --common-mode 0 --fault corrupt:2@501)
+if [ "$(field detected "$a")" = 1 ] && [ "$(field wrong "$a")" = 0 ] &&
+    [ "$(field wrong "$b")" = 1 ] && [ "$(field caught "$b")" = 0 ] &&
+    [ "$(field detected "$c")" = 1 ]; then
+    pass "corrupt: caught alone, missed when common mode, odd tick not lost"
+else
+    fail "corrupt in self-check ($a / $b / $c)"
+fi
+
+# 24. A reset keeps a stuck-at bit: as in check 18, kill -9 the voter during a
+#     run with a stuck-at bit the test cannot see (out.0.1, from check 19),
+#     resume it, and get the same counts as a run never interrupted.
+dir=$(mktemp -d)
+set -- --policy shrink --ticks 30000 --seed 2 --upset-rate 0 \
+    --fault kill:0@10 --fault kill:1@20 --fault stuckbit:2@500/out.0.1
+want=$("$Q" "$@" | sed -n '2p;5p')
+"$Q" "$@" --cpu-percent 20 --checkpoint "$dir/cp" --log "$dir/log.csv" >/dev/null &
+pid=$!
+# Kill only once a checkpoint holds the fault (tick 500 or later): a slow
+# runner may not reach it in a fixed time. Give up after about 30 s.
+n=0
+until grep -q '^stuckbit=-,-,out' "$dir/cp" 2>/dev/null || [ "$n" -ge 150 ]; do
+    sleep 0.2
+    n=$((n + 1))
+done
+kill -KILL "$pid"
+wait "$pid" 2>/dev/null || true
+sleep 0.3
+saved=$(grep '^stuckbit=' "$dir/cp" || true)
+got=$("$Q" "$@" --cpu-percent 20 --checkpoint "$dir/cp" --log "$dir/log.csv" | sed -n '2p;5p')
+at=$(sed -n 's/^\([0-9]*\),resumed,1$/\1/p' "$dir/log.csv")
+if [ -n "$at" ] && [ "$got" = "$want" ] && [ "$saved" = "stuckbit=-,-,out.0.1" ] && [ ! -e "$dir/cp" ]; then
+    pass "reset: stuck-at bit kept over a kill at tick $at, same counts"
+else
+    fail "reset with a stuck-at bit ($want / $got, resumed at '$at', saved '$saved')"
+fi
+set --
+rm -rf "$dir"
+
+# 25. Malformed stuck-at faults are refused with exit status 2.
+bad=0
+for f in stuckbit:2@500 stuckbit:2@500/out.64.1 stuckbit:2@500/block.32768.0 stuck:2@500/x; do
+    rc=0
+    "$Q" --ticks 10 --fault "$f" >/dev/null 2>&1 || rc=$?
+    [ "$rc" = 2 ] || bad=$((bad + 1))
+done
+if [ "$bad" = 0 ]; then
+    pass "faults: malformed stuck-at faults refused"
+else
+    fail "faults: $bad malformed fault(s) not refused with status 2"
+fi
+
 echo
 if [ "$fails" -eq 0 ]; then echo "all checks passed"; else echo "$fails check(s) failed"; exit 1; fi
