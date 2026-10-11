@@ -87,6 +87,11 @@ if [ -n "$K" ]; then
 	row "corrupt 0" corrupt "" 0 "| Bit flip in working memory, common-mode share 0"
 	row "corrupt 0.05" corrupt "" 0.05 "| Bit flip, common-mode share 0.05"
 	row "corrupt 0.2" corrupt "" 0.2 "| Bit flip, common-mode share 0.2"
+	tp() { jq -r --argjson p "$1" ".throughput[] | select(.kat_period == \$p) | $2" "$K"; }
+	want "tests per result, period 64" "runs $(printf '%.4f' "$(tp 64 .kat_tests_per_delivered_result)") times per delivered"
+	for p in 8 16 64; do
+		want "CPU cost, period $p" "$(printf '%.1f%%' "$(echo "$(tp "$p" .cpu_cost_vs_no_test) * 100" | bc -l)") at period $p"
+	done
 	for p in 8 64 256; do
 		want "stuck result, period $p" "$(f1 "$(k stuck "" "$p" 0 .wrong_before_detection_mean)") at $p ticks"
 	done
