@@ -84,6 +84,13 @@ jobs:
           targets: thumbv7em-none-eabihf
       - run: cargo build -p quorum --release --target thumbv7em-none-eabihf
 
+  claims:
+    name: README numbers match the results files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/check-claims.sh
+
   kani:
     name: Kani proofs
     runs-on: ubuntu-latest
