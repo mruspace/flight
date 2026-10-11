@@ -20,6 +20,8 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ### Changed
 
+- Demo: `cpu=` and `wall=` print 3 decimals.
+- `scripts/bench.sh` and `scripts/kat-coverage.sh` share `scripts/bench-meta.sh`; `scripts/board.sh --kat` runs the coverage campaign on a board.
 - README: separates what Kani proves (per decision) from what tests check (per run), and adds limits, open questions and the qualification path.
 
 ## 0.2.0 (2026-10-11)
