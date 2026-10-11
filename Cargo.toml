@@ -1,5 +1,7 @@
 [workspace]
 members = ["quorum", "quorum-ffi", "demo", "bench"]
+# F´ (fprime/lib/fprime) has Rust crates of its own, outside this workspace
+exclude = ["fprime"]
 resolver = "2"
 
 [workspace.package]
