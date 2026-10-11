@@ -1,0 +1,12 @@
+[package]
+name = "bench"
+description = "Timing of the quorum decision core: nanoseconds per call, no dependencies"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+quorum = { path = "../quorum" }

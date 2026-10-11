@@ -190,5 +190,15 @@ else
 fi
 rm -f "$log"
 
+# 17. Detection latency: a stuck fault on the last replica is caught by the
+#     periodic known-answer test within one test period (64 ticks).
+out=$("$Q" --policy shrink --ticks 20000 --seed 1 --fault kill:0@5000 --fault kill:1@8000 --fault stuck:2@10000)
+det=$(printf '%s\n' "$out" | grep '^detection:')
+if [ "$(field caught "$det")" = 1 ] && [ "$(field latency_max "$det")" -le 64 ]; then
+    pass "detection: stuck last replica caught $(field latency_max "$det") ticks after the fault"
+else
+    fail "detection latency ($det)"
+fi
+
 echo
 if [ "$fails" -eq 0 ]; then echo "all checks passed"; else echo "$fails check(s) failed"; exit 1; fi
