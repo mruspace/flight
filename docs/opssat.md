@@ -29,7 +29,7 @@ repaired.
 
 **What it shows**
 
-- The shrinking quorum's decisions and the operations behaviour on real flight
+- The shrinking quorum's decisions and the operations behavior on real flight
   hardware: stepping down as replicas are lost, retiring a stuck replica,
   diagnosing with known-answer tests, recovering from a hung replica.
 - That the software stays inside its limits for the whole run, and stops
@@ -119,9 +119,11 @@ second run with `POLICY=tmr` and the same schedule gives the comparison.
 
 All in the output folder:
 
-- **`summary-POLICY.txt`** (five lines): results delivered, disagreements
-  detected, wrong results, when and why the run stopped, footprint, limits, and
-  the sensor's scans and flips.
+- **`summary-POLICY.txt`** (five lines, six with a fault schedule): results
+  delivered, disagreements detected, wrong results, when and why the run
+  stopped, the tick of the last correct result, footprint, limits, the
+  sensor's scans and flips, and how fast the voter reacted to each injected
+  fault.
 - **`quorum-POLICY.csv`**, the event log: one short line per event (fault
   injected, replica retired or cleared or lost, disagreement detected, sensor
   bit flip with its location). With no real upsets, a day-long run produces a
