@@ -28,6 +28,26 @@ jobs:
               --fault stuck:1@4000 --fault kill:0@9000
           done
 
+  bench:
+    name: bench (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
+          components: llvm-tools
+      - name: Full bench matrix
+        run: ./scripts/bench.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ matrix.os }}
+          path: bench/results/
+
   no-std:
     name: no_std build (bare-metal ARM Cortex-M)
     runs-on: ubuntu-latest
@@ -76,6 +96,15 @@ jobs:
           docker run --rm --platform ${{ matrix.platform }} -v "$PWD:/w" -w /w \
             -e QUORUM_BIN="$bin" -e QUORUM_EMULATED=1 alpine:3 \
             sh -c 'uname -m && ./scripts/scenarios.sh'
+      - name: Bench counts under emulation match a native run
+        run: |
+          BENCH_OUT=native ./scripts/bench.sh --quick
+          docker run --rm --platform ${{ matrix.platform }} -v "$PWD:/w" -w /w \
+            -e QUORUM_BIN=target/${{ matrix.target }}/release/quorum -e BENCH_OUT=emulated alpine:3 \
+            ./scripts/bench.sh --quick
+          cut -d, -f1-17 native/*.csv >native.txt
+          cut -d, -f1-17 emulated/*.csv >emulated.txt
+          cmp native.txt emulated.txt && echo "same results on ${{ matrix.platform }} as native"
       - uses: actions/upload-artifact@v4
         with:
           name: quorum-${{ matrix.target }}

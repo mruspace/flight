@@ -93,7 +93,8 @@ fi
 # and llvm-size are installed (rustup target add thumbv7em-none-eabihf;
 # rustup component add llvm-tools); built without LTO so the code is in the rlib
 text=null
-size_tool=$(ls "$(rustc --print sysroot 2>/dev/null)"/lib/rustlib/*/bin/llvm-size 2>/dev/null | head -n 1 || true)
+sysroot=$(rustc --print sysroot 2>/dev/null || true)
+size_tool=$( [ -n "$sysroot" ] && find "$sysroot/lib/rustlib" -path '*/bin/llvm-size' 2>/dev/null | head -n 1 || true)
 if [ -n "$size_tool" ] && rustup target list --installed 2>/dev/null | grep -q thumbv7em-none-eabihf; then
     CARGO_PROFILE_RELEASE_LTO=false cargo build -p quorum --release --quiet \
         --target thumbv7em-none-eabihf --target-dir target/size
@@ -167,7 +168,7 @@ json="$base.json"
     printf '  "build": "release, lto = true, codegen-units = 1",\n'
     printf '  "binary": "%s",\n' "$Q"
     printf '  "matrix": { "ticks": %s, "seeds": [%s], "upset_rates": [%s], "schedules": ["%s"], "common_mode": 0.05, "kat_period": 64 },\n' \
-        "$T" "$(echo $seeds | tr ' ' ',')" "$(echo $rates | tr ' ' ',')" "$(echo $schedules | sed 's/ /", "/g')"
+        "$T" "$(echo "$seeds" | tr ' ' ',')" "$(echo "$rates" | tr ' ' ',')" "$(echo "$schedules" | sed 's/ /", "/g')"
     printf '  "core": {\n    "quorum_text_bytes_thumbv7em": %s,\n    "ns_per_call": [' "$text"
     printf '%s\n' "$micro" | awk -F, 'NR > 1 { printf "%s\n      { \"case\": \"%s\", \"policy\": \"%s\", \"mode\": \"%s\", \"ns\": %s }", (NR > 2 ? "," : ""), $1, $2, $3, $4 }'
     printf '\n    ]\n  },\n  "summary": ['
@@ -186,14 +187,16 @@ json="$base.json"
 
 # ---- report
 
+# align columns where the system has column(1)
+table() { if command -v column >/dev/null; then column -t -s,; else tr , ' '; fi; }
 echo
 echo "host: $host ($cpu), commit $commit, $n runs of $T ticks"
-[ -n "$micro" ] && printf '%s\n' "$micro" | column -t -s,
+[ -n "$micro" ] && printf '%s\n' "$micro" | table
 [ "$text" != null ] && echo "quorum .text for thumbv7em-none-eabihf: $text bytes"
 echo
 {
     echo "schedule,upset_rate,seeds,useful_tmr,useful_shrink,wrong_tmr,wrong_shrink,halted_tmr,halted_shrink,survival_tmr,survival_shrink,gdi_tmr,gdi_shrink,ratio_mean,ratio_min,below_tmr,latency"
     printf '%s\n' "$summary"
-} | column -t -s,
+} | table
 echo
 echo "wrote $json and $csv"
