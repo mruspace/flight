@@ -155,14 +155,15 @@ docker run --rm --platform linux/arm/v7 -v "$PWD/home:/home/exp" -w /home/exp \
 ```
 
 Measured on 15 October 2026 in that image on a laptop (Apple silicon, Docker's
-Linux VM, 32-bit ARM mode), release v0.3.0 binary with the v0.3.1 scripts,
-5% CPU share, 64 MB sensor scanned every 250 ticks, 110 seconds per policy:
+Linux VM, 32-bit ARM mode), the published package
+`exp4051-mru-flight-v0.3.1.tar.gz` (release v0.3.1), 5% CPU share, 64 MB
+sensor scanned every 250 ticks, 110 seconds per policy:
 
-- Whole run 221 seconds wall, both exit 0, output seven files, 6,388 bytes.
-- Shrink: 7,370 correct results over 14,500 ticks (about 130 ticks per second
+- Whole run 223 seconds wall, both exit 0, output seven files, 6,388 bytes.
+- Shrink: 7,495 correct results over 14,750 ticks (about 130 ticks per second
   at the 5% share), no wrong results. Stuck replica retired at tick 122, last
   replica alone from tick 240, sensor self-test flip found and repaired at the
-  scan at tick 250. Voter CPU time 5.2 s of 110.7 s (4.7%), 70 MB resident
+  scan at tick 250. Voter CPU time 5.0 s of 111.0 s (4.5%), 70 MB resident
   (the sensor), replicas 5.9 MB.
 - Fixed TMR: 239 correct results, then a disagreement on every tick from 240
   to the end, written as two lines in the log.
