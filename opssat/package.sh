@@ -10,13 +10,13 @@
 # from the GitHub release, checksum verified), faults.txt (the five-minute
 # schedule), README.txt (for the operators) and LICENSE.
 #
-#   ./package.sh            uses the release in VERSION (default v0.3.0)
+#   ./package.sh            uses the release in VERSION (default v0.3.1)
 #   VERSION=v0.2.0 ./package.sh
 #   QUORUM_BIN=path ./package.sh   uses a binary you built yourself
 set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
-VERSION=${VERSION:-v0.3.0}
+VERSION=${VERSION:-v0.3.1}
 TARGET=armv7-unknown-linux-musleabihf
 REPO=mruspace/flight
 work=$(mktemp -d)
@@ -63,7 +63,7 @@ exits.
 
 What it touches: user space only, no network, no device files, no reboots.
 Four processes. Memory limit 128 MB per process (RLIMIT_AS), set by the
-processes themselves. CPU share of the voter capped at 25% of one core.
+processes themselves. CPU share of the voter capped at 5% of one core.
 Storage: about 1 MB for the package, a few kilobytes of output.
 
 Output, all in toGround/: run-info.txt (start, end, exit codes), and for each
