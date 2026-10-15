@@ -1,7 +1,9 @@
 # Running Mru Flight on OPS-SAT
 
-**Status: proposed.** ESA has not accepted this experiment, and nothing has
-run on the satellite.
+**Status: registered.** ESA's OPS-SAT Space Lab confirmed the experiment on
+14 October 2026 as **exp4051** for OPS-SAT PRETTY. Nothing has run on the
+satellite yet. The next steps are ESA's test in the software environment, TU
+Graz's test on the PRETTY FlatSat, then the run in orbit.
 
 A note for the OPS-SAT Space Lab team: what the experiment does on the
 satellite, what it touches, its limits, how to start and stop it, what it sends
@@ -98,10 +100,68 @@ Ways the run ends:
   and exit by themselves.
 - **Maximum run time**: the run ends on its own, with a summary.
 
-If the satellite's software environment requires experiments to be packaged
-in a particular way (for example as an app of ESA's NanoSat MO Framework, as on
-OPS-SAT-1), the program and script stay the same and a small wrapper starts
-and stops them.
+`run.sh` is for long runs on any Linux system. The OPS-SAT runner uses the
+foreground entry point `run` instead, described next.
+
+## The OPS-SAT PRETTY package
+
+The OPS-SAT experiment environment (ESA's `exp_env` README, v0.3) sets these
+rules: the package is one `tar.gz` with relative paths and every file owned by
+user and group `exp`; the runner unpacks it into the home folder of user `exp`,
+executes `./run` there, and collects everything written under that folder
+when the run ends. The target is Alpine Linux 3.21 for 32-bit ARM (armhf,
+musl): the `armv7-unknown-linux-musleabihf` release binary runs there with no
+library from the image. The processing platform is a Cyclone V SoC with a
+dual-core Cortex-A9 at 800 MHz and 1 GB of memory. Each run must complete in
+five minutes or less.
+
+[`opssat/run`](../opssat/run) is that entry point. It runs in the foreground,
+one policy after the other, shrink then fixed TMR, with the same seed and
+fault schedule, each capped at 110 seconds, so the whole run ends by itself
+inside the window. All output goes to `toGround/`: `run-info.txt` (start and
+end times, user, checksum of the binary, settings, exit codes) and, for each
+policy, the summary, the event log and the console output. A SIGTERM to `run`
+is forwarded to the voter, which finishes its step, writes its summary and
+exits. Nothing else is written. Settings are environment variables with the
+defaults a 25% CPU share (the 5% default of `run.sh` is for runs of days),
+128 MB per process, a 64 MB sensor and seed 1.
+
+[`opssat/faults.5min.txt`](../opssat/faults.5min.txt) is the schedule for
+that window, in ticks so that it is the same on any processor: a sensor
+self-test at tick 50, one bit flip in a replica's working memory at tick 150,
+a stuck replica at tick 300 and a terminated replica at tick 600. The
+shrinking quorum retires the stuck replica, then self-checks on the last one
+and keeps delivering. Fixed TMR is left with one good and one stuck replica
+after tick 600 and delivers nothing more.
+
+[`opssat/package.sh`](../opssat/package.sh) builds
+`exp4051-mru-flight-VERSION.tar.gz`: it downloads the release binary for the
+target, checks it against `SHA256SUMS`, adds `run`, the schedule as
+`faults.txt`, a `README.txt` for the operators and the license, and writes the
+archive with the required ownership. `QUORUM_BIN=path ./package.sh` packages a
+binary you built yourself.
+
+**Ground test.** ESA's environment tarball is a root filesystem. On a machine
+with Docker it imports as an image and runs the package as user `exp`:
+
+```sh
+docker import --platform linux/arm/v7 exp_env.tar.gz opssat-pretty-env:v0.3
+mkdir home && tar -xzf exp4051-mru-flight-v0.2.0.tar.gz -C home
+docker run --rm --platform linux/arm/v7 -v "$PWD/home:/home/exp" -w /home/exp \
+    -u 1024:1024 -e HOME=/home/exp opssat-pretty-env:v0.3 ./run
+```
+
+Measured on 15 October 2026 in that image on a laptop (Apple silicon, Docker's
+Linux VM, 32-bit ARM mode), release v0.2.0, 25% CPU share, 64 MB sensor:
+
+- 20 seconds per policy: shrink delivered 10,033 correct results over 18,866
+  ticks, stuck replica retired at tick 602, last replica alone from tick 1,200
+  (schedule of that test), no wrong results; fixed TMR delivered 1,199 and then
+  nothing. Voter 70 MB resident (the sensor), replicas 5.9 MB. Both exit 0.
+FULLRUN
+
+The flight processor is slower than the laptop, so the tick counts in orbit
+will be lower and the fault ticks sit early in the schedule for that reason.
 
 ## Fault schedule
 
@@ -115,8 +175,9 @@ stuck:1@200000     # replica 1 keeps returning the same wrong value
 kill:0@600000      # replica 0 is terminated
 ```
 
-Fault times, run length and CPU share would be agreed with the OPS-SAT team. A
-second run with `POLICY=tmr` and the same schedule gives the comparison.
+This schedule is for long runs. The OPS-SAT package uses
+`faults.5min.txt` instead (see above). A second run with `POLICY=tmr` and the
+same schedule gives the comparison; `run` does both runs by itself.
 
 ## What comes down
 
@@ -132,6 +193,8 @@ All in the output folder:
   bit flip with its location). With no real upsets, a day-long run produces a
   few kilobytes.
 - **`stdout-POLICY.txt`**: the console output, a copy of the summary.
+- **`run-info.txt`** (OPS-SAT package only): start and end times, user,
+  checksum of the binary, settings and the exit code of each run.
 
 ## What success looks like
 

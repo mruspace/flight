@@ -45,7 +45,7 @@ jobs:
           name=quorum-${{ github.ref_name }}-${{ matrix.target }}
           mkdir -p "pkg/$name" dist
           cp target/${{ matrix.target }}/release/quorum target/${{ matrix.target }}/release/bench "pkg/$name/"
-          cp opssat/run.sh opssat/faults.example.txt "pkg/$name/"
+          cp opssat/run.sh opssat/run opssat/faults.example.txt opssat/faults.5min.txt "pkg/$name/"
           cp docs/opssat.md "pkg/$name/OPSSAT.md"
           cp LICENSE "pkg/$name/"
           tar -C pkg -czf "dist/$name.tar.gz" "$name"

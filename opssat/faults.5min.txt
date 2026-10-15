@@ -1,0 +1,22 @@
+# Fault schedule for a run of five minutes or less (OPS-SAT PRETTY, exp4051).
+# One fault per line, kind:replica@tick. Ticks, not seconds: the schedule is
+# the same on any processor, only the wall time per tick changes. Measured in
+# ESA's experiment environment on a laptop: about 900 ticks per second at a
+# 25% CPU share. The flight processor is slower, so the faults sit early.
+#
+# The same file drives the shrink run and the fixed TMR run. Expected course:
+#   tick   50  sensor self-test: one bit flipped in the radiation sensor, found
+#              and repaired at the next scan (every 1,000 ticks)
+#   tick  150  one bit flip in replica 2's working memory: outvoted once,
+#              replica 2 stays, its health score takes a strike
+#   tick  300  replica 1 stuck on one wrong value: outvoted every tick; the
+#              shrinking quorum retires it after three strikes and compares on
+#              two; fixed TMR keeps voting with two good and one stuck
+#   tick  600  replica 0 terminated: the shrinking quorum self-checks on the
+#              last replica and keeps delivering; fixed TMR is left with one
+#              good and one stuck replica and delivers nothing more
+#
+sensor:0@50
+corrupt:2@150
+stuck:1@300
+kill:0@600

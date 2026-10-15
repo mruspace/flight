@@ -122,8 +122,10 @@ simulated missions, where it holds by construction.
   and repaired, to measure the real upset rate on flight hardware.
 - **Ready to run**: a fault schedule can come from a file (`--faults-file`), the
   summary can be written to a file for downlink (`--summary`), and
-  [`opssat/run.sh`](opssat/run.sh) starts, checks and stops a run with all the
-  limits set.
+  [`opssat/run.sh`](opssat/run.sh) starts, checks and stops a long run with
+  all the limits set. [`opssat/run`](opssat/run) is the foreground entry point
+  for the OPS-SAT experiment runner, and [`opssat/package.sh`](opssat/package.sh)
+  builds the package ([operations note](docs/opssat.md)).
 - **Survives resets and power cuts**: with `--checkpoint`, the voter saves its
   state every 100 ticks (written, flushed and renamed, so a power cut leaves the
   old file or the new one), and syncs the event log first. After a reset, the
