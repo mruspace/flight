@@ -362,9 +362,11 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
 3. **Hardware-in-the-loop bench**: real boards with injected faults (bit flips,
    resets, power cuts). The scripts and the procedure are ready
    ([docs/board.md](docs/board.md)).
-4. **In orbit**: an experiment proposed for ESA's
-   [OPS-SAT Space Lab](https://opssat.esa.int/missions) (OPS-SAT PRETTY),
-   logging real radiation upsets next to the satellite's own dosimetry.
+4. **In orbit**: an experiment registered with ESA's
+   [OPS-SAT Space Lab](https://opssat.esa.int/missions) for OPS-SAT PRETTY
+   (exp4051, October 2026), the shrinking quorum under injected faults on the
+   flight processor, with the radiation sensor logged next to the satellite's
+   own dosimetry ([operations note](docs/opssat.md)).
 5. **On Earth**: the same software on an unattended ocean node, proposed for an
    EMSO ERIC observatory test.
 

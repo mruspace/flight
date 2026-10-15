@@ -39,6 +39,10 @@ info=$OUT_DIR/run-info.txt
     echo "start_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     echo "uname=$(uname -a 2>/dev/null)"
     echo "user=$(id 2>/dev/null)"
+    echo "nproc=$(nproc 2>/dev/null) loadavg=$(cat /proc/loadavg 2>/dev/null)"
+    echo "--- /proc/cpuinfo ---"; cat /proc/cpuinfo 2>/dev/null
+    echo "--- /proc/meminfo (head) ---"; head -5 /proc/meminfo 2>/dev/null
+    echo "---"
     echo "quorum_sha256=$(sha256sum "$QUORUM" 2>/dev/null | cut -d' ' -f1)"
     echo "settings: policies=$POLICIES run_seconds=$RUN_SECONDS seed=$SEED cpu_percent=$CPU_PERCENT memory_mb=$MEMORY_MB sensor_mb=$SENSOR_MB"
 } >"$info"
