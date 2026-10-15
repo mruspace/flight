@@ -10,13 +10,13 @@
 # from the GitHub release, checksum verified), faults.txt (the five-minute
 # schedule), README.txt (for the operators) and LICENSE.
 #
-#   ./package.sh            uses the release in VERSION (default v0.2.0)
-#   VERSION=v0.3.0 ./package.sh
+#   ./package.sh            uses the release in VERSION (default v0.3.0)
+#   VERSION=v0.2.0 ./package.sh
 #   QUORUM_BIN=path ./package.sh   uses a binary you built yourself
 set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
-VERSION=${VERSION:-v0.2.0}
+VERSION=${VERSION:-v0.3.0}
 TARGET=armv7-unknown-linux-musleabihf
 REPO=mruspace/flight
 work=$(mktemp -d)

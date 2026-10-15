@@ -8,8 +8,8 @@ authors:
 license: Apache-2.0
 repository-code: "https://github.com/mruspace/flight"
 url: "https://mru.space"
-version: 0.2.0
-date-released: 2026-10-11
+version: 0.3.0
+date-released: 2026-10-15
 keywords:
   - fault tolerance
   - triple modular redundancy

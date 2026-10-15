@@ -3,7 +3,7 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
-## Unreleased
+## 0.3.0 (2026-10-15)
 
 ### Added
 
@@ -19,6 +19,7 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ### Fixed
 
+- Demo: the event log writes a run of identical events on consecutive ticks (for example fixed TMR detecting a disagreement on every tick once it is left with one good and one stuck replica) as the first line plus one closing line with the count. A 110-second run that wrote 52,000 lines now writes two.
 - Demo: a `corrupt` fault scheduled on an odd tick in self-check mode did nothing. It now hits the next computation.
 
 ### Changed

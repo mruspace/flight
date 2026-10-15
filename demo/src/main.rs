@@ -22,6 +22,7 @@ use std::io::{BufWriter, Read, Write};
 use std::os::fd::AsRawFd;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::cell::RefCell;
 use std::time::{Duration, Instant};
 
 // ---- the payload task: hash a 4 KiB block of working memory derived from the tick
@@ -904,10 +905,27 @@ fn main() {
             let _ = writeln!(l, "tick,event,detail");
         }
     }
+    // A run of identical events on consecutive ticks (fixed TMR left with one
+    // good and one stuck replica detects a disagreement on every tick) is
+    // written as its first line plus one closing line with the count, so the
+    // log stays small for downlink.
+    let streak: RefCell<Option<(String, String, u64, u64, u64)>> = RefCell::new(None);
     let event = |tick: u64, what: &str, detail: String| {
-        if let Some(l) = log.borrow_mut().as_mut() {
-            let _ = writeln!(l, "{tick},{what},{detail}");
+        let mut l = log.borrow_mut();
+        let Some(l) = l.as_mut() else { return };
+        let mut st = streak.borrow_mut();
+        if let Some((w, d, first, last, n)) = st.as_mut() {
+            if *w == what && *d == detail {
+                *last = tick;
+                *n += 1;
+                return;
+            }
+            if *n > 1 {
+                let _ = writeln!(l, "{last},{w},{d} repeated {n}x ticks {first}-{last}");
+            }
         }
+        let _ = writeln!(l, "{tick},{what},{detail}");
+        *st = Some((what.to_string(), detail, tick, tick, 1));
     };
 
     let mut replicas: Vec<Option<Replica>> = (0..REPLICAS)

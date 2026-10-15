@@ -146,7 +146,7 @@ with Docker it imports as an image and runs the package as user `exp`:
 
 ```sh
 docker import --platform linux/arm/v7 exp_env.tar.gz opssat-pretty-env:v0.3
-mkdir home && tar -xzf exp4051-mru-flight-v0.2.0.tar.gz -C home
+mkdir home && tar -xzf exp4051-mru-flight-v0.3.0.tar.gz -C home
 docker run --rm --platform linux/arm/v7 -v "$PWD/home:/home/exp" -w /home/exp \
     -u 1024:1024 -e HOME=/home/exp opssat-pretty-env:v0.3 ./run
 ```
@@ -158,7 +158,14 @@ Linux VM, 32-bit ARM mode), release v0.2.0, 25% CPU share, 64 MB sensor:
   ticks, stuck replica retired at tick 602, last replica alone from tick 1,200
   (schedule of that test), no wrong results; fixed TMR delivered 1,199 and then
   nothing. Voter 70 MB resident (the sensor), replicas 5.9 MB. Both exit 0.
-FULLRUN
+- Full length, 110 seconds per policy: 220 seconds wall for the whole run,
+  both exit 0. Shrink delivered 52,282 correct results over 103,964 ticks,
+  stuck replica retired at tick 302, last replica alone from tick 600, sensor
+  self-test flip found at the scan at tick 1,000, no wrong results. Fixed TMR
+  delivered 599 results, then detected a disagreement on every tick to the
+  end. Output: seven files, under 3 KB without the TMR event log. With release
+  v0.2.0 that log was 1.2 MB (one line per tick); from v0.3.0 it is two
+  lines.
 
 The flight processor is slower than the laptop, so the tick counts in orbit
 will be lower and the fault ticks sit early in the schedule for that reason.
@@ -190,8 +197,9 @@ All in the output folder:
   fault.
 - **`quorum-POLICY.csv`**, the event log: one short line per event (fault
   injected, replica retired or cleared or lost, disagreement detected, sensor
-  bit flip with its location). With no real upsets, a day-long run produces a
-  few kilobytes.
+  bit flip with its location). Identical events on consecutive ticks are
+  written as the first line plus one closing line with the count. With no real
+  upsets, a day-long run produces a few kilobytes.
 - **`stdout-POLICY.txt`**: the console output, a copy of the summary.
 - **`run-info.txt`** (OPS-SAT package only): start and end times, user,
   checksum of the binary, settings and the exit code of each run.
