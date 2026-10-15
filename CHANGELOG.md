@@ -3,6 +3,12 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
+## 0.3.1 (2026-10-15)
+
+### Changed
+
+- `opssat/run`: the voter's CPU share defaults to 5% of one core, as stated in the OPS-SAT registration, instead of 25%; the sensor scans every 250 ticks instead of every 1,000. `opssat/faults.5min.txt`: faults at ticks 20, 60, 120 and 240 instead of 50, 150, 300 and 600, so they land inside a five-minute window at the lower share on a slow processor.
+
 ## 0.3.0 (2026-10-15)
 
 ### Added

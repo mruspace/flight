@@ -12,7 +12,8 @@
 #   POLICIES     policies to run, in order        [shrink tmr]
 #   RUN_SECONDS  wall time per policy             [110]
 #   SEED         random seed                      [1]
-#   CPU_PERCENT  share of one CPU for the voter   [25]
+#   CPU_PERCENT  share of one CPU for the voter   [5]
+#   SENSOR_EVERY ticks between sensor scans        [250]
 #   MEMORY_MB    address-space limit per process  [128]
 #   SENSOR_MB    radiation sensor size, 0 is off  [64]
 #   FAULTS_FILE  fault schedule                   [./faults.txt]
@@ -25,7 +26,8 @@ cd "$here" || exit 2
 POLICIES=${POLICIES:-"shrink tmr"}
 RUN_SECONDS=${RUN_SECONDS:-110}
 SEED=${SEED:-1}
-CPU_PERCENT=${CPU_PERCENT:-25}
+CPU_PERCENT=${CPU_PERCENT:-5}
+SENSOR_EVERY=${SENSOR_EVERY:-250}
 MEMORY_MB=${MEMORY_MB:-128}
 SENSOR_MB=${SENSOR_MB:-64}
 FAULTS_FILE=${FAULTS_FILE:-$here/faults.txt}
@@ -44,7 +46,7 @@ info=$OUT_DIR/run-info.txt
     echo "--- /proc/meminfo (head) ---"; head -5 /proc/meminfo 2>/dev/null
     echo "---"
     echo "quorum_sha256=$(sha256sum "$QUORUM" 2>/dev/null | cut -d' ' -f1)"
-    echo "settings: policies=$POLICIES run_seconds=$RUN_SECONDS seed=$SEED cpu_percent=$CPU_PERCENT memory_mb=$MEMORY_MB sensor_mb=$SENSOR_MB"
+    echo "settings: policies=$POLICIES run_seconds=$RUN_SECONDS seed=$SEED cpu_percent=$CPU_PERCENT memory_mb=$MEMORY_MB sensor_mb=$SENSOR_MB sensor_every=$SENSOR_EVERY"
 } >"$info"
 
 child=
@@ -64,7 +66,7 @@ status=0
 for policy in $POLICIES; do
     set -- --policy "$policy" --seed "$SEED" --ticks 1000000000000 \
         --cpu-percent "$CPU_PERCENT" --max-memory-mb "$MEMORY_MB" \
-        --max-seconds "$RUN_SECONDS" --sensor-mb "$SENSOR_MB" \
+        --max-seconds "$RUN_SECONDS" --sensor-mb "$SENSOR_MB" --sensor-every "$SENSOR_EVERY" \
         --log "$OUT_DIR/quorum-$policy.csv" --summary "$OUT_DIR/summary-$policy.txt"
     if [ -f "$FAULTS_FILE" ]; then
         set -- "$@" --faults-file "$FAULTS_FILE"

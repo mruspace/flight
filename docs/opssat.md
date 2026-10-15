@@ -119,20 +119,23 @@ five minutes or less.
 one policy after the other, shrink then fixed TMR, with the same seed and
 fault schedule, each capped at 110 seconds, so the whole run ends by itself
 inside the window. All output goes to `toGround/`: `run-info.txt` (start and
-end times, user, checksum of the binary, settings, exit codes) and, for each
-policy, the summary, the event log and the console output. A SIGTERM to `run`
-is forwarded to the voter, which finishes its step, writes its summary and
-exits. Nothing else is written. Settings are environment variables with the
-defaults a 25% CPU share (the 5% default of `run.sh` is for runs of days),
-128 MB per process, a 64 MB sensor and seed 1.
+end times, user, processor and memory from `/proc`, checksum of the binary,
+settings, exit codes) and, for each policy, the summary, the event log and the
+console output. A SIGTERM to `run` is forwarded to the voter, which finishes
+its step, writes its summary and exits. Nothing else is written. Settings are
+environment variables with the defaults a 5% CPU share for the voter, as
+stated in the registration, 128 MB per process, a 64 MB sensor scanned every
+250 ticks, and seed 1.
 
 [`opssat/faults.5min.txt`](../opssat/faults.5min.txt) is the schedule for
 that window, in ticks so that it is the same on any processor: a sensor
-self-test at tick 50, one bit flip in a replica's working memory at tick 150,
-a stuck replica at tick 300 and a terminated replica at tick 600. The
+self-test at tick 20, one bit flip in a replica's working memory at tick 60,
+a stuck replica at tick 120 and a terminated replica at tick 240. The
 shrinking quorum retires the stuck replica, then self-checks on the last one
 and keeps delivering. Fixed TMR is left with one good and one stuck replica
-after tick 600 and delivers nothing more.
+after tick 240 and delivers nothing more. The faults sit early so that they
+land inside the window at the 5% share even on a processor much slower than
+the test host.
 
 [`opssat/package.sh`](../opssat/package.sh) builds
 `exp4051-mru-flight-VERSION.tar.gz`: it downloads the release binary for the
@@ -146,26 +149,27 @@ with Docker it imports as an image and runs the package as user `exp`:
 
 ```sh
 docker import --platform linux/arm/v7 exp_env.tar.gz opssat-pretty-env:v0.3
-mkdir home && tar -xzf exp4051-mru-flight-v0.3.0.tar.gz -C home
+mkdir home && tar -xzf exp4051-mru-flight-v0.3.1.tar.gz -C home
 docker run --rm --platform linux/arm/v7 -v "$PWD/home:/home/exp" -w /home/exp \
     -u 1024:1024 -e HOME=/home/exp opssat-pretty-env:v0.3 ./run
 ```
 
 Measured on 15 October 2026 in that image on a laptop (Apple silicon, Docker's
-Linux VM, 32-bit ARM mode), release v0.2.0, 25% CPU share, 64 MB sensor:
+Linux VM, 32-bit ARM mode), release v0.3.0 binary with the v0.3.1 scripts,
+5% CPU share, 64 MB sensor scanned every 250 ticks, 110 seconds per policy:
 
-- 20 seconds per policy: shrink delivered 10,033 correct results over 18,866
-  ticks, stuck replica retired at tick 602, last replica alone from tick 1,200
-  (schedule of that test), no wrong results; fixed TMR delivered 1,199 and then
-  nothing. Voter 70 MB resident (the sensor), replicas 5.9 MB. Both exit 0.
-- Full length, 110 seconds per policy: 220 seconds wall for the whole run,
-  both exit 0. Shrink delivered 52,282 correct results over 103,964 ticks,
-  stuck replica retired at tick 302, last replica alone from tick 600, sensor
-  self-test flip found at the scan at tick 1,000, no wrong results. Fixed TMR
-  delivered 599 results, then detected a disagreement on every tick to the
-  end. Output: seven files, under 3 KB without the TMR event log. With release
-  v0.2.0 that log was 1.2 MB (one line per tick); from v0.3.0 it is two
-  lines.
+- Whole run 221 seconds wall, both exit 0, output seven files, 6,388 bytes.
+- Shrink: 7,370 correct results over 14,500 ticks (about 130 ticks per second
+  at the 5% share), no wrong results. Stuck replica retired at tick 122, last
+  replica alone from tick 240, sensor self-test flip found and repaired at the
+  scan at tick 250. Voter CPU time 5.2 s of 110.7 s (4.7%), 70 MB resident
+  (the sensor), replicas 5.9 MB.
+- Fixed TMR: 239 correct results, then a disagreement on every tick from 240
+  to the end, written as two lines in the log.
+- An earlier run the same day at a 25% share and the previous schedule (faults
+  at ticks 50, 150, 300, 600) gave 52,282 correct results for shrink and 599
+  for fixed TMR over the same 220 seconds. The share was lowered to match the
+  registration.
 
 The flight processor is slower than the laptop, so the tick counts in orbit
 will be lower and the fault ticks sit early in the schedule for that reason.
