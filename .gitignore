@@ -2,3 +2,5 @@
 .DS_Store
 *.csv
 !bench/results/*.csv
+# OPS-SAT experiment packages built by opssat/package.sh
+opssat/exp4051-*.tar.gz

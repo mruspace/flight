@@ -122,8 +122,10 @@ simulated missions, where it holds by construction.
   and repaired, to measure the real upset rate on flight hardware.
 - **Ready to run**: a fault schedule can come from a file (`--faults-file`), the
   summary can be written to a file for downlink (`--summary`), and
-  [`opssat/run.sh`](opssat/run.sh) starts, checks and stops a run with all the
-  limits set.
+  [`opssat/run.sh`](opssat/run.sh) starts, checks and stops a long run with
+  all the limits set. [`opssat/run`](opssat/run) is the foreground entry point
+  for the OPS-SAT experiment runner, and [`opssat/package.sh`](opssat/package.sh)
+  builds the package ([operations note](docs/opssat.md)).
 - **Survives resets and power cuts**: with `--checkpoint`, the voter saves its
   state every 100 ticks (written, flushed and renamed, so a power cut leaves the
   old file or the new one), and syncs the event log first. After a reset, the
@@ -360,9 +362,11 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
 3. **Hardware-in-the-loop bench**: real boards with injected faults (bit flips,
    resets, power cuts). The scripts and the procedure are ready
    ([docs/board.md](docs/board.md)).
-4. **In orbit**: an experiment proposed for ESA's
-   [OPS-SAT Space Lab](https://opssat.esa.int/missions) (OPS-SAT PRETTY),
-   logging real radiation upsets next to the satellite's own dosimetry.
+4. **In orbit**: an experiment registered with ESA's
+   [OPS-SAT Space Lab](https://opssat.esa.int/missions) for OPS-SAT PRETTY
+   (exp4051, October 2026), the shrinking quorum under injected faults on the
+   flight processor, with the radiation sensor logged next to the satellite's
+   own dosimetry ([operations note](docs/opssat.md)).
 5. **On Earth**: the same software on an unattended ocean node, proposed for an
    EMSO ERIC observatory test.
 

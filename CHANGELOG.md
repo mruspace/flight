@@ -3,10 +3,13 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
-## Unreleased
+## 0.3.0 (2026-10-15)
 
 ### Added
 
+- `opssat/run`: foreground entry point for the OPS-SAT experiment runner. Runs the shrinking quorum and fixed TMR one after the other with the same seed and fault schedule, writes everything to `toGround/`, stops by itself inside a five-minute window, and forwards SIGTERM to the voter.
+- `opssat/faults.5min.txt`: a fault schedule that fits a run of five minutes or less.
+- `opssat/package.sh`: builds the OPS-SAT package (tar.gz, relative paths, files owned by user `exp`) from a checksum-verified release binary or a local build.
 - Demo: `stuckbit` fault, a bit of the input, the working block, the hash accumulator or the result forced to 0 or 1 from a chosen tick.
 - Demo: `kat_tests` count at the end of the second summary line.
 - `scripts/kat-coverage.sh`: a known-answer test coverage campaign on the last replica, with results in `bench/results/*-kat.{csv,json}`.
@@ -16,6 +19,7 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ### Fixed
 
+- Demo: the event log writes a run of identical events on consecutive ticks (for example fixed TMR detecting a disagreement on every tick once it is left with one good and one stuck replica) as the first line plus one closing line with the count. A 110-second run that wrote 52,000 lines now writes two.
 - Demo: a `corrupt` fault scheduled on an odd tick in self-check mode did nothing. It now hits the next computation.
 
 ### Changed

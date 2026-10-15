@@ -1,0 +1,81 @@
+#!/bin/sh
+# run: entry point for the Mru Flight experiment on OPS-SAT PRETTY [exp4051].
+#
+# The OPS-SAT runner executes ./run as user exp in $HOME, which holds the
+# files of this package, and collects everything written under $HOME when the
+# run ends. This script runs in the foreground, one policy after the other
+# (shrink, then fixed TMR) with the same seed and fault schedule, writes all
+# output to toGround/, and exits. It stops by itself inside the five-minute
+# window: two runs of RUN_SECONDS each plus a few seconds of start-up.
+#
+# Settings (environment variables, defaults in brackets):
+#   POLICIES     policies to run, in order        [shrink tmr]
+#   RUN_SECONDS  wall time per policy             [110]
+#   SEED         random seed                      [1]
+#   CPU_PERCENT  share of one CPU for the voter   [25]
+#   MEMORY_MB    address-space limit per process  [128]
+#   SENSOR_MB    radiation sensor size, 0 is off  [64]
+#   FAULTS_FILE  fault schedule                   [./faults.txt]
+#   QUORUM       the quorum binary                [./quorum]
+#   OUT_DIR      output folder                    [./toGround]
+set -u
+
+here=$(cd "$(dirname "$0")" && pwd)
+cd "$here" || exit 2
+POLICIES=${POLICIES:-"shrink tmr"}
+RUN_SECONDS=${RUN_SECONDS:-110}
+SEED=${SEED:-1}
+CPU_PERCENT=${CPU_PERCENT:-25}
+MEMORY_MB=${MEMORY_MB:-128}
+SENSOR_MB=${SENSOR_MB:-64}
+FAULTS_FILE=${FAULTS_FILE:-$here/faults.txt}
+QUORUM=${QUORUM:-$here/quorum}
+OUT_DIR=${OUT_DIR:-$here/toGround}
+
+mkdir -p "$OUT_DIR" || exit 2
+info=$OUT_DIR/run-info.txt
+{
+    echo "experiment=exp4051 package=mru-flight"
+    echo "start_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    echo "uname=$(uname -a 2>/dev/null)"
+    echo "user=$(id 2>/dev/null)"
+    echo "nproc=$(nproc 2>/dev/null) loadavg=$(cat /proc/loadavg 2>/dev/null)"
+    echo "--- /proc/cpuinfo ---"; cat /proc/cpuinfo 2>/dev/null
+    echo "--- /proc/meminfo (head) ---"; head -5 /proc/meminfo 2>/dev/null
+    echo "---"
+    echo "quorum_sha256=$(sha256sum "$QUORUM" 2>/dev/null | cut -d' ' -f1)"
+    echo "settings: policies=$POLICIES run_seconds=$RUN_SECONDS seed=$SEED cpu_percent=$CPU_PERCENT memory_mb=$MEMORY_MB sensor_mb=$SENSOR_MB"
+} >"$info"
+
+child=
+stop() {
+    # Forward a stop request to the running voter; it ends its replicas,
+    # writes its summary and exits.
+    if [ -n "$child" ]; then
+        kill -TERM "$child" 2>/dev/null
+        wait "$child"
+    fi
+    echo "stopped_by_signal_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >>"$info"
+    exit 0
+}
+trap stop TERM INT HUP
+
+status=0
+for policy in $POLICIES; do
+    set -- --policy "$policy" --seed "$SEED" --ticks 1000000000000 \
+        --cpu-percent "$CPU_PERCENT" --max-memory-mb "$MEMORY_MB" \
+        --max-seconds "$RUN_SECONDS" --sensor-mb "$SENSOR_MB" \
+        --log "$OUT_DIR/quorum-$policy.csv" --summary "$OUT_DIR/summary-$policy.txt"
+    if [ -f "$FAULTS_FILE" ]; then
+        set -- "$@" --faults-file "$FAULTS_FILE"
+    fi
+    "$QUORUM" "$@" >"$OUT_DIR/stdout-$policy.txt" 2>&1 &
+    child=$!
+    wait "$child"
+    rc=$?
+    child=
+    echo "$policy: exit=$rc end_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >>"$info"
+    [ "$rc" -eq 0 ] || status=1
+done
+echo "end_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ') status=$status" >>"$info"
+exit "$status"
