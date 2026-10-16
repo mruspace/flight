@@ -17,12 +17,12 @@
 #![allow(clippy::needless_range_loop)]
 
 use quorum::{decide, Health, Mode, Outcome, Policy, Reply, REPLICAS};
+use std::cell::RefCell;
 use std::fs::File;
-use std::io::{BufWriter, Read, Write};
+use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 use std::os::fd::AsRawFd;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::cell::RefCell;
 use std::time::{Duration, Instant};
 
 // ---- the payload task: hash a 4 KiB block of working memory derived from the tick
@@ -652,6 +652,10 @@ fn usage_of(who: libc::c_int) -> (i64, f64) {
 
 // ---- checkpoint: the run's state on disk, to resume after a reset or power cut
 
+/// An open run of identical events in the log: what, detail, first tick, last
+/// tick, count. Written as one line plus a closing line with the count.
+type Streak = (String, String, u64, u64, u64);
+
 /// Everything a run needs to carry on where it stopped. The replicas are new
 /// processes after a reset; which slots are dead, stuck or hung is hardware
 /// state, so it is saved and applied to them.
@@ -682,6 +686,14 @@ struct Checkpoint {
     sensor_scans: u64,
     sensor_flips: u64,
     resumes: u64,
+    /// Bytes of the event log that belong to this checkpoint. A reset can land
+    /// after the log was flushed and before the checkpoint was renamed into
+    /// place; on resume the log is cut back to this length, so no event is in
+    /// it twice.
+    log_len: u64,
+    /// An open run of identical events (what, detail, first tick, last tick,
+    /// count), so the closing line after a resume still counts from the start.
+    streak: Option<Streak>,
 }
 
 fn run_identity(o: &Options) -> String {
@@ -740,7 +752,7 @@ impl Checkpoint {
              alive={}\nstuck={}\nhung={}\nstuckbit={}\ncorrupt_pending={}\n\
              strikes={}\nstrike_count={}\nfault_at={}\n\
              faults_injected={}\ncaught={}\nlatency_sum={}\nlatency_max={}\nkat_tests={}\n\
-             sensor_scans={}\nsensor_flips={}\nresumes={}\n",
+             sensor_scans={}\nsensor_flips={}\nresumes={}\nlog_len={}\nstreak={}\n",
             self.run,
             self.tick,
             self.useful,
@@ -763,7 +775,13 @@ impl Checkpoint {
             self.kat_tests,
             self.sensor_scans,
             self.sensor_flips,
-            self.resumes
+            self.resumes,
+            self.log_len,
+            self.streak
+                .as_ref()
+                .map_or("-".to_string(), |(w, d, first, last, n)| {
+                    format!("{first}|{last}|{n}|{w}|{d}")
+                })
         )
     }
 
@@ -809,6 +827,19 @@ impl Checkpoint {
             sensor_scans: num("sensor_scans")?,
             sensor_flips: num("sensor_flips")?,
             resumes: num("resumes")?,
+            log_len: num("log_len")?,
+            streak: match get("streak")?.as_str() {
+                "-" => None,
+                st => {
+                    let mut parts = st.splitn(5, '|');
+                    let first = parts.next()?.parse().ok()?;
+                    let last = parts.next()?.parse().ok()?;
+                    let n = parts.next()?.parse().ok()?;
+                    let what = parts.next()?.to_string();
+                    let detail = parts.next()?.to_string();
+                    Some((what, detail, first, last, n))
+                }
+            },
             ..Checkpoint::default()
         };
         for i in 0..REPLICAS {
@@ -887,15 +918,23 @@ fn main() {
     }
     cp.run = identity;
 
-    // shared by the event closure and the checkpoint, which flushes it
+    // shared by the event closure and the checkpoint, which flushes it. On a
+    // resume the log is cut back to the length the checkpoint recorded: a
+    // reset between the log flush and the checkpoint rename leaves events in
+    // the file that the resumed run writes again.
     let log = std::cell::RefCell::new(o.log.as_ref().map(|p| {
-        let f = std::fs::OpenOptions::new()
+        let mut f = std::fs::OpenOptions::new()
             .create(true)
-            .append(resuming)
             .write(true)
             .truncate(!resuming)
             .open(p)
             .expect("log file");
+        if resuming {
+            if cp.log_len > 0 {
+                f.set_len(cp.log_len).expect("log file");
+            }
+            f.seek(SeekFrom::End(0)).expect("log file");
+        }
         BufWriter::new(f)
     }));
     if let Some(l) = log.borrow_mut().as_mut() {
@@ -909,7 +948,7 @@ fn main() {
     // good and one stuck replica detects a disagreement on every tick) is
     // written as its first line plus one closing line with the count, so the
     // log stays small for downlink.
-    let streak: RefCell<Option<(String, String, u64, u64, u64)>> = RefCell::new(None);
+    let streak: RefCell<Option<Streak>> = RefCell::new(cp.streak.take());
     let event = |tick: u64, what: &str, detail: String| {
         let mut l = log.borrow_mut();
         let Some(l) = l.as_mut() else { return };
@@ -997,11 +1036,15 @@ fn main() {
         if let Some(s) = sensor {
             (cp.sensor_scans, cp.sensor_flips) = (s.scans, s.flips);
         }
-        // the log first, so after a reset it holds every event up to the checkpoint
+        // the log first, so after a reset it holds every event up to the
+        // checkpoint; its length goes into the checkpoint so a resume can cut
+        // off anything written after this point
         if let Some(l) = log.borrow_mut().as_mut() {
             let _ = l.flush();
             let _ = l.get_ref().sync_data();
+            cp.log_len = l.get_ref().metadata().map_or(0, |m| m.len());
         }
+        cp.streak = streak.borrow().clone();
         cp.save(path);
     };
     let progress = |useful: u64, detected: u64, wrong: u64, alive: usize| {
