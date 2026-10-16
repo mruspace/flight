@@ -5,6 +5,10 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ## Unreleased
 
+### Changed
+
+- `docs/opssat.md`: status is "software environment test passed" with ESA's measured results from 15 October 2026; the dosimeter comparison is gone (PRETTY's dosimeter data is not available to experimenters). README roadmap item 4 says the same. `.gitignore`: `opssat/toGround/`.
+
 ### Fixed
 
 - `opssat/package.sh`: on macOS, tar added one hidden `._NAME` metadata entry per file to the package, and the macOS tar listing hid them, so the check after packaging did not show them. ESA's software environment test of `exp4051-mru-flight-v0.3.1.tar.gz` (16 October 2026) found them; they did not affect the run. The script now sets `COPYFILE_DISABLE=1`, passes `--no-mac-metadata` to bsdtar, and lists the archive with Python's `tarfile`, which fails the build on any hidden entry, a wrong file list or an owner other than `exp`. The package ESA tested is unchanged.

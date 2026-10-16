@@ -4,3 +4,5 @@
 !bench/results/*.csv
 # OPS-SAT experiment packages built by opssat/package.sh
 opssat/exp4051-*.tar.gz
+# output of opssat/run when started from the repository
+opssat/toGround/
