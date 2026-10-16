@@ -11,6 +11,7 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ### Fixed
 
+- Demo: after a reset, the event log could hold an event twice. The voter flushes the log before it writes the checkpoint, so a reset between the two left events in the log that the resumed run wrote again (seen once in CI under emulation on 16 October 2026: two `killed,0` lines). The checkpoint now records the log's length and the open run of identical events; a resume cuts the log back to that length and continues the run's count. Scenario test 18 plants a stale line past the checkpoint and checks that it is gone.
 - `opssat/package.sh`: on macOS, tar added one hidden `._NAME` metadata entry per file to the package, and the macOS tar listing hid them, so the check after packaging did not show them. ESA's software environment test of `exp4051-mru-flight-v0.3.1.tar.gz` (16 October 2026) found them; they did not affect the run. The script now sets `COPYFILE_DISABLE=1`, passes `--no-mac-metadata` to bsdtar, and lists the archive with Python's `tarfile`, which fails the build on any hidden entry, a wrong file list or an owner other than `exp`. The package ESA tested is unchanged.
 
 ## 0.3.1 (2026-10-15)

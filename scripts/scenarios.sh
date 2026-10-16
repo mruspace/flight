@@ -203,7 +203,10 @@ fi
 # 18. A reset loses nothing: kill -9 the voter during the run, start it again
 #     with the same options, and it resumes from its checkpoint to the same
 #     counts as a run that was never interrupted. The log keeps every event up
-#     to the checkpoint, once. A checkpoint from another run is refused.
+#     to the checkpoint, once: a reset can land after the log was flushed and
+#     before the checkpoint was renamed into place (seen in CI under emulation,
+#     16 Oct 2026), so one event past the checkpoint is planted in the log and
+#     must be gone after the resume. A checkpoint from another run is refused.
 dir=$(mktemp -d)
 set -- --policy shrink --ticks 12000 --seed 2 --upset-rate 0.01 --cpu-percent 60 \
     --fault kill:0@3000 --fault kill:1@5000 --fault stuck:2@9000
@@ -214,16 +217,19 @@ sleep 1
 kill -KILL "$pid"
 wait "$pid" 2>/dev/null || true
 sleep 0.3
+cp_tick=$(sed -n 's/^tick=//p' "$dir/cp")
+printf '%s,killed,0\n' "$((cp_tick + 50))" >>"$dir/log.csv"
 got=$("$Q" "$@" --checkpoint "$dir/cp" --log "$dir/log.csv" | sed -n '2p;5p')
 at=$(sed -n 's/^\([0-9]*\),resumed,1$/\1/p' "$dir/log.csv")
 printf 'run=other\ntick=5\n' >"$dir/other"
 kills=$(grep -c ',killed,0$' "$dir/log.csv")
-if [ -n "$at" ] && [ "$got" = "$want" ] && [ ! -e "$dir/cp" ] &&
-    [ "$(head -n 1 "$dir/log.csv")" = tick,event,detail ] && [ "$kills" = 1 ] &&
+stale=$(grep -c "^$((cp_tick + 50)),killed,0$" "$dir/log.csv" || true)
+if [ -n "$at" ] && [ "$at" = "$cp_tick" ] && [ "$got" = "$want" ] && [ ! -e "$dir/cp" ] &&
+    [ "$(head -n 1 "$dir/log.csv")" = tick,event,detail ] && [ "$kills" = 1 ] && [ "$stale" = 0 ] &&
     ! "$Q" "$@" --checkpoint "$dir/other" >/dev/null 2>&1; then
-    pass "reset: killed at tick $at, resumed to the same counts"
+    pass "reset: killed at tick $at, resumed to the same counts, stale log line removed"
 else
-    fail "reset: resume ($want / $got, resumed at '$at', $kills kill events)"
+    fail "reset: resume ($want / $got, resumed at '$at' from checkpoint tick '$cp_tick', $kills kill events, $stale stale)"
 fi
 set --
 rm -rf "$dir"
