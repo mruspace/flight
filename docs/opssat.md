@@ -1,12 +1,13 @@
 # Running Mru Flight on OPS-SAT
 
-**Status: registered, software environment test passed.** ESA's OPS-SAT
-Space Lab confirmed the experiment on 14 October 2026 as **exp4051** for
-OPS-SAT PRETTY. ESA ran the package `exp4051-mru-flight-v0.3.1.tar.gz` in its
-software environment on 15 October 2026: both runs exit 0, every fault on its
-scheduled tick, results as expected (numbers below). Nothing has run on the
-satellite yet. The next steps are TU Graz's test on the PRETTY FlatSat, then
-the run in orbit.
+**Status: registered, software environment and FlatSat tests passed.**
+ESA's OPS-SAT Space Lab confirmed the experiment on 14 October 2026 as
+**exp4051** for OPS-SAT PRETTY. ESA ran the package
+`exp4051-mru-flight-v0.3.1.tar.gz` in its software environment on 15 October
+2026 and on the PRETTY FlatSat, the flight processor on the bench, on 16
+October 2026: both runs exit 0 each time, every fault on its scheduled tick,
+results as expected (numbers below). Nothing has run on the satellite yet.
+The next step is the run in orbit.
 
 A note for the OPS-SAT Space Lab team: what the experiment does on the
 satellite, what it touches, its limits, how to start and stop it, what it sends
@@ -194,11 +195,39 @@ ESA's software environment test of the same package, run on 15 October 2026
   log; it is counted in the detection line (`faults=2 caught=2`).
 
 The sandbox ran about twice as fast as the laptop under emulation, so it has
-about twice the results; every event sits on the same tick. The flight
-processor is slower than both, so the tick counts in orbit will be lower, and
-the fault ticks sit early in the schedule for that reason. In self-check mode
+about twice the results; every event sits on the same tick. In self-check mode
 the voter computes on even ticks only, so the shrink count is about half the
 tick count after tick 240 by design.
+
+TU Graz's FlatSat test of the same package, run on 16 October 2026 (start
+05:20:11 UTC) on the SEPP itself: Altera SoC FPGA, two Cortex-A9 cores, 1 GB
+of memory, Linux 4.9, started by systemd as "Experiment 4051" in a container
+named exp-4051, as user exp; results received the same day:
+
+- Whole run 224 seconds, both exit 0, seven files, checksum matches the
+  release.
+- Shrink: 2,745 correct results over 5,250 ticks, no wrong results. Stuck
+  replica retired at tick 122, last replica alone from tick 240, sensor
+  self-test flip found and repaired at the scan at tick 250 (21 scans). Voter
+  65,992 KiB resident, replicas 452 KiB.
+- Fixed TMR: 239 correct results, then a detected disagreement on every tick
+  from 240 to 4,778.
+- **Tick rate on the flight processor at the 5% share: about 45 per second**
+  (5,251 ticks in 113.2 s for shrink, 4,779 in 110.0 s for fixed TMR), about
+  six times slower than ESA's sandbox VM and three times slower than the
+  laptop. The last fault lands about five seconds in.
+- The shrink run ended at 113.2 s instead of 110: the time limit is checked
+  once per tick, and tick 5,250 was a scan of the 64 MB sensor block, which is
+  slow on this processor, followed by its 5% sleep. The total stayed well
+  inside the five-minute window.
+- Voter CPU time 5.880 s of 113.247 s (5.2%) for shrink and 6.000 s of
+  110.004 s (5.4%) for fixed TMR, including the unthrottled start-up.
+
+Every event sits on the same tick on all three hosts. Expected for the run in
+orbit, stated to ESA on 16 October before the run: the same events on the
+same ticks, about 2,700 correct results for shrink and 239 for fixed TMR,
+zero wrong in both, about 225 seconds in total, and any real bit flip in the
+64 MB sensor block as an extra `sensor_upset` line with its location.
 
 ## Fault schedule
 
