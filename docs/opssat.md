@@ -1,9 +1,12 @@
 # Running Mru Flight on OPS-SAT
 
-**Status: registered.** ESA's OPS-SAT Space Lab confirmed the experiment on
-14 October 2026 as **exp4051** for OPS-SAT PRETTY. Nothing has run on the
-satellite yet. The next steps are ESA's test in the software environment, TU
-Graz's test on the PRETTY FlatSat, then the run in orbit.
+**Status: registered, software environment test passed.** ESA's OPS-SAT
+Space Lab confirmed the experiment on 14 October 2026 as **exp4051** for
+OPS-SAT PRETTY. ESA ran the package `exp4051-mru-flight-v0.3.1.tar.gz` in its
+software environment on 15 October 2026: both runs exit 0, every fault on its
+scheduled tick, results as expected (numbers below). Nothing has run on the
+satellite yet. The next steps are TU Graz's test on the PRETTY FlatSat, then
+the run in orbit.
 
 A note for the OPS-SAT Space Lab team: what the experiment does on the
 satellite, what it touches, its limits, how to start and stop it, what it sends
@@ -172,8 +175,30 @@ sensor scanned every 250 ticks, 110 seconds per policy:
   for fixed TMR over the same 220 seconds. The share was lowered to match the
   registration.
 
-The flight processor is slower than the laptop, so the tick counts in orbit
-will be lower and the fault ticks sit early in the schedule for that reason.
+ESA's software environment test of the same package, run on 15 October 2026
+(start 13:05:29 UTC) on a Linux VM with two Cortex-A53 cores in 32-bit mode,
+4 GB of memory, as root; results received 16 October:
+
+- Whole run 222 seconds, both exit 0, seven files. The checksum of `quorum`
+  in `run-info.txt` matches the release.
+- Shrink: 14,886 correct results over 29,532 ticks (about 268 ticks per
+  second), no wrong results. Stuck replica retired at tick 122, last replica
+  alone from tick 240, sensor self-test flip found and repaired at the scan at
+  tick 250 (118 scans). Voter 71,296 KiB resident, replicas 4,992 KiB.
+- Fixed TMR: 239 correct results, then a detected disagreement on every tick
+  from 240 to 19,250.
+- Voter CPU time 5.709 s of 110.004 s wall (5.2%). The main loop is capped at
+  5%; the start-up (filling the 64 MB sensor block and spawning the replicas)
+  runs outside the cap.
+- The bit flip at tick 60 is outvoted at once and leaves no line in the event
+  log; it is counted in the detection line (`faults=2 caught=2`).
+
+The sandbox ran about twice as fast as the laptop under emulation, so it has
+about twice the results; every event sits on the same tick. The flight
+processor is slower than both, so the tick counts in orbit will be lower, and
+the fault ticks sit early in the schedule for that reason. In self-check mode
+the voter computes on even ticks only, so the shrink count is about half the
+tick count after tick 240 by design.
 
 ## Fault schedule
 
@@ -217,5 +242,7 @@ All in the output folder:
    retired, lost replica dropped, mode stepped down, sensor self-test flip
    found).
 3. Any real bit flips, in the replicas or in the sensor, are logged with their
-   time and location, for comparison with PRETTY's dosimetry data.
+   time and location. PRETTY's dosimeter data is not available to
+   experimenters (ESA, 16 October 2026), so the sensor's counts stand on their
+   own.
 4. No limit is ever exceeded, and the platform is never affected.
