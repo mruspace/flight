@@ -7,7 +7,7 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ### Changed
 
-- `docs/opssat.md`: status is "software environment test passed" with ESA's measured results from 15 October 2026; the dosimeter comparison is gone (PRETTY's dosimeter data is not available to experimenters). README roadmap item 4 says the same. `.gitignore`: `opssat/toGround/`.
+- `docs/opssat.md`: status is "software environment and FlatSat tests passed" with ESA's measured results from 15 October 2026 and TU Graz's FlatSat results from 16 October 2026 (the flight processor: about 45 ticks per second at the 5% share), and the prediction for the orbit run as stated to ESA; the dosimeter comparison is gone (PRETTY's dosimeter data is not available to experimenters). README roadmap item 4 says the same. `.gitignore`: `opssat/toGround/`.
 
 ### Fixed
 

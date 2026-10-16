@@ -366,7 +366,8 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
    [OPS-SAT Space Lab](https://opssat.esa.int/missions) for OPS-SAT PRETTY
    (exp4051, October 2026), the shrinking quorum under injected faults on the
    flight processor, with the software's own radiation sensor logged. ESA's
-   software environment test passed on 15 October 2026
+   software environment test passed on 15 October 2026 and the FlatSat test
+   on the flight processor on 16 October 2026; the run in orbit is next
    ([operations note](docs/opssat.md)).
 5. **On Earth**: the same software on an unattended ocean node, proposed for an
    EMSO ERIC observatory test.
