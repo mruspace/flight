@@ -15,6 +15,11 @@
 #   QUORUM_BIN=path ./package.sh   uses a binary you built yourself
 set -eu
 
+# macOS tar stores extended attributes as extra "._NAME" entries, which the
+# macOS tar listing then hides. ESA's first test (16 Oct 2026) found them in
+# the package. Both lines below stop them, on bsdtar and on GNU tar.
+export COPYFILE_DISABLE=1
+
 here=$(cd "$(dirname "$0")" && pwd)
 VERSION=${VERSION:-v0.3.1}
 TARGET=armv7-unknown-linux-musleabihf
@@ -76,9 +81,33 @@ TXT
 
 out="$PWD/exp4051-mru-flight-$VERSION.tar.gz"
 if tar --version 2>/dev/null | grep -q bsdtar; then
-    tar -C "$stage" --uname exp --gname exp --uid 1024 --gid 1024 -czf "$out" run quorum faults.txt README.txt LICENSE
+    tar -C "$stage" --no-mac-metadata --uname exp --gname exp --uid 1024 --gid 1024 -czf "$out" run quorum faults.txt README.txt LICENSE
 else
     tar -C "$stage" --owner=exp:1024 --group=exp:1024 -czf "$out" run quorum faults.txt README.txt LICENSE
 fi
 echo "wrote $out"
-tar -tzvf "$out"
+
+# List and check the archive with Python's tarfile, which hides nothing:
+# exactly the five files, no "._" entries, every entry owned by exp.
+if command -v python3 >/dev/null 2>&1; then
+    python3 -I - "$out" <<'PY'
+import sys, tarfile
+want = ["run", "quorum", "faults.txt", "README.txt", "LICENSE"]
+with tarfile.open(sys.argv[1]) as t:
+    members = t.getmembers()
+for m in members:
+    print(f"{m.mode:o} {m.uname}/{m.gname} {m.size:>8} {m.name}")
+names = [m.name for m in members]
+bad = [n for n in names if n.startswith("._") or "/._" in n]
+if bad:
+    sys.exit(f"error: hidden metadata entries in the package: {bad}")
+if sorted(names) != sorted(want):
+    sys.exit(f"error: package entries {names} differ from {want}")
+if any(m.uname != "exp" or m.gname != "exp" for m in members):
+    sys.exit("error: an entry is not owned by exp:exp")
+print(f"checked: {len(members)} entries, no hidden files, all owned by exp")
+PY
+else
+    echo "python3 not found: the tar listing below can hide ._ entries on macOS" >&2
+    tar -tzvf "$out"
+fi
