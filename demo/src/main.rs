@@ -420,10 +420,18 @@ impl Sensor {
         }
     }
 
-    /// Check every word; call `report(word, bit)` for each flipped bit and repair it.
-    fn scan(&mut self, mut report: impl FnMut(usize, u32)) {
-        self.scans += 1;
+    /// Words between two looks at the deadline: 1 MiB, a few milliseconds.
+    const CHUNK: usize = 1024 * 1024 / 8;
+
+    /// Check every word; call `report(word, bit)` for each flipped bit and
+    /// repair it. Returns false if `deadline` passed before the scan was
+    /// complete: the words up to that point are checked, the rest are not,
+    /// and the scan is not counted.
+    fn scan(&mut self, deadline: Option<Instant>, mut report: impl FnMut(usize, u32)) -> bool {
         for (i, w) in self.words.iter_mut().enumerate() {
+            if i % Sensor::CHUNK == 0 && deadline.is_some_and(|d| Instant::now() >= d) {
+                return false;
+            }
             // SAFETY: a valid, aligned pointer into our own vector; volatile so
             // the read really goes to memory.
             let seen = unsafe { std::ptr::read_volatile(w) };
@@ -438,6 +446,8 @@ impl Sensor {
                 *w = Sensor::pattern(i);
             }
         }
+        self.scans += 1;
+        true
     }
 
     /// Flip one bit, as a test of the sensor itself.
@@ -1004,6 +1014,9 @@ fn main() {
     let mut kat_tests = cp.kat_tests; // known-answer tests run, of every kind
     let mut stopped = "completed";
     let start = Instant::now();
+    // --max-seconds as an instant: the scan and the throttle sleep check it,
+    // so a run never overruns the cap by more than a chunk of the scan
+    let deadline = (o.max_seconds > 0.0).then(|| start + Duration::from_secs_f64(o.max_seconds));
     let mut last_tick = cp.tick;
     let save = |cp: &mut Checkpoint,
                 tick: u64,
@@ -1250,8 +1263,14 @@ fn main() {
 
         // radiation sensor: check the pattern every sensor_every ticks
         if let Some(s) = sensor.as_mut() {
-            if tick % o.sensor_every.max(1) == 0 {
-                s.scan(|word, bit| event(tick, "sensor_upset", format!("{word}:{bit}")));
+            if tick % o.sensor_every.max(1) == 0
+                && !s.scan(deadline, |word, bit| {
+                    event(tick, "sensor_upset", format!("{word}:{bit}"))
+                })
+            {
+                stopped = "time-limit";
+                event(tick, "stopped", stopped.into());
+                break;
             }
         }
 
@@ -1278,7 +1297,11 @@ fn main() {
         // CPU share: sleep so that work takes at most cpu_percent of wall time
         if o.cpu_percent > 0.0 && o.cpu_percent < 100.0 {
             let work = tick_start.elapsed();
-            std::thread::sleep(work.mul_f64((100.0 - o.cpu_percent) / o.cpu_percent));
+            let mut nap = work.mul_f64((100.0 - o.cpu_percent) / o.cpu_percent);
+            if let Some(d) = deadline {
+                nap = nap.min(d.saturating_duration_since(Instant::now()));
+            }
+            std::thread::sleep(nap);
         }
     }
 
@@ -1426,6 +1449,31 @@ mod tests {
         assert!(parse_fault("stuckbit:2@500").is_none());
         assert!(parse_fault("stuck:2@500/x").is_none());
         assert!(parse_fault("stuckbit:2@500/out.3.1").is_some());
+    }
+
+    #[test]
+    fn scan_stops_at_a_passed_deadline_and_completes_without_one() {
+        let mut s = Sensor::new(2);
+        s.inject(3, 5);
+        let mut found = 0;
+        assert!(!s.scan(Some(Instant::now()), |_, _| found += 1));
+        assert_eq!(
+            (s.scans, found),
+            (0, 0),
+            "a passed deadline stops the scan before the first chunk"
+        );
+        assert!(s.scan(None, |_, _| found += 1));
+        assert_eq!((s.scans, s.flips, found), (1, 1, 1));
+        assert!(
+            s.scan(Some(Instant::now() + Duration::from_secs(60)), |_, _| {
+                found += 1
+            })
+        );
+        assert_eq!(
+            (s.scans, found),
+            (2, 1),
+            "repaired, so the next scan finds nothing"
+        );
     }
 
     #[test]

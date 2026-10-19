@@ -282,9 +282,11 @@ about 225 seconds (227), and no `sensor_upset` line other than the self-test
 (none).
 
 Both runs overran the 110-second cap by about 3 seconds, as the shrink run
-did on the FlatSat: the limit is checked once per tick, and the last tick was
-a scan of the 64 MB sensor block. The total stayed well inside the
-five-minute window. A fix is planned for the next version.
+did on the FlatSat: in v0.3.1 the limit is checked once per tick, and the last
+tick was a scan of the 64 MB sensor block. The total stayed well inside the
+five-minute window. Fixed after the run, for the next package: the scan looks
+at the limit every 1 MiB and stops there, and the CPU-share sleep never runs
+past it, so a run ends within a few milliseconds of the cap.
 
 Scope: three software replicas on one Linux payload processor, in user space,
 with faults from a schedule. The run tests the software policy on the flight

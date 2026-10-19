@@ -342,5 +342,17 @@ else
     fail "faults: $bad malformed fault(s) not refused with status 2"
 fi
 
+# 26. The run time cap holds inside a sensor scan. A run that scans 32 MB on
+#     every tick stops at --max-seconds 1 within the scan, not after it, so
+#     the wall time stays within a fraction of a second of the cap.
+all=$("$Q" --policy shrink --ticks 100000000 --seed 1 --sensor-mb 32 --sensor-every 1 --max-seconds 1)
+out=$(printf '%s\n' "$all" | sed -n 2p)
+wall=$(field wall "$(printf '%s\n' "$all" | sed -n 3p)" | tr -d s)
+if [ "$(field stopped "$out")" = time-limit ] && awk -v w="$wall" 'BEGIN { exit !(w < 1.5) }'; then
+    pass "stop: cap holds inside a 32 MB scan (${wall}s wall at --max-seconds 1)"
+else
+    fail "stop: cap overrun inside a scan (${wall}s wall, $out)"
+fi
+
 echo
 if [ "$fails" -eq 0 ]; then echo "all checks passed"; else echo "$fails check(s) failed"; exit 1; fi
