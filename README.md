@@ -41,9 +41,15 @@ This repository is where that policy becomes flight software: a small,
 verified Rust core, wrapped as components for NASA JPL's open-source
 [F´](https://github.com/nasa/fprime) framework.
 
-**Status (October 2026): early prototype.** The decision core, a demo on real
-processes with faults injected, and four F´ components work today. They run
-on general-purpose processors, not yet on flight hardware.
+**Status (October 2026): the demo ran in orbit.** On 18 October 2026, Mru
+Flight v0.3.1 ran on the SEPP payload processor of ESA's OPS-SAT PRETTY as
+experiment exp4051: three software replicas on one processor, with faults
+from a schedule, 227 seconds, every result as predicted in writing before the
+run ([in orbit](#in-orbit)). That tests the software policy on a flight
+processor. It is not a hardware-redundancy test and not qualification
+evidence. The decision core, the demo on real processes with faults injected,
+and four F´ components work today; the F´ components have not run on flight
+hardware.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/chart-dark.png">
@@ -263,8 +269,10 @@ every host, and CI checks that the emulated ARM binaries match a native run.
 Method, results and limits: [docs.mru.space/core/bench](https://docs.mru.space/core/bench/).
 
 `scripts/board.sh` runs the scenario checks, the bench and a reset test on a
-Linux board over SSH, with reboots or real power cuts. No board run has been
-done yet. The procedure is in [docs/board.md](docs/board.md).
+Linux board over SSH, with reboots or real power cuts. No run with `board.sh`
+has been done yet; the procedure is in [docs/board.md](docs/board.md). The
+OPS-SAT package, which runs the demo without `board.sh`, has run on the
+PRETTY FlatSat and in orbit ([in orbit](#in-orbit)).
 
 ### Footprint and limits
 
@@ -278,6 +286,8 @@ Largest resident memory of any process over all 300 bench runs per host, from
 | macOS (Apple M4) | 1.9 MB |
 
 The static `quorum` binaries in the v0.2.0 release packages are 642 to 675 kB.
+The 32-bit ARM (hard float) binary of v0.3.1 is the one that ran on the SEPP,
+on the FlatSat and in orbit.
 
 The scenario tests also check the safety limits: a hung replica is dropped
 after the reply timeout, SIGTERM ends the run cleanly with no replica left, the
@@ -288,6 +298,31 @@ schedule file and the launcher script. In CI the whole suite also runs on the
 static 64-bit and 32-bit (hard and soft float) ARM binaries under emulation.
 Tagged releases package each binary with the launcher, a sample fault
 schedule and the operations note.
+
+## In orbit
+
+On 18 October 2026, Mru Flight v0.3.1 ran on ESA's OPS-SAT PRETTY satellite
+as experiment exp4051 of the OPS-SAT Space Lab, eleven days after
+registration. The same package ran three times on three hosts with the same
+seed and the same fault schedule (sensor self-test at tick 20, a bit flip in
+replica 2 at 60, replica 1 stuck at 120, replica 0 killed at 240), each
+policy capped at 110 seconds at a 5% CPU share:
+
+| Run | Host | Shrinking quorum: correct / wrong / ticks | Fixed TMR: correct, then detected to tick | Wall (shrink, TMR) | Exit |
+|---|---|---|---|---|---|
+| 15 Oct 2026, ESA software environment | Linux VM, two Cortex-A53 cores in 32-bit mode | 14,886 / 0 / 29,532 | 239, then 19,250 | 110.0 s, 110.8 s | 0, 0 |
+| 16 Oct 2026, TU Graz FlatSat | SEPP (Cyclone V SoC, two Cortex-A9 cores) on the bench | 2,745 / 0 / 5,250 | 239, then 4,778 | 113.2 s, 110.0 s | 0, 0 |
+| 18 Oct 2026, 09:45 UTC, in orbit | SEPP on OPS-SAT PRETTY | 2,745 / 0 / 5,250 | 239, then 4,500 | 113.5 s, 113.1 s | 0, 0 |
+
+Every event landed on the same tick on all three hosts, and the orbit run
+matched the prediction written to ESA on 16 October, before the run. Scope:
+three software replicas on one Linux payload processor, in user space, with
+faults from a schedule, 227 seconds in orbit with no real upset in the 64 MB
+sensor block. This tests the software policy on a flight processor. It is
+not a hardware-redundancy test and not qualification evidence, and the 1.34×
+above comes from dusk's simulated missions, not from this run. Numbers, logs
+and the operations note: [docs/opssat.md](docs/opssat.md) and
+[`opssat/results`](opssat/results).
 
 ## Two replicas
 
@@ -358,17 +393,18 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
    test-only `FaultInjector` are built ([design](docs/fprime-design.md)). Next:
    a reference deployment, `PowerAccountant` and `ScrubScheduler`.
 2. **Measurements on representative processors**: static ARM Linux binaries are
-   built and tested today; next, real boards.
+   built and tested in CI under emulation. The 32-bit ARM binary ran on the
+   SEPP, the flight processor of OPS-SAT PRETTY, on the FlatSat and in orbit
+   (October 2026). Next: real boards on the bench.
 3. **Hardware-in-the-loop bench**: real boards with injected faults (bit flips,
    resets, power cuts). The scripts and the procedure are ready
    ([docs/board.md](docs/board.md)).
-4. **In orbit**: an experiment registered with ESA's
-   [OPS-SAT Space Lab](https://opssat.esa.int/missions) for OPS-SAT PRETTY
-   (exp4051, October 2026), the shrinking quorum under injected faults on the
-   flight processor, with the software's own radiation sensor logged. ESA's
-   software environment test passed on 15 October 2026 and the FlatSat test
-   on the flight processor on 16 October 2026; the run in orbit is next
-   ([operations note](docs/opssat.md)).
+4. **In orbit**: done. Experiment exp4051 with ESA's
+   [OPS-SAT Space Lab](https://opssat.esa.int/missions) ran the shrinking
+   quorum under injected faults on the flight processor of OPS-SAT PRETTY on
+   18 October 2026, with the software's own radiation sensor logged; results
+   matched the written prediction ([operations note](docs/opssat.md)). Next:
+   a longer run, proposed to ESA.
 5. **On Earth**: the same software on an unattended ocean node, proposed for an
    EMSO ERIC observatory test.
 

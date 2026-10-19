@@ -7,14 +7,19 @@ bench on a target-class board, with its results published, moves Layer 1 from
 Prototype to Bench-tested on the
 [architecture status page](https://docs.mru.space/concepts/architecture/).
 
-No board run has been done yet. This note is the procedure.
+No run with `board.sh` has been done yet. This note is the procedure. The
+OPS-SAT package, which runs the demo without this bench, has run on the SEPP
+of ESA's OPS-SAT PRETTY, on the FlatSat on 16 October 2026 and in orbit on 18
+October 2026 ([opssat.md](opssat.md)). That run had no resets or power cuts.
 
 ## Which board
 
-A board with the same class of processor as a flight payload computer, running
-Linux. For reference, ESA's OPS-SAT carried a payload processor built on an
-Altera Cyclone V SoC: a dual-core ARM Cortex-A9 at 800 MHz with an FPGA,
-running Linux ([ESA](https://www.esa.int/Enabling_Support/Operations/OPS-SAT)).
+A board with the same class of processor as a flight payload processor, running
+Linux. For reference, the SEPP of ESA's OPS-SAT PRETTY, where Mru Flight's demo
+ran in October 2026, is built on an Altera Cyclone V SoC: a dual-core ARM
+Cortex-A9 at 800 MHz with an FPGA and 1 GB of memory, running Linux 4.9
+([ESA](https://www.esa.int/Enabling_Support/Operations/OPS-SAT),
+[opssat.md](opssat.md)).
 A Cyclone V SoC development board that runs Linux is the closest match, and
 its FPGA also serves later Layer 0 work.
 
@@ -91,4 +96,5 @@ reboot.
 - The three replicas still share one processor. Separate processors, one per
   replica, are the next step of the bench.
 - It is not a radiation test. Upsets are still injected. A beam test (for
-  example RADNEXT) or flight (OPS-SAT) gives real upsets.
+  example RADNEXT) or a long flight record gives real upsets; the 227-second
+  OPS-SAT run of 18 October 2026 saw none.

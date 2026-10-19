@@ -1,0 +1,7 @@
+tick,event,detail
+20,sensor_injected,
+120,stuck,1
+122,retired,1
+240,killed,0
+250,sensor_upset,20:20
+5251,stopped,time-limit
