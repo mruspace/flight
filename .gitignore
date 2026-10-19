@@ -6,3 +6,5 @@
 opssat/exp4051-*.tar.gz
 # output of opssat/run when started from the repository
 opssat/toGround/
+# OPS-SAT results, kept in the repository
+!opssat/results/**/*.csv

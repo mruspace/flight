@@ -168,7 +168,7 @@ fi
 unset QUORUM OUT_DIR SENSOR_MB CPU_PERCENT FAULTS_FILE
 rm -rf "$dir"
 
-# 15. Footprint stays well inside the planned OPS-SAT targets (128 MB memory).
+# 15. Footprint stays well inside the OPS-SAT limit (128 MB per process).
 fp=$("$Q" --policy shrink --ticks 20000 --seed 1 --upset-rate 0.001 | sed -n 3p)
 voter=$(field voter_max_rss "$fp" | tr -dc 0-9)
 replica=$(field replica_max_rss "$fp" | tr -dc 0-9)

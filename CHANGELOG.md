@@ -5,9 +5,13 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ## Unreleased
 
+### Added
+
+- Mru Flight ran in orbit. `docs/opssat.md` has the results of experiment exp4051 on ESA's OPS-SAT PRETTY, 18 October 2026 (227 seconds on the SEPP, both policies exit 0, every fault on its tick, 2,745 correct results for the shrinking quorum against 239 for fixed TMR, zero wrong, no real upset), after the two ground runs of 15 and 16 October. `opssat/results/` holds the files that came down from all three runs: `run-info.txt`, the summaries, the event logs, the console output, and the journal lines for the two runs on the SEPP. The flown build is release v0.3.1 (tag `v0.3.1`, package `exp4051-mru-flight-v0.3.1.tar.gz`, binary sha256 `4124b05b911f6a9a26ef0a352dac0a6c04e884a48c2c18a7522ee861aa4138f1`). README: a new "In orbit" section; the status, roadmap, bench notes, `SECURITY.md`, `CONTRIBUTING.md`, `docs/board.md` and `docs/qualification.md` say what has run where. Scope, stated everywhere: three software replicas on one processor, in user space, faults from a schedule; not qualification evidence.
+
 ### Changed
 
-- `docs/opssat.md`: status is "software environment and FlatSat tests passed" with ESA's measured results from 15 October 2026 and TU Graz's FlatSat results from 16 October 2026 (the flight processor: about 45 ticks per second at the 5% share), and the prediction for the orbit run as stated to ESA; the dosimeter comparison is gone (PRETTY's dosimeter data is not available to experimenters). README roadmap item 4 says the same. `.gitignore`: `opssat/toGround/`.
+- `docs/opssat.md`: status is "ran in orbit on 18 October 2026"; it has ESA's measured results from 15 October 2026 and TU Graz's FlatSat results from 16 October 2026 (the flight processor: about 45 ticks per second at the 5% share), and the prediction for the orbit run as stated to ESA; the dosimeter comparison is gone (PRETTY's dosimeter data is not available to experimenters). README roadmap item 4 says the same. `.gitignore`: `opssat/toGround/`.
 
 ### Fixed
 

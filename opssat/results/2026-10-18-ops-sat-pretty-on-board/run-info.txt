@@ -1,0 +1,41 @@
+experiment=exp4051 package=mru-flight
+start_utc=2026-10-18T09:45:37Z
+uname=Linux exp-4051 4.9.0 #7 SMP Fri Nov 12 13:21:34 UTC 2021 armv7l Linux
+user=uid=1024(exp) gid=1024(exp) groups=1024(exp)
+nproc=2 loadavg=0.12 0.03 0.01 1/86 59
+--- /proc/cpuinfo ---
+processor	: 0
+model name	: ARMv7 Processor rev 0 (v7l)
+BogoMIPS	: 200.00
+Features	: half thumb fastmult vfp edsp thumbee neon vfpv3 tls vfpd32 
+CPU implementer	: 0x41
+CPU architecture: 7
+CPU variant	: 0x3
+CPU part	: 0xc09
+CPU revision	: 0
+
+processor	: 1
+model name	: ARMv7 Processor rev 0 (v7l)
+BogoMIPS	: 200.00
+Features	: half thumb fastmult vfp edsp thumbee neon vfpv3 tls vfpd32 
+CPU implementer	: 0x41
+CPU architecture: 7
+CPU variant	: 0x3
+CPU part	: 0xc09
+CPU revision	: 0
+
+Hardware	: Altera SOCFPGA
+Revision	: 0000
+Serial		: 0000000000000000
+--- /proc/meminfo (head) ---
+MemTotal:        1027320 kB
+MemFree:          965716 kB
+MemAvailable:     989588 kB
+Buffers:            7972 kB
+Cached:            26388 kB
+---
+quorum_sha256=4124b05b911f6a9a26ef0a352dac0a6c04e884a48c2c18a7522ee861aa4138f1
+settings: policies=shrink tmr run_seconds=110 seed=1 cpu_percent=5 memory_mb=128 sensor_mb=64 sensor_every=250
+shrink: exit=0 end_utc=2026-10-18T09:47:31Z
+tmr: exit=0 end_utc=2026-10-18T09:49:24Z
+end_utc=2026-10-18T09:49:24Z status=0

@@ -35,7 +35,7 @@ involved.
 | `RedundancyManager` | Active | Collects replica results each cycle, asks the core for a verdict, delivers or rejects the result, and steps the mode down as replicas are lost. | `decide()` and `mode()` in `quorum`; the voter loop in `demo` |
 | `HealthRegistry` | Passive | Keeps strikes per replica, triggers known-answer tests, clears or retires replicas. Complements F´'s ping-based `Svc.Health`, which detects silent components but not wrong answers. | `Health` in `quorum`; known-answer tests in `demo` |
 | `ReplicaHost` | Active (one per replica) | Runs the payload task for one replica and answers known-answer tests. | the `--replica` process in `demo` |
-| `FaultInjector` | Passive, test builds only | Applies scheduled or random faults on command: stop a replica, corrupt a result, make a replica stuck. Used on the ground bench and for the OPS-SAT experiment. | fault options in `demo` |
+| `FaultInjector` | Passive, test builds only | Applies scheduled or random faults on command: stop a replica, corrupt a result, make a replica stuck. Used on the ground bench. The OPS-SAT run of October 2026 used the demo's fault options instead. | fault options in `demo` |
 | `PowerAccountant` | Passive | Every subsystem asks before it spends energy; budgets shrink as power declines. | not started |
 | `ScrubScheduler` | Active | Memory scrubbing by priority tier. | not started |
 

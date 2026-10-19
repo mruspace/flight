@@ -1,6 +1,6 @@
 # Fault schedule for a Mru Flight run: one fault per line, kind:replica@tick.
 # Copy to faults.txt next to run.sh to use it. Times are in steps (ticks).
-# The OPS-SAT run is proposed, not accepted; its length is not agreed.
+# For long runs. The OPS-SAT package uses faults.5min.txt; it ran in orbit on 18 October 2026 (docs/opssat.md).
 #
 #   kill     the replica process is terminated
 #   stuck    the replica keeps returning the same wrong value

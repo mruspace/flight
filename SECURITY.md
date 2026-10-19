@@ -8,9 +8,9 @@ email.
 
 ## Scope
 
-Mru Flight is an early prototype. It runs on general-purpose processors, not on
-flight hardware, and it has no qualification evidence. Do not use it to control
-anything that can cause harm.
+Mru Flight has no qualification evidence. The demo has run once in orbit, as a
+user-space experiment on ESA's OPS-SAT PRETTY (October 2026); that is not
+qualification. Do not use it to control anything that can cause harm.
 
 In scope:
 

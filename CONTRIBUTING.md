@@ -1,7 +1,9 @@
 # Contributing to Mru Flight
 
-Thank you for your interest. Mru Flight is an early prototype. Pull requests are
-welcome. For questions or bug reports, email contact@mru.space.
+Thank you for your interest. Mru Flight has no qualification evidence; its demo
+has run once in orbit as a user-space experiment, which is not qualification.
+Pull requests are welcome. For questions or bug reports, email
+contact@mru.space.
 
 ## Before you open a pull request
 

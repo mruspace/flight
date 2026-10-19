@@ -1,0 +1,38 @@
+experiment=exp4051 package=mru-flight
+start_utc=2026-10-15T13:05:29Z
+uname=Linux go-vm0d350a27 6.8.0-124-generic #124-Ubuntu SMP PREEMPT_DYNAMIC Tue May 26 13:00:45 UTC 2026 armv7l Linux
+user=uid=0(root) gid=0(root) groups=0(root)
+nproc=2 loadavg=0.12 0.12 0.11 1/985 2731502
+--- /proc/cpuinfo ---
+processor	: 0
+model name	: ARMv8 Processor rev 0 (v8l)
+BogoMIPS	: 100.00
+Features	: swp half thumb fast_mult vfp edsp neon vfpv3 tls vfpv4 idiva idivt vfpd32 lpae fphp asimdhp asimddp asimdfhm asimdbf16 i8mm aes pmull sha1 sha2 crc32 sb ssbs
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x1
+CPU part	: 0xd07
+CPU revision	: 0
+
+processor	: 1
+model name	: ARMv8 Processor rev 0 (v8l)
+BogoMIPS	: 100.00
+Features	: swp half thumb fast_mult vfp edsp neon vfpv3 tls vfpv4 idiva idivt vfpd32 lpae fphp asimdhp asimddp asimdfhm asimdbf16 i8mm aes pmull sha1 sha2 crc32 sb ssbs
+CPU implementer	: 0x41
+CPU architecture: 8
+CPU variant	: 0x1
+CPU part	: 0xd07
+CPU revision	: 0
+
+--- /proc/meminfo (head) ---
+MemTotal:        3960332 kB
+MemFree:          149936 kB
+MemAvailable:     725252 kB
+Buffers:           41600 kB
+Cached:           675436 kB
+---
+quorum_sha256=4124b05b911f6a9a26ef0a352dac0a6c04e884a48c2c18a7522ee861aa4138f1
+settings: policies=shrink tmr run_seconds=110 seed=1 cpu_percent=5 memory_mb=128 sensor_mb=64 sensor_every=250
+shrink: exit=0 end_utc=2026-10-15T13:07:20Z
+tmr: exit=0 end_utc=2026-10-15T13:09:11Z
+end_utc=2026-10-15T13:09:11Z status=0
