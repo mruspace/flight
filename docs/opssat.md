@@ -181,8 +181,14 @@ and continues the counts. The segment ends at the second cap with one summary
 for the whole run (`resumes=1`).
 
 Measured on 20 October 2026 in ESA's image on a laptop (Apple silicon,
-Docker's Linux VM, 32-bit ARM mode), the package built from this branch at
-the defaults (5% share, 64 MB sensor scanned every 250 ticks):
+Docker's Linux VM, 32-bit ARM mode), the package built from the development
+build, then repeated with the published package
+`exp4051-mru-flight-v0.4.0.tar.gz` (329,108 bytes, sha256
+`131cc5de2eed678d54215ef2fd7b9dca0f0b2c06dabc655c704d5ad6d680cf77`, binary
+sha256 `573278fda06685c336b2d5949b8d7c51b5608407c59273ecadfeb720f0c3d87b`):
+111 s in total, the segment 1 event log identical, the same counts, the
+restart from the checkpoint at tick 2,200. The first run, at the defaults
+(5% share, 64 MB sensor scanned every 250 ticks):
 
 - Whole run 109 seconds, every voter exit 0 (the killed one 137, as
   planned), 13 files, 9,023 bytes, nothing else written to the home folder.
