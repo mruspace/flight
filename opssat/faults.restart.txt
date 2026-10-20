@@ -1,0 +1,12 @@
+# Restart schedule for run 2 on OPS-SAT PRETTY (exp4051), segment 3.
+# The voter runs with a checkpoint every 100 ticks. After a set time the entry
+# script kills it without warning (SIGKILL, as a reset would) and starts it
+# again with the same settings; it resumes from the checkpoint. The one fault
+# puts state into the checkpoint that must survive the kill:
+#   tick  200  replica 1 stuck on one wrong value: outvoted on ticks 200, 201
+#              and 202, the third strike triggers the known-answer test, which
+#              fails, and replica 1 is retired at tick 202. After the restart
+#              it stays retired: the resumed voter starts two replicas, not
+#              three, and the counts continue from the checkpoint tick.
+#
+stuck:1@200

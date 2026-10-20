@@ -404,7 +404,10 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
    quorum under injected faults on the flight processor of OPS-SAT PRETTY on
    18 October 2026, with the software's own radiation sensor logged; results
    matched the written prediction ([operations note](docs/opssat.md)). Next:
-   a second five-minute run, proposed to ESA.
+   a second run of five minutes or less, confirmed by ESA on 20 October 2026
+   and not yet scheduled: one replica hangs, one gets stuck, the last one gets
+   a stuck bit and the quorum halts by itself with no wrong result, then a
+   kill and a resume from a checkpoint ([the package](docs/opssat.md)).
 5. **On Earth**: the same software on an unattended ocean node, proposed for an
    EMSO ERIC observatory test.
 

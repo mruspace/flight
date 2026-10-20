@@ -1,44 +1,66 @@
 #!/bin/sh
-# run: entry point for the Mru Flight experiment on OPS-SAT PRETTY [exp4051].
+# run: entry point for the Mru Flight experiment on OPS-SAT PRETTY [exp4051],
+# run 2.
 #
 # The OPS-SAT runner executes ./run as user exp in $HOME, which holds the
 # files of this package, and collects everything written under $HOME when the
-# run ends. This script runs in the foreground, one policy after the other
-# (shrink, then fixed TMR) with the same seed and fault schedule, writes all
-# output to toGround/, and exits. It stops by itself inside the five-minute
-# window: two runs of RUN_SECONDS each plus a few seconds of start-up.
+# run ends. This script runs in the foreground, three segments one after the
+# other, writes all output to toGround/, and exits. It stops by itself inside
+# the five-minute window: the caps below add up to 170 seconds, plus a few
+# seconds of start-up per voter.
+#
+#   1  shrink    the lifecycle schedule (faults.txt), cap SHRINK_SECONDS
+#   2  tmr       the same schedule under fixed TMR, cap TMR_SECONDS
+#   3  restart   shrink with a checkpoint every CHECKPOINT_EVERY ticks and
+#                the restart schedule (faults-restart.txt). After
+#                RESTART_AFTER seconds the voter is killed without warning
+#                (SIGKILL, our own process, in user space; nothing on the
+#                platform is touched), its checkpoint is copied aside, and the
+#                voter is started again with the same settings. It resumes
+#                from the checkpoint and runs for RESTART_SECONDS more.
 #
 # Settings (environment variables, defaults in brackets):
-#   POLICIES     policies to run, in order        [shrink tmr]
-#   RUN_SECONDS  wall time per policy             [110]
-#   SEED         random seed                      [1]
-#   CPU_PERCENT  share of one CPU for the voter   [5]
-#   SENSOR_EVERY ticks between sensor scans        [250]
-#   MEMORY_MB    address-space limit per process  [128]
-#   SENSOR_MB    radiation sensor size, 0 is off  [64]
-#   FAULTS_FILE  fault schedule                   [./faults.txt]
-#   QUORUM       the quorum binary                [./quorum]
-#   OUT_DIR      output folder                    [./toGround]
+#   SEGMENTS          segments to run, in order      [shrink tmr restart]
+#   SHRINK_SECONDS    cap of segment 1               [80]
+#   TMR_SECONDS       cap of segment 2               [30]
+#   RESTART_AFTER     seconds before the kill        [30]
+#   RESTART_SECONDS   cap of the resumed voter       [30]
+#   CHECKPOINT_EVERY  ticks between checkpoints      [100]
+#   SEED              random seed                    [1]
+#   CPU_PERCENT       share of one CPU for the voter [5]
+#   SENSOR_EVERY      ticks between sensor scans     [250]
+#   MEMORY_MB         address-space limit per process [128]
+#   SENSOR_MB         radiation sensor size, 0 is off [64]
+#   FAULTS_FILE       lifecycle schedule             [./faults.txt]
+#   RESTART_FAULTS    restart schedule               [./faults-restart.txt]
+#   QUORUM            the quorum binary              [./quorum]
+#   OUT_DIR           output folder                  [./toGround]
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
 cd "$here" || exit 2
-POLICIES=${POLICIES:-"shrink tmr"}
-RUN_SECONDS=${RUN_SECONDS:-110}
+SEGMENTS=${SEGMENTS:-"shrink tmr restart"}
+SHRINK_SECONDS=${SHRINK_SECONDS:-80}
+TMR_SECONDS=${TMR_SECONDS:-30}
+RESTART_AFTER=${RESTART_AFTER:-30}
+RESTART_SECONDS=${RESTART_SECONDS:-30}
+CHECKPOINT_EVERY=${CHECKPOINT_EVERY:-100}
 SEED=${SEED:-1}
 CPU_PERCENT=${CPU_PERCENT:-5}
 SENSOR_EVERY=${SENSOR_EVERY:-250}
 MEMORY_MB=${MEMORY_MB:-128}
 SENSOR_MB=${SENSOR_MB:-64}
 FAULTS_FILE=${FAULTS_FILE:-$here/faults.txt}
+RESTART_FAULTS=${RESTART_FAULTS:-$here/faults-restart.txt}
 QUORUM=${QUORUM:-$here/quorum}
 OUT_DIR=${OUT_DIR:-$here/toGround}
 
 mkdir -p "$OUT_DIR" || exit 2
 info=$OUT_DIR/run-info.txt
+now() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 {
-    echo "experiment=exp4051 package=mru-flight"
-    echo "start_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    echo "experiment=exp4051 package=mru-flight run=2"
+    echo "start_utc=$(now)"
     echo "uname=$(uname -a 2>/dev/null)"
     echo "user=$(id 2>/dev/null)"
     echo "nproc=$(nproc 2>/dev/null) loadavg=$(cat /proc/loadavg 2>/dev/null)"
@@ -46,38 +68,94 @@ info=$OUT_DIR/run-info.txt
     echo "--- /proc/meminfo (head) ---"; head -5 /proc/meminfo 2>/dev/null
     echo "---"
     echo "quorum_sha256=$(sha256sum "$QUORUM" 2>/dev/null | cut -d' ' -f1)"
-    echo "settings: policies=$POLICIES run_seconds=$RUN_SECONDS seed=$SEED cpu_percent=$CPU_PERCENT memory_mb=$MEMORY_MB sensor_mb=$SENSOR_MB sensor_every=$SENSOR_EVERY"
+    echo "settings: segments=$SEGMENTS shrink_seconds=$SHRINK_SECONDS tmr_seconds=$TMR_SECONDS restart_after=$RESTART_AFTER restart_seconds=$RESTART_SECONDS checkpoint_every=$CHECKPOINT_EVERY seed=$SEED cpu_percent=$CPU_PERCENT memory_mb=$MEMORY_MB sensor_mb=$SENSOR_MB sensor_every=$SENSOR_EVERY"
 } >"$info"
 
 child=
+sleeper=
 stop() {
     # Forward a stop request to the running voter; it ends its replicas,
     # writes its summary and exits.
+    [ -n "$sleeper" ] && kill "$sleeper" 2>/dev/null
     if [ -n "$child" ]; then
         kill -TERM "$child" 2>/dev/null
         wait "$child"
     fi
-    echo "stopped_by_signal_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >>"$info"
+    echo "stopped_by_signal_utc=$(now)" >>"$info"
     exit 0
 }
 trap stop TERM INT HUP
 
-status=0
-for policy in $POLICIES; do
-    set -- --policy "$policy" --seed "$SEED" --ticks 1000000000000 \
+# voter NAME POLICY FAULTS MAX_SECONDS STDOUT_SUFFIX [more options]: start one
+# voter in the background; its pid is in $child.
+voter() {
+    v_name=$1 v_policy=$2 v_faults=$3 v_secs=$4 v_out=$5
+    shift 5
+    set -- --policy "$v_policy" --seed "$SEED" --ticks 1000000000000 \
         --cpu-percent "$CPU_PERCENT" --max-memory-mb "$MEMORY_MB" \
-        --max-seconds "$RUN_SECONDS" --sensor-mb "$SENSOR_MB" --sensor-every "$SENSOR_EVERY" \
-        --log "$OUT_DIR/quorum-$policy.csv" --summary "$OUT_DIR/summary-$policy.txt"
-    if [ -f "$FAULTS_FILE" ]; then
-        set -- "$@" --faults-file "$FAULTS_FILE"
+        --max-seconds "$v_secs" --sensor-mb "$SENSOR_MB" --sensor-every "$SENSOR_EVERY" \
+        --log "$OUT_DIR/quorum-$v_name.csv" --summary "$OUT_DIR/summary-$v_name.txt" "$@"
+    if [ -f "$v_faults" ]; then
+        set -- "$@" --faults-file "$v_faults"
     fi
-    "$QUORUM" "$@" >"$OUT_DIR/stdout-$policy.txt" 2>&1 &
+    echo "$v_name: start_utc=$(now) max_seconds=$v_secs" >>"$info"
+    "$QUORUM" "$@" >"$OUT_DIR/stdout-$v_out.txt" 2>&1 &
     child=$!
-    wait "$child"
-    rc=$?
-    child=
-    echo "$policy: exit=$rc end_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >>"$info"
-    [ "$rc" -eq 0 ] || status=1
+}
+
+status=0
+for segment in $SEGMENTS; do
+    case $segment in
+    shrink | tmr)
+        voter "$segment" "$segment" "$FAULTS_FILE" "$([ "$segment" = shrink ] && echo "$SHRINK_SECONDS" || echo "$TMR_SECONDS")" "$segment"
+        wait "$child"
+        rc=$?
+        child=
+        echo "$segment: exit=$rc end_utc=$(now)" >>"$info"
+        [ "$rc" -eq 0 ] || status=1
+        ;;
+    restart)
+        cp_file=$OUT_DIR/checkpoint-restart.txt
+        # The first voter gets a cap of its own, in case the kill below never
+        # happens: it then stops at the cap, keeps its checkpoint, and the
+        # second voter still resumes from it.
+        voter restart shrink "$RESTART_FAULTS" $((RESTART_AFTER + 10)) restart-1 \
+            --checkpoint "$cp_file" --checkpoint-every "$CHECKPOINT_EVERY"
+        sleep "$RESTART_AFTER" &
+        sleeper=$!
+        wait "$sleeper"
+        sleeper=
+        if kill -0 "$child" 2>/dev/null; then
+            kill -KILL "$child"
+            echo "restart: voter killed (SIGKILL) at $(now), as planned" >>"$info"
+        fi
+        wait "$child"
+        rc=$?
+        child=
+        echo "restart-1: exit=$rc end_utc=$(now)" >>"$info"
+        # 137 is the planned kill; 0 means the cap ended it first (still resumable)
+        [ "$rc" -eq 137 ] || [ "$rc" -eq 0 ] || status=1
+        if [ -f "$cp_file" ]; then
+            cp "$cp_file" "$OUT_DIR/checkpoint-restart-at-kill.txt"
+            echo "restart: checkpoint at the kill: $(sed -n 's/^tick=/tick=/p; s/^resumes=/resumes=/p' "$cp_file" | tr '\n' ' ')" >>"$info"
+        else
+            echo "restart: no checkpoint found at the kill" >>"$info"
+            status=1
+        fi
+        sleep 1 # the old replicas exit by themselves when the voter's pipes close
+        voter restart shrink "$RESTART_FAULTS" "$RESTART_SECONDS" restart-2 \
+            --checkpoint "$cp_file" --checkpoint-every "$CHECKPOINT_EVERY"
+        wait "$child"
+        rc=$?
+        child=
+        echo "restart-2: exit=$rc end_utc=$(now)" >>"$info"
+        [ "$rc" -eq 0 ] || status=1
+        ;;
+    *)
+        echo "unknown segment $segment" >>"$info"
+        status=1
+        ;;
+    esac
 done
-echo "end_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ') status=$status" >>"$info"
+echo "end_utc=$(now) status=$status" >>"$info"
 exit "$status"
