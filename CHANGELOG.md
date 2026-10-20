@@ -3,7 +3,7 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
-## Unreleased
+## 0.4.0 (2026-10-20)
 
 ### Added
 
