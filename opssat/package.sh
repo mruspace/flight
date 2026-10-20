@@ -7,10 +7,11 @@
 # user exp and executes ./run.
 #
 # Contents: run (entry point), quorum (static 32-bit ARM hard-float binary
-# from the GitHub release, checksum verified), faults.txt (the five-minute
-# schedule), README.txt (for the operators) and LICENSE.
+# from the GitHub release, checksum verified), faults.txt (the lifecycle
+# schedule), faults-restart.txt (the restart schedule), README.txt (for the
+# operators) and LICENSE.
 #
-#   ./package.sh            uses the release in VERSION (default v0.3.1)
+#   ./package.sh            uses the release in VERSION (default v0.4.0)
 #   VERSION=v0.2.0 ./package.sh
 #   QUORUM_BIN=path ./package.sh   uses a binary you built yourself
 set -eu
@@ -21,7 +22,7 @@ set -eu
 export COPYFILE_DISABLE=1
 
 here=$(cd "$(dirname "$0")" && pwd)
-VERSION=${VERSION:-v0.3.1}
+VERSION=${VERSION:-v0.4.0}
 TARGET=armv7-unknown-linux-musleabihf
 REPO=mruspace/flight
 work=$(mktemp -d)
@@ -45,35 +46,54 @@ stage="$work/stage"
 mkdir -p "$stage"
 cp "$work/quorum" "$stage/quorum"
 cp "$here/run" "$stage/run"
-cp "$here/faults.5min.txt" "$stage/faults.txt"
+cp "$here/faults.lifecycle.txt" "$stage/faults.txt"
+cp "$here/faults.restart.txt" "$stage/faults-restart.txt"
 cp "$here/../LICENSE" "$stage/LICENSE"
 chmod 755 "$stage/run" "$stage/quorum"
-chmod 644 "$stage/faults.txt" "$stage/LICENSE"
+chmod 644 "$stage/faults.txt" "$stage/faults-restart.txt" "$stage/LICENSE"
 sum=$(cd "$stage" && (sha256sum quorum 2>/dev/null || shasum -a 256 quorum) | cut -d' ' -f1)
 cat >"$stage/README.txt" <<TXT
-Mru Flight on OPS-SAT PRETTY, experiment exp4051
+Mru Flight on OPS-SAT PRETTY, experiment exp4051, run 2
 Binary: $source
 quorum sha256: $sum
 
 What it is: three software replicas run the same deterministic task under a
-voter. Faults are injected by the voter itself from faults.txt (no hardware is
-touched, nothing is commanded during the run). Two runs, one after the other,
-with the same seed and schedule: the shrinking quorum, then fixed triple
-redundancy. Then it exits.
+voter. Faults are injected by the voter itself from a schedule file (no
+hardware is touched, nothing is commanded during the run). Three segments,
+one after the other, then it exits:
+
+  1  shrink   the lifecycle schedule (faults.txt): one replica hangs, one gets
+              stuck, the last one gets a stuck bit; the shrinking quorum goes
+              from three to two to one and halts by itself with no wrong
+              result. Cap 80 s; it ends earlier when it halts.
+  2  tmr      the same schedule under fixed triple redundancy. Cap 30 s.
+  3  restart  shrink with a checkpoint every 100 ticks (faults-restart.txt).
+              After 30 s the script kills the voter without warning (SIGKILL,
+              our own process, in user space), copies its checkpoint aside and
+              starts it again; it resumes from the checkpoint and runs 30 s
+              more. No platform reboot, nothing commanded. The shell that
+              runs the script may print one "Killed" line for this; it is
+              the planned kill, recorded in run-info.txt.
 
 How to run: ./run (foreground, as user exp, in this folder). It stops by
-itself: two runs of 110 seconds plus start-up, under five minutes in total.
-Stop early with SIGTERM: the voter finishes its step, writes its summary and
-exits.
+itself: the caps add up to 170 s plus a few seconds of start-up per voter,
+under five minutes in total. Stop early with SIGTERM: the running voter
+finishes its step, writes its summary and exits.
 
 What it touches: user space only, no network, no device files, no reboots.
-Four processes. Memory limit 128 MB per process (RLIMIT_AS), set by the
-processes themselves. CPU share of the voter capped at 5% of one core.
-Storage: about 1 MB for the package, a few kilobytes of output.
+At most four processes at a time. Memory limit 128 MB per process
+(RLIMIT_AS), set by the processes themselves. CPU share of the voter capped
+at 5% of one core, start-up included. Storage: about 1 MB for the package, a
+few kilobytes of output.
 
-Output, all in toGround/: run-info.txt (start, end, exit codes), and for each
-policy summary-POLICY.txt (six lines), quorum-POLICY.csv (event log) and
-stdout-POLICY.txt (console output).
+Output, all in toGround/: run-info.txt (start, end, kill time, exit codes);
+for segments 1 and 2 summary-NAME.txt (six lines), quorum-NAME.csv (event
+log) and stdout-NAME.txt (console output); for segment 3 one summary and one
+event log for the whole run (summary-restart.txt, quorum-restart.csv), the
+console output before and after the kill (stdout-restart-1.txt,
+stdout-restart-2.txt), the checkpoint as it was at the kill
+(checkpoint-restart-at-kill.txt) and the final checkpoint
+(checkpoint-restart.txt).
 
 Source and documentation: https://github.com/mruspace/flight (docs/opssat.md)
 Contact: contact@mru.space
@@ -81,18 +101,18 @@ TXT
 
 out="$PWD/exp4051-mru-flight-$VERSION.tar.gz"
 if tar --version 2>/dev/null | grep -q bsdtar; then
-    tar -C "$stage" --no-mac-metadata --uname exp --gname exp --uid 1024 --gid 1024 -czf "$out" run quorum faults.txt README.txt LICENSE
+    tar -C "$stage" --no-mac-metadata --uname exp --gname exp --uid 1024 --gid 1024 -czf "$out" run quorum faults.txt faults-restart.txt README.txt LICENSE
 else
-    tar -C "$stage" --owner=exp:1024 --group=exp:1024 -czf "$out" run quorum faults.txt README.txt LICENSE
+    tar -C "$stage" --owner=exp:1024 --group=exp:1024 -czf "$out" run quorum faults.txt faults-restart.txt README.txt LICENSE
 fi
 echo "wrote $out"
 
 # List and check the archive with Python's tarfile, which hides nothing:
-# exactly the five files, no "._" entries, every entry owned by exp.
+# exactly the six files, no "._" entries, every entry owned by exp.
 if command -v python3 >/dev/null 2>&1; then
     python3 -I - "$out" <<'PY'
 import sys, tarfile
-want = ["run", "quorum", "faults.txt", "README.txt", "LICENSE"]
+want = ["run", "quorum", "faults.txt", "faults-restart.txt", "README.txt", "LICENSE"]
 with tarfile.open(sys.argv[1]) as t:
     members = t.getmembers()
 for m in members:

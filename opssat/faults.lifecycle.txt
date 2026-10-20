@@ -1,0 +1,29 @@
+# Lifecycle schedule for run 2 on OPS-SAT PRETTY (exp4051), segments 1 and 2.
+# One fault per line, kind:replica@tick. Ticks, not seconds: the schedule is
+# the same on any processor, only the wall time per tick changes. The flight
+# processor ran about 45 ticks per second at the 5% share in run 1, so the
+# whole story below takes about half a minute there.
+#
+# The same file drives the shrink segment and the fixed TMR segment. Each
+# replica fails in a different way, and the shrinking quorum goes from three
+# to two to one to a safe halt. Expected course:
+#   tick   20  sensor self-test: one bit flipped in the radiation sensor, found
+#              and repaired at the next scan (every 250 ticks in this package)
+#   tick   30  one bit flip in replica 2's working memory: outvoted once and
+#              logged, replica 2 stays, its health score takes a strike
+#   tick   60  replica 2 stops answering: lost after the reply timeout (2 s);
+#              both policies go on comparing replicas 0 and 1
+#   tick  120  replica 1 stuck on one wrong value: the two disagree; the
+#              shrinking quorum runs the known-answer test on both, names
+#              replica 1 and retires it, then self-checks on replica 0 alone;
+#              fixed TMR cannot tell which one failed and delivers nothing more
+#   tick 1280  bit 0 of replica 0's result register held at 0, the last
+#              replica. 1280 is a known-answer test tick (every 64): the test
+#              fails on the tick the fault appears, the replica is retired
+#              and the run halts at tick 1281 with no wrong result delivered
+#
+sensor:0@20
+corrupt:2@30
+hang:2@60
+stuck:1@120
+stuckbit:0@1280/out.0.0

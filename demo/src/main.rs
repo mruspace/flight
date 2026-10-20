@@ -394,6 +394,19 @@ fn uniform(rng: &mut u64) -> f64 {
     (xorshift(rng) >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0)
 }
 
+/// CPU share: after `work` of computation, sleep so that the work took at
+/// most `cpu_percent` of the wall time. The nap never runs past `deadline`.
+fn throttle(work: Duration, cpu_percent: f64, deadline: Option<Instant>) {
+    if cpu_percent <= 0.0 || cpu_percent >= 100.0 {
+        return;
+    }
+    let mut nap = work.mul_f64((100.0 - cpu_percent) / cpu_percent);
+    if let Some(d) = deadline {
+        nap = nap.min(d.saturating_duration_since(Instant::now()));
+    }
+    std::thread::sleep(nap);
+}
+
 // ---- radiation sensor: a block of memory with a known pattern, checked for flips
 
 /// Holds `mb` megabytes of a known, address-dependent pattern. Each scan
@@ -410,9 +423,22 @@ impl Sensor {
         (i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ 0x5555_5555_5555_5555
     }
 
-    fn new(mb: u64) -> Sensor {
+    /// Fill the block. The fill is the one piece of real work before the main
+    /// loop, so it is throttled under the same CPU share, one chunk at a
+    /// time: on the flight processor the whole process then stays under the
+    /// share it declared (run 1 measured 5.2% against a 5% cap, the fill
+    /// being the difference).
+    fn new(mb: u64, cpu_percent: f64) -> Sensor {
         let n = (mb as usize) * 1024 * 1024 / 8;
-        let words = (0..n).map(Sensor::pattern).collect(); // written, so resident
+        let mut words = Vec::with_capacity(n);
+        let mut at = 0;
+        while at < n {
+            let end = (at + Sensor::CHUNK).min(n);
+            let work = Instant::now();
+            words.extend((at..end).map(Sensor::pattern)); // written, so resident
+            throttle(work.elapsed(), cpu_percent, None);
+            at = end;
+        }
         Sensor {
             words,
             scans: 0,
@@ -977,6 +1003,10 @@ fn main() {
         *st = Some((what.to_string(), detail, tick, tick, 1));
     };
 
+    // The clock starts here: the wall time in the summary and --max-seconds
+    // cover the start-up too (spawning the replicas, filling the sensor), so a
+    // cap is the whole life of the process.
+    let start = Instant::now();
     let mut replicas: Vec<Option<Replica>> = (0..REPLICAS)
         .map(|i| {
             cp.alive[i].then(|| {
@@ -991,7 +1021,7 @@ fn main() {
         .collect();
     let mut health = Health::from_raw(cp.strikes, cp.strike_count);
     let mut sensor = (o.sensor_mb > 0).then(|| {
-        let mut s = Sensor::new(o.sensor_mb);
+        let mut s = Sensor::new(o.sensor_mb, o.cpu_percent);
         s.scans = cp.sensor_scans;
         s.flips = cp.sensor_flips;
         s
@@ -1013,7 +1043,6 @@ fn main() {
         (cp.caught, cp.latency_sum, cp.latency_max);
     let mut kat_tests = cp.kat_tests; // known-answer tests run, of every kind
     let mut stopped = "completed";
-    let start = Instant::now();
     // --max-seconds as an instant: the scan and the throttle sleep check it,
     // so a run never overruns the cap by more than a chunk of the scan
     let deadline = (o.max_seconds > 0.0).then(|| start + Duration::from_secs_f64(o.max_seconds));
@@ -1143,6 +1172,10 @@ fn main() {
         }
 
         let mut replies = [Reply::Absent; REPLICAS];
+        // time spent waiting for a replica that never answered is not work:
+        // the CPU-share nap below leaves it out (a 2 s reply timeout at a 5%
+        // share would otherwise be followed by a 38 s nap)
+        let mut lost_wait = Duration::ZERO;
         for i in 0..REPLICAS {
             let Some(r) = replicas[i].as_mut() else {
                 continue;
@@ -1163,6 +1196,7 @@ fn main() {
             } else if upset {
                 flags |= UPSET_FIRST;
             }
+            let asked = Instant::now();
             match r.ask(tick, flags, bit, word, timeout) {
                 Some((a, b)) => {
                     replies[i] = if mode == Mode::SelfCheck {
@@ -1173,6 +1207,7 @@ fn main() {
                 }
                 None => {
                     // died or stopped answering within the timeout
+                    lost_wait += asked.elapsed();
                     replicas[i].take().unwrap().retire();
                     flagged[i] = true;
                     event(tick, "lost", i.to_string());
@@ -1183,6 +1218,12 @@ fn main() {
         let verdict = decide(o.policy, &replies);
         let mut outcome = verdict.outcome;
         for i in 0..REPLICAS {
+            // a replica that lost the vote: one line per outvote, so a
+            // masked bit flip is visible in the log (a stuck replica's run of
+            // outvotes collapses to one line plus its count)
+            if verdict.dissent[i] && replicas[i].is_some() {
+                event(tick, "outvoted", i.to_string());
+            }
             flagged[i] |= verdict.dissent[i]
                 || (replies[i] != Reply::Absent && verdict.outcome == Outcome::Detected);
         }
@@ -1294,15 +1335,11 @@ fn main() {
             );
         }
 
-        // CPU share: sleep so that work takes at most cpu_percent of wall time
-        if o.cpu_percent > 0.0 && o.cpu_percent < 100.0 {
-            let work = tick_start.elapsed();
-            let mut nap = work.mul_f64((100.0 - o.cpu_percent) / o.cpu_percent);
-            if let Some(d) = deadline {
-                nap = nap.min(d.saturating_duration_since(Instant::now()));
-            }
-            std::thread::sleep(nap);
-        }
+        throttle(
+            tick_start.elapsed().saturating_sub(lost_wait),
+            o.cpu_percent,
+            deadline,
+        );
     }
 
     // a stopped run keeps its checkpoint so it can resume; a finished one removes it
@@ -1453,7 +1490,7 @@ mod tests {
 
     #[test]
     fn scan_stops_at_a_passed_deadline_and_completes_without_one() {
-        let mut s = Sensor::new(2);
+        let mut s = Sensor::new(2, 0.0);
         s.inject(3, 5);
         let mut found = 0;
         assert!(!s.scan(Some(Instant::now()), |_, _| found += 1));

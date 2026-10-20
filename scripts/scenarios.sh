@@ -354,5 +354,65 @@ else
     fail "stop: cap overrun inside a scan (${wall}s wall, $out)"
 fi
 
+# 27. A replica that loses a vote is logged: one line for a masked bit flip
+#     (which the first orbit run left invisible), and a stuck replica's three
+#     outvotes collapse to one line plus the count before it is retired.
+log=$(mktemp)
+run --policy shrink --ticks 400 --seed 1 --fault corrupt:2@50 --fault stuck:1@100 --log "$log" >/dev/null
+if grep -q '^50,outvoted,2$' "$log" && grep -q '^102,outvoted,1 repeated 3x ticks 100-102$' "$log" &&
+    grep -q '^102,retired,1$' "$log" && [ "$(grep -c ',outvoted,' "$log")" = 3 ]; then
+    pass "log: outvoted lines for a masked flip and a stuck replica"
+else
+    fail "log: outvoted lines ($(tr '\n' ' ' <"$log"))"
+fi
+rm -f "$log"
+
+# 28. Waiting for a hung replica is not work: at a 5% share, the tick that
+#     loses a replica after a 1 s reply timeout is not followed by a 19 s nap.
+#     200 ticks at 5% take a few seconds even under emulation; the nap alone
+#     would take 19.
+log=$(mktemp)
+all=$("$Q" --policy shrink --ticks 200 --seed 1 --cpu-percent 5 --reply-timeout-ms 1000 --fault hang:1@50 --log "$log")
+wall=$(field wall "$(printf '%s\n' "$all" | sed -n 3p)" | tr -d s)
+if grep -q '^50,lost,1$' "$log" && awk -v w="$wall" 'BEGIN { exit !(w < 12) }'; then
+    pass "cpu share: a reply timeout is not counted as work (${wall}s for 200 ticks with a 1 s timeout)"
+else
+    fail "cpu share: reply timeout counted as work (${wall}s wall)"
+fi
+rm -f "$log"
+
+# 29. The OPS-SAT entry point, end to end with short caps: three segments, the
+#     lifecycle run halts by itself with zero wrong results, fixed TMR stops
+#     delivering at the second fault, and the restart segment is killed, copies
+#     its checkpoint, resumes once and keeps the retired replica retired.
+#     Segment 1 must reach tick 1,281 inside its cap; a slow emulated runner
+#     gets a longer cap.
+dir=$(mktemp -d)
+cp opssat/faults.lifecycle.txt "$dir/faults.txt"
+cp opssat/faults.restart.txt "$dir/faults-restart.txt"
+q=$Q
+case "$q" in /*) ;; *) q="$PWD/$q" ;; esac
+if env QUORUM="$q" OUT_DIR="$dir/toGround" FAULTS_FILE="$dir/faults.txt" RESTART_FAULTS="$dir/faults-restart.txt" \
+    CPU_PERCENT=50 SENSOR_MB=8 SHRINK_SECONDS="${QUORUM_EMULATED:+120}" TMR_SECONDS=3 RESTART_AFTER=3 RESTART_SECONDS=3 \
+    ./opssat/run >"$dir/run.out" 2>&1; then
+    s1=$(sed -n 2p "$dir/toGround/summary-shrink.txt")
+    s2=$(sed -n 2p "$dir/toGround/summary-tmr.txt")
+    s3=$(cat "$dir/toGround/summary-restart.txt")
+    l3=$dir/toGround/quorum-restart.csv
+    if [ "$(field halted_at "$s1")" = 1281 ] && [ "$(field wrong "$s1")" = 0 ] && [ "$(field useful "$s1")" = 698 ] &&
+        [ "$(field last_useful "$s2")" -le 119 ] && [ "$(field wrong "$s2")" = 0 ] &&
+        printf '%s\n' "$s3" | grep -q 'resumes=1' && [ "$(field alive_at_end "$(printf '%s\n' "$s3" | sed -n 2p)")" = 2 ] &&
+        [ "$(grep -c ',resumed,1$' "$l3")" = 1 ] && [ "$(grep -c '^202,retired,1$' "$l3")" = 1 ] &&
+        [ -s "$dir/toGround/checkpoint-restart-at-kill.txt" ] && [ -s "$dir/toGround/stdout-restart-2.txt" ] &&
+        grep -q 'restart-1: exit=137' "$dir/toGround/run-info.txt" && grep -q 'status=0' "$dir/toGround/run-info.txt"; then
+        pass "opssat run: lifecycle halts at 1281 with 0 wrong, tmr stops at 120, restart resumes once"
+    else
+        fail "opssat run: outputs ($s1 / $s2 / $(printf '%s' "$s3" | tr '\n' ' ') / $(tr '\n' ' ' <"$l3"))"
+    fi
+else
+    fail "opssat run: exit status $? ($(cat "$dir/run.out"; cat "$dir/toGround/run-info.txt" 2>/dev/null | tail -n 12 | tr '\n' ' '))"
+fi
+rm -rf "$dir"
+
 echo
 if [ "$fails" -eq 0 ]; then echo "all checks passed"; else echo "$fails check(s) failed"; exit 1; fi

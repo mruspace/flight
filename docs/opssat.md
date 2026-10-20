@@ -82,8 +82,8 @@ repaired.
 |---|---|---|
 | Memory | `--max-memory-mb 128` (default) | Address-space limit set by each process on itself (Linux `RLIMIT_AS`). The kernel refuses allocations above it. A sensor too large for the limit is refused at start. |
 | CPU time | `--max-cpu-seconds S` | CPU-time limit set by each process on itself (`RLIMIT_CPU`). |
-| CPU share | `--cpu-percent 5` | The voter sleeps after each step so that work, including sensor scans, takes at most this share of wall time. Measured in tests at 4.7% for a 5% setting. |
-| Run time | `--max-seconds S` | The voter stops cleanly when the time is reached. |
+| CPU share | `--cpu-percent 5` | The voter sleeps after each step so that work, including sensor scans and, since v0.4.0, the fill of the sensor block at start-up, takes at most this share of wall time. Measured in tests at 4.7% for a 5% setting. |
+| Run time | `--max-seconds S` | The voter stops cleanly when the time is reached. Since v0.4.0 the clock starts before the replicas are spawned and the sensor is filled, so the cap is the whole life of the process. |
 | Unresponsive replica | `--reply-timeout-ms 2000` (default) | A replica that does not answer in time is treated as lost and killed. |
 
 Measured footprint in CI (Linux ARM64, 20,000 steps): about 1.5 MB resident
@@ -126,40 +126,116 @@ dual-core Cortex-A9 at 800 MHz and 1 GB of memory. Each run must complete in
 five minutes or less.
 
 [`opssat/run`](../opssat/run) is that entry point. It runs in the foreground,
-one policy after the other, shrink then fixed TMR, with the same seed and
-fault schedule, each capped at 110 seconds, so the whole run ends by itself
-inside the window. All output goes to `toGround/`: `run-info.txt` (start and
-end times, user, processor and memory from `/proc`, checksum of the binary,
-settings, exit codes) and, for each policy, the summary, the event log and the
-console output. A SIGTERM to `run` is forwarded to the voter, which finishes
+writes everything to `toGround/`, stops by itself inside the window, and
+exits. A SIGTERM to `run` is forwarded to the running voter, which finishes
 its step, writes its summary and exits. Nothing else is written. Settings are
 environment variables with the defaults a 5% CPU share for the voter, as
 stated in the registration, 128 MB per process, a 64 MB sensor scanned every
-250 ticks, and seed 1.
-
-[`opssat/faults.5min.txt`](../opssat/faults.5min.txt) is the schedule for
-that window, in ticks so that it is the same on any processor: a sensor
-self-test at tick 20, one bit flip in a replica's working memory at tick 60,
-a stuck replica at tick 120 and a terminated replica at tick 240. The
-shrinking quorum retires the stuck replica, then self-checks on the last one
-and keeps delivering. Fixed TMR is left with one good and one stuck replica
-after tick 240 and delivers nothing more. The faults sit early so that they
-land inside the window at the 5% share even on a processor much slower than
-the test host.
+250 ticks, and seed 1. `toGround/run-info.txt` records the start and end
+times, user, processor and memory from `/proc`, the checksum of the binary,
+the settings and the exit code of every voter.
 
 [`opssat/package.sh`](../opssat/package.sh) builds
 `exp4051-mru-flight-VERSION.tar.gz`: it downloads the release binary for the
-target, checks it against `SHA256SUMS`, adds `run`, the schedule as
-`faults.txt`, a `README.txt` for the operators and the license, and writes the
-archive with the required ownership. `QUORUM_BIN=path ./package.sh` packages a
-binary you built yourself.
+target, checks it against `SHA256SUMS`, adds `run`, the schedules, a
+`README.txt` for the operators and the license, and writes the archive with
+the required ownership and no hidden entries. `QUORUM_BIN=path ./package.sh`
+packages a binary you built yourself.
+
+### Run 2 (v0.4.0, confirmed by ESA on 20 October 2026, not yet scheduled)
+
+Run 1 showed the policy comparison on the flight processor. Run 2 shows the
+rest of the lifecycle, and that a reset loses nothing. `run` has three
+segments, one after the other:
+
+| # | Segment | Policy | Schedule | Cap |
+|---|---|---|---|---|
+| 1 | shrink | shrinking quorum | [`faults.lifecycle.txt`](../opssat/faults.lifecycle.txt), packaged as `faults.txt` | 80 s, ends earlier when the quorum halts |
+| 2 | tmr | fixed TMR | the same file | 30 s |
+| 3 | restart | shrinking quorum, checkpoint every 100 ticks | [`faults.restart.txt`](../opssat/faults.restart.txt), packaged as `faults-restart.txt` | 30 s, then the voter is killed and started again for 30 s more |
+
+The lifecycle schedule, in ticks: a sensor self-test at tick 20; one bit
+flip in replica 2's working memory at tick 30 (outvoted once, and since
+v0.4.0 logged as `outvoted`); replica 2 stops answering at tick 60 (lost
+after the 2 s reply timeout); replica 1 stuck on one wrong value at tick 120
+(the two remaining replicas disagree, the shrinking quorum runs the
+known-answer test on both, names replica 1 and retires it on that tick; fixed
+TMR cannot tell which one failed and delivers nothing more); and bit 0 of
+replica 0's result register held at 0 from tick 1,280, on the last replica.
+1,280 is a known-answer test tick (the test runs every 64 ticks on the last
+replica): the test fails on the tick the fault appears, the replica is
+retired, and the run halts at tick 1,281. No wrong result is delivered,
+because the program delivers nothing it has not checked on that tick. A
+stuck bit that lands between two tests is caught at the next test, and
+wrong results get out until then; a bit the test cannot see is missed. The
+README's known-answer coverage table gives those numbers.
+
+The restart schedule has one fault: replica 1 stuck at tick 200, outvoted on
+ticks 200 to 202 and retired by health scoring at 202. After 30 s the script
+kills the voter without warning (SIGKILL, our own process, in user space; no
+platform reboot, nothing commanded), copies the checkpoint aside as
+`checkpoint-restart-at-kill.txt`, and starts the voter again with the same
+settings. The voter resumes from the checkpoint: it starts two replicas, not
+three, cuts the event log back to the checkpoint, writes one `resumed` line,
+and continues the counts. The segment ends at the second cap with one summary
+for the whole run (`resumes=1`).
+
+Measured on 20 October 2026 in ESA's image on a laptop (Apple silicon,
+Docker's Linux VM, 32-bit ARM mode), the package built from this branch at
+the defaults (5% share, 64 MB sensor scanned every 250 ticks):
+
+- Whole run 109 seconds, every voter exit 0 (the killed one 137, as
+  planned), 13 files, 9,023 bytes, nothing else written to the home folder.
+- Segment 1 (shrink): 698 correct results, 0 wrong, 2 detected (the
+  disagreement at tick 120 and the failed known-answer test at 1,280), 21
+  known-answer tests, halted at tick 1,281 after 16.8 s. Events on their
+  ticks: self-test flip injected at 20, replica 2 outvoted at 30, replica 2
+  hung and lost at 60, replica 1 stuck, retired and the disagreement detected
+  at 120, the self-test flip found and repaired at 250, the stuck bit set and
+  replica 0 retired at 1,280, halted at 1,281. Voter CPU 0.713 s of 16.755 s
+  (4.3%, start-up included), 71,512 KiB resident, replicas 6,016 KiB.
+- Segment 2 (fixed TMR): 119 correct results, then a detected disagreement
+  on every tick from 120 to 1,869, where the 30 s cap ended it; 0 wrong; the
+  same fault events on the same ticks. Voter CPU 4.4%.
+- Segment 3 (restart): replica 1 stuck at 200, outvoted on 200 to 202,
+  retired at 202; the voter killed 30 s in with its checkpoint at tick 2,000;
+  resumed from tick 2,000 (one `resumed` line), ended at the second cap at
+  tick 3,961 with 3,960 correct results, 0 wrong, two replicas alive,
+  `resumes=1`. Voter CPU 4.6%.
+
+The same package at a 2% share, to mimic a processor about three times
+slower (the SEPP against the laptop in run 1): whole run 132 s, segment 1
+halted at tick 1,281 after 40.0 s against its 80 s cap, the same counts and
+events, the restart from the checkpoint at tick 600, 1,329 correct results
+in segment 3, 0 wrong everywhere.
+
+Expected on the SEPP: the same events on the same ticks and the same counts
+for segment 1 (698, 0, halted at 1,281), since the schedule is in ticks; the
+tick counts of segments 2 and 3 scale with the processor (about 45 ticks per
+second in self-check mode on the SEPP in run 1, fewer in compare mode, where
+two replicas compute on every tick). Segment 1 should take about 40 s there
+against its 80 s cap. The caps add up to 170 s plus a few seconds of start-up
+per voter, so the whole run stays under about 200 s in the worst case.
+
+### Run 1 (v0.3.1, flown 18 October 2026)
+
+In run 1, `run` ran one policy after the other, shrink then fixed TMR, with
+the same seed and fault schedule, each capped at 110 seconds.
+[`opssat/faults.5min.txt`](../opssat/faults.5min.txt) was the schedule, in
+ticks so that it is the same on any processor: a sensor self-test at tick 20,
+one bit flip in a replica's working memory at tick 60, a stuck replica at
+tick 120 and a terminated replica at tick 240. The shrinking quorum retires
+the stuck replica, then self-checks on the last one and keeps delivering.
+Fixed TMR is left with one good and one stuck replica after tick 240 and
+delivers nothing more. The faults sit early so that they land inside the
+window at the 5% share even on a processor much slower than the test host.
 
 **Ground test.** ESA's environment tarball is a root filesystem. On a machine
 with Docker it imports as an image and runs the package as user `exp`:
 
 ```sh
 docker import --platform linux/arm/v7 exp_env.tar.gz opssat-pretty-env:v0.3
-mkdir home && tar -xzf exp4051-mru-flight-v0.3.1.tar.gz -C home
+mkdir home && tar -xzf exp4051-mru-flight-VERSION.tar.gz -C home
 docker run --rm --platform linux/arm/v7 -v "$PWD/home:/home/exp" -w /home/exp \
     -u 1024:1024 -e HOME=/home/exp opssat-pretty-env:v0.3 ./run
 ```
@@ -307,9 +383,10 @@ stuck:1@200000     # replica 1 keeps returning the same wrong value
 kill:0@600000      # replica 0 is terminated
 ```
 
-This schedule is for long runs. The OPS-SAT package uses
-`faults.5min.txt` instead (see above). A second run with `POLICY=tmr` and the
-same schedule gives the comparison; `run` does both runs by itself.
+This schedule is for long runs. The OPS-SAT package uses the short schedules
+instead (see above): `faults.5min.txt` flew in run 1, `faults.lifecycle.txt`
+and `faults.restart.txt` are run 2. A second run with `POLICY=tmr` and the
+same schedule gives the comparison; `run` does the segments by itself.
 
 ## What comes down
 
@@ -321,13 +398,18 @@ All in the output folder:
   sensor's scans and flips, and how fast the voter reacted to each injected
   fault.
 - **`quorum-POLICY.csv`**, the event log: one short line per event (fault
-  injected, replica retired or cleared or lost, disagreement detected, sensor
-  bit flip with its location). Identical events on consecutive ticks are
-  written as the first line plus one closing line with the count. With no real
-  upsets, a day-long run produces a few kilobytes.
+  injected, replica outvoted, retired, cleared or lost, disagreement detected,
+  sensor bit flip with its location, resumed from a checkpoint). Identical
+  events on consecutive ticks are written as the first line plus one closing
+  line with the count. With no real upsets, a day-long run produces a few
+  kilobytes.
 - **`stdout-POLICY.txt`**: the console output, a copy of the summary.
 - **`run-info.txt`** (OPS-SAT package only): start and end times, user,
-  checksum of the binary, settings and the exit code of each run.
+  checksum of the binary, settings and the exit code of each voter.
+- In the run 2 package the restart segment adds the console output before
+  and after the kill (`stdout-restart-1.txt`, `stdout-restart-2.txt`), the
+  checkpoint as it was at the kill (`checkpoint-restart-at-kill.txt`) and
+  the final checkpoint (`checkpoint-restart.txt`), a few hundred bytes each.
 
 ## What success looks like
 
