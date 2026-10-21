@@ -417,7 +417,7 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
   Thousand-Year Autonomous Operation*, 2026.
   [doi:10.5281/zenodo.23305299](https://doi.org/10.5281/zenodo.23305299)
 - Mru Field: [field](https://github.com/mruspace/field), the same core for
-  unattended systems on Earth; specification, planned, not built
+  hard-to-reach systems on Earth; specification, planned, not built
 - Simulator: [dusk](https://github.com/mruspace/dusk), interactive at
   [dusk.mru.space](https://dusk.mru.space)
 - Website: [mru.space](https://mru.space)
