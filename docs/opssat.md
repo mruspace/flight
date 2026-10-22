@@ -142,7 +142,7 @@ target, checks it against `SHA256SUMS`, adds `run`, the schedules, a
 the required ownership and no hidden entries. `QUORUM_BIN=path ./package.sh`
 packages a binary you built yourself.
 
-### Run 2 (v0.4.0, confirmed by ESA on 20 October 2026, not yet scheduled)
+### Run 2 (v0.4.0, tested by ESA on 21 October 2026, not yet scheduled)
 
 Run 1 showed the policy comparison on the flight processor. Run 2 shows the
 rest of the lifecycle, and that a reset loses nothing. `run` has three
@@ -178,7 +178,9 @@ platform reboot, nothing commanded), copies the checkpoint aside as
 settings. The voter resumes from the checkpoint: it starts two replicas, not
 three, cuts the event log back to the checkpoint, writes one `resumed` line,
 and continues the counts. The segment ends at the second cap with one summary
-for the whole run (`resumes=1`).
+for the whole run (`resumes=1`). Since v0.4.1 the segment starts from tick 0
+every time: a checkpoint left in the home folder by an earlier run of the
+package is removed first, and `run-info.txt` says so.
 
 Measured on 20 October 2026 in ESA's image on a laptop (Apple silicon,
 Docker's Linux VM, 32-bit ARM mode), the package built from the development
@@ -222,6 +224,28 @@ second in self-check mode on the SEPP in run 1, fewer in compare mode, where
 two replicas compute on every tick). Segment 1 should take about 40 s there
 against its 80 s cap. The caps add up to 170 s plus a few seconds of start-up
 per voter, so the whole run stays under about 200 s in the worst case.
+
+**Ground tests by ESA, 21 October 2026.** ESA ran the v0.4.0 package in its
+software environment and TU Graz ran it on the PRETTY FlatSat (the SEPP,
+host `sepp`), as user `exp`, 133 s in total, status 0, binary checksum as
+released. Segment 1 as predicted: 698 correct results, 0 wrong, every event
+on its tick, halted at tick 1,281 after 41.1 s against its 80 s cap.
+Segment 2 as predicted: 119 correct results, then a detected disagreement on
+every tick to 1,000, where the 30 s cap ended it, 0 wrong. Segment 3 did not
+match the prediction of one `resumed` line: the log had three, at ticks
+1,000, 2,000 and 3,000, and the summary `resumes=3`. The home folder still
+held `toGround/checkpoint-restart.txt` from an earlier run of the same
+package on a host at the same speed, so the first voter resumed from it
+instead of starting at tick 0. The mechanism held across all three resumes:
+replica 1 stayed retired, 0 wrong. `run` did not remove an old checkpoint,
+and every test on our side started from a fresh unpack, so it never showed.
+v0.4.1 fixes this. A second finding, also fixed in v0.4.1: the final
+`stopped,time-limit` line was missing, because the stop line restored from
+the old checkpoint opened a run of identical events whose count was never
+written. Scenario checks 29 (a second run in the same folder) and 30 (open
+runs of events at the end and at a resume) cover both fixes. Still open:
+voter CPU on the SEPP was 4.7%, 5.6% and 5.8% of wall time in the three
+segments against the 5% setting (4.3% to 4.6% on the laptop).
 
 ### Run 1 (v0.3.1, flown 18 October 2026)
 

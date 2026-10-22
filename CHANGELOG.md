@@ -3,6 +3,13 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
+## 0.4.1 (2026-10-22)
+
+### Fixed
+
+- `opssat/run`: the restart segment resumed from a checkpoint left in the home folder by an earlier run of the package. On the PRETTY FlatSat on 21 October 2026 the folder still held `toGround/checkpoint-restart.txt` from an earlier run, so segment 3 logged three `resumed` lines (`resumes=3`) instead of one. The segment now removes an old checkpoint before its first voter starts, says so in `run-info.txt`, and starts from tick 0. Scenario check 29 runs the package twice in the same folder.
+- Demo: a run of identical events still open when the voter exits now gets its closing count line, and a resume closes a run that was open at the checkpoint before it writes the `resumed` line. In the FlatSat log the stop line restored from the old checkpoint swallowed the next `stopped,time-limit` into a count that was never written. Scenario check 30.
+
 ## 0.4.0 (2026-10-20)
 
 ### Added

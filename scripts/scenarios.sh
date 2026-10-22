@@ -409,9 +409,44 @@ if env QUORUM="$q" OUT_DIR="$dir/toGround" FAULTS_FILE="$dir/faults.txt" RESTART
     else
         fail "opssat run: outputs ($s1 / $s2 / $(printf '%s' "$s3" | tr '\n' ' ') / $(tr '\n' ' ' <"$l3"))"
     fi
+    # The same package run a second time in the same $HOME, as on the FlatSat
+    # on 21 Oct 2026: the restart segment starts again from tick 0 and resumes
+    # once, instead of resuming from the first run's checkpoint.
+    if env QUORUM="$q" OUT_DIR="$dir/toGround" RESTART_FAULTS="$dir/faults-restart.txt" SEGMENTS=restart \
+        CPU_PERCENT=50 SENSOR_MB=8 RESTART_AFTER=3 RESTART_SECONDS=3 ./opssat/run >"$dir/run2.out" 2>&1 &&
+        grep -q 'removed a checkpoint left by an earlier run' "$dir/toGround/run-info.txt" &&
+        grep -q 'resumes=1' "$dir/toGround/summary-restart.txt" &&
+        [ "$(grep -c ',resumed,' "$l3")" = 1 ] && [ "$(grep -c '^202,retired,1$' "$l3")" = 1 ]; then
+        pass "opssat run: a second run in the same folder starts the restart segment from tick 0"
+    else
+        fail "opssat run: second run in the same folder ($(tr '\n' ' ' <"$dir/toGround/summary-restart.txt") / $(tr '\n' ' ' <"$l3"))"
+    fi
 else
     fail "opssat run: exit status $? ($(cat "$dir/run.out"; cat "$dir/toGround/run-info.txt" 2>/dev/null | tail -n 12 | tr '\n' ' '))"
 fi
+rm -rf "$dir"
+
+# 30. The log ends on the count of a run of identical events that is still
+#     open at the end: fixed TMR detecting on every tick to the last one. And
+#     a resume ends an open run: a voter stopped twice at its cap, with a
+#     resume between, logs two stop lines (the FlatSat log of 21 Oct 2026
+#     lost its last line, folded into a count that was never written).
+log=$(mktemp)
+run --policy tmr --ticks 300 --seed 1 --fault kill:0@50 --fault stuck:1@100 --log "$log" >/dev/null
+dir=$(mktemp -d)
+set -- --policy shrink --ticks 1000000000 --seed 1 --cpu-percent 50 --max-seconds 1 \
+    --checkpoint "$dir/cp" --checkpoint-every 100 --log "$dir/log.csv"
+"$Q" "$@" >/dev/null
+"$Q" "$@" >/dev/null
+set --
+if tail -n 1 "$log" | grep -q '^300,detected,.* repeated [0-9]*x ticks [0-9]*-300$' &&
+    [ "$(grep -c ',stopped,time-limit$' "$dir/log.csv")" = 2 ] && [ "$(grep -c ',resumed,1$' "$dir/log.csv")" = 1 ] &&
+    ! grep -q 'stopped,time-limit repeated' "$dir/log.csv"; then
+    pass "log: an open run of events gets its count at the end and at a resume"
+else
+    fail "log: open runs ($(tail -n 2 "$log" | tr '\n' ' ') / $(tr '\n' ' ' <"$dir/log.csv"))"
+fi
+rm -f "$log"
 rm -rf "$dir"
 
 echo
