@@ -1,0 +1,16 @@
+; Run 3 on OPS-SAT PRETTY (exp4051), segment 2: fixed TMR on the
+; faults that flew in run 1, commanded through F´ as an operator would. All
+; commands run before cycle 1; each fault waits for its cycle in FaultInjector.
+;   cycle  60  one bit flip in replica 2's computation: outvoted, a strike
+;   cycle 120  replica 1 returns the same wrong value: outvoted on every
+;              cycle; fixed TMR does not diagnose it
+;   cycle 240  replica 0 stops answering and is retired as lost; fixed TMR
+;              compares replicas 1 and 2, which disagree on every cycle, and
+;              delivers nothing more
+; SET_UPSETS sets no random upsets and seed 1, the demo's seed, so the
+; corrupted bit is the one the demo would pick.
+R00:00:00 MruOpsSat.manager.SET_POLICY TMR
+R00:00:00 MruOpsSat.injector.SET_UPSETS 0.0 0.05 1
+R00:00:00 MruOpsSat.injector.INJECT CORRUPT 2 60
+R00:00:00 MruOpsSat.injector.INJECT STUCK 1 120
+R00:00:00 MruOpsSat.injector.INJECT KILL 0 240

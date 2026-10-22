@@ -67,9 +67,11 @@ jobs:
         run: pip install -r fprime/requirements.txt
       - name: Expected counts are the demo's
         run: ./scripts/parity-cases.sh --check
-      - name: Build the components
+      - name: Build the components and the MruOpsSat deployment
         working-directory: fprime
         run: fprime-util generate && fprime-util build -j4
+      - name: Deployment end to end (OPS-SAT run 3 package, counts against the demo)
+        run: ./scripts/fprime-deployment.sh
       - name: Unit tests and parity with the demo (MRU-SYS-001)
         working-directory: fprime
         run: fprime-util generate --ut && fprime-util check --all -j4

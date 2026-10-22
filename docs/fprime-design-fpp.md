@@ -152,11 +152,51 @@ topology that forgets `loadParameters()` does not test every cycle.
 |---|---|
 | Kani, `quorum` and `quorum-ffi` | 9 of 9 proofs verified |
 | C test of `quorum.h` | passes |
-| F´ unit tests | 37 (HealthRegistry 5, ReplicaHost 5, FaultInjector 8, RedundancyManager 19), with address and undefined-behavior sanitizers |
+| F´ unit tests | 40 (HealthRegistry 5, ReplicaHost 5, FaultInjector 8, RedundancyManager 19, RunRecorder 3), with address and undefined-behavior sanitizers |
 | MRU-SYS-001, 60 cases (5 schedules, 2 policies, 3 upset rates, 2 seeds, 4,000 cycles) | 36 identical to the demo. In the other 24, a kill that leaves one replica costs the shrinking quorum 2 correct results and adds 3 caught disagreements, as predicted. Wrong results are identical in all 60. |
 
 The expected counts come from the demo itself (`scripts/parity-cases.sh`),
 and CI checks that they are current.
+
+## Deployment: `MruOpsSat`
+
+Added on 22 October 2026, for OPS-SAT run 3 ([package](opssat.md)). The
+first F´ deployment of the components, in [`fprime/MruOpsSat`](../fprime/MruOpsSat):
+
+```
+LinuxTimer (100 ms) ─▶ RateGroupDriver ─▶ fast group: RedundancyManager, RunRecorder
+                                      └─▶ slow group (1 s): telemetry, commands,
+                                          health pings, events, sequencer
+CmdSequencer ─▶ CmdDispatcher ─▶ SET_POLICY, INJECT, SET_UPSETS, parameters
+RedundancyManager ─▶ FaultInjector ─▶ ReplicaHost[3] ─▶ FaultInjector ─▶ RedundancyManager
+RedundancyManager ─resultOut─▶ RunRecorder ─TlmGet─▶ telemetry database
+```
+
+- **Services**: F´'s `CdhCore` subtopology (command dispatcher, event
+  manager, telemetry database, health pings, version, text logger, fatal
+  handling), a command sequencer, a Linux timer and two rate groups. No
+  communications stack: the target has no network, so events are printed as
+  text lines and the summary is written by `Main.cpp`.
+- **`RunRecorder`** (passive, experiment builds only, like `FaultInjector`):
+  checks each delivered result against the payload computed without a fault,
+  counts correct and wrong, and reads the manager's last telemetry from the
+  database (MRU-RR-001 to 005). It is the ground truth, not part of the
+  manager's loop.
+- **Commands before cycle 1**: `Main.cpp` asks the sequencer to run the
+  sequence, waits for it to end, then starts the timer (MRU-DEP-002).
+- **Signals**: blocked in every thread and taken by one thread with
+  `sigwait`, so the timer is never stopped from inside a signal handler. A
+  time cap is a `SIGALRM` from `setitimer`.
+- **Parameters** are not loaded from a database (none in this deployment);
+  the manager uses the model's defaults, and a sequence can set a parameter
+  by command (`STATESAVEPERIOD_PRM_SET`).
+- **Builds**: native Linux in CI (`scripts/fprime-deployment.sh`, which
+  checks the counts against the demo), and a static, optimized 32-bit ARM
+  build (`fprime/cmake/toolchain/armv7-linux-static.cmake`) in the build
+  container `fprime/toolchain/Dockerfile`. On 32-bit ARM the Rust core's
+  static library brings its own integer-division helpers, which libgcc also
+  has (`--allow-multiple-definition`), and names a personality routine that
+  is never called with `panic=abort` (`MruOpsSat/RustSupport.cpp`).
 
 ## Change to MRU-SYS-001
 

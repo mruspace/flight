@@ -1,0 +1,156 @@
+#!/bin/sh
+# run: entry point for the Mru Flight experiment on OPS-SAT PRETTY [exp4051],
+# run 3: the F´ deployment.
+#
+# The OPS-SAT runner executes ./run as user exp in $HOME, which holds the
+# files of this package, and collects everything written under $HOME when the
+# run ends. This script runs in the foreground, three segments one after the
+# other, writes all output to toGround/, and exits. It stops by itself inside
+# the five-minute window: the caps below add up to 145 seconds.
+#
+# MruOpsSat is one F´ deployment: Mru's RedundancyManager, HealthRegistry,
+# three ReplicaHost threads and FaultInjector, with F´'s command dispatcher,
+# event manager, telemetry database, health pings and command sequencer,
+# driven by a Linux timer every CYCLE_MS. The faults are commanded by an F´
+# command sequence (shrink.bin, tmr.bin, restart.bin).
+#
+#   1  shrink    the shrinking quorum on the faults of run 1, cap SHRINK_SECONDS
+#   2  tmr       the same faults under fixed TMR, cap TMR_SECONDS
+#   3  restart   the shrinking quorum with the manager's state file. After
+#                RESTART_AFTER seconds the process is killed without warning
+#                (SIGKILL, our own process, in user space; nothing on the
+#                platform is touched), the state file is copied aside, and the
+#                deployment is started again with no sequence. The manager
+#                restores the policy, the slots and the cycle counter, and
+#                runs for RESTART_SECONDS more.
+#
+# Settings (environment variables, defaults in brackets):
+#   SEGMENTS          segments to run, in order      [shrink tmr restart]
+#   SHRINK_SECONDS    cap of segment 1               [45]
+#   TMR_SECONDS       cap of segment 2               [35]
+#   RESTART_AFTER     seconds before the kill        [35]
+#   RESTART_SECONDS   cap of the restarted process   [30]
+#   CYCLE_MS          cycle period in milliseconds   [100]
+#   MEMORY_MB         address-space limit            [128]
+#   DEPLOYMENT        the F´ binary                  [./MruOpsSat]
+#   OUT_DIR           output folder                  [./toGround]
+set -u
+
+here=$(cd "$(dirname "$0")" && pwd)
+cd "$here" || exit 2
+SEGMENTS=${SEGMENTS:-"shrink tmr restart"}
+SHRINK_SECONDS=${SHRINK_SECONDS:-45}
+TMR_SECONDS=${TMR_SECONDS:-35}
+RESTART_AFTER=${RESTART_AFTER:-35}
+RESTART_SECONDS=${RESTART_SECONDS:-30}
+CYCLE_MS=${CYCLE_MS:-100}
+MEMORY_MB=${MEMORY_MB:-128}
+DEPLOYMENT=${DEPLOYMENT:-$here/MruOpsSat}
+OUT_DIR=${OUT_DIR:-$here/toGround}
+
+mkdir -p "$OUT_DIR" || exit 2
+info=$OUT_DIR/run-info.txt
+now() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
+{
+    echo "experiment=exp4051 package=mru-flight-fprime run=3"
+    echo "start_utc=$(now)"
+    echo "uname=$(uname -a 2>/dev/null)"
+    echo "user=$(id 2>/dev/null)"
+    echo "nproc=$(nproc 2>/dev/null) loadavg=$(cat /proc/loadavg 2>/dev/null)"
+    echo "--- /proc/cpuinfo ---"; cat /proc/cpuinfo 2>/dev/null
+    echo "--- /proc/meminfo (head) ---"; head -5 /proc/meminfo 2>/dev/null
+    echo "---"
+    echo "deployment_sha256=$(sha256sum "$DEPLOYMENT" 2>/dev/null | cut -d' ' -f1)"
+    for s in shrink tmr restart; do
+        echo "sequence_${s}_sha256=$(sha256sum "$here/$s.bin" 2>/dev/null | cut -d' ' -f1)"
+    done
+    echo "settings: segments=$SEGMENTS shrink_seconds=$SHRINK_SECONDS tmr_seconds=$TMR_SECONDS restart_after=$RESTART_AFTER restart_seconds=$RESTART_SECONDS cycle_ms=$CYCLE_MS memory_mb=$MEMORY_MB"
+} >"$info"
+
+child=
+sleeper=
+stop() {
+    # Forward a stop request to the running deployment; it stops its timer,
+    # writes its summary and exits.
+    [ -n "$sleeper" ] && kill "$sleeper" 2>/dev/null
+    if [ -n "$child" ]; then
+        kill -TERM "$child" 2>/dev/null
+        wait "$child"
+    fi
+    echo "stopped_by_signal_utc=$(now)" >>"$info"
+    exit 0
+}
+trap stop TERM INT HUP
+
+# deployment NAME SECONDS EVENTS_SUFFIX [more options]: start the deployment
+# in the background; its pid is in $child.
+deployment() {
+    d_name=$1 d_secs=$2 d_out=$3
+    shift 3
+    echo "$d_name: start_utc=$(now) max_seconds=$d_secs" >>"$info"
+    "$DEPLOYMENT" -t "$d_secs" -p "$CYCLE_MS" -m "$MEMORY_MB" \
+        -o "$OUT_DIR/summary-$d_name.txt" "$@" >"$OUT_DIR/events-$d_out.txt" 2>&1 &
+    child=$!
+}
+
+status=0
+for segment in $SEGMENTS; do
+    case $segment in
+    shrink | tmr)
+        deployment "$segment" "$([ "$segment" = shrink ] && echo "$SHRINK_SECONDS" || echo "$TMR_SECONDS")" "$segment" \
+            -s "$here/$segment.bin"
+        wait "$child"
+        rc=$?
+        child=
+        echo "$segment: exit=$rc end_utc=$(now)" >>"$info"
+        [ "$rc" -eq 0 ] || status=1
+        ;;
+    restart)
+        state=$OUT_DIR/state-restart.dat
+        # A state file left in $HOME by an earlier run of this package would
+        # be restored by the first process. The segment starts from cycle 1.
+        if [ -e "$state" ] || [ -e "$OUT_DIR/state-restart-at-kill.dat" ]; then
+            rm -f "$state" "$state.tmp" "$OUT_DIR/state-restart-at-kill.dat"
+            echo "restart: removed a state file left by an earlier run" >>"$info"
+        fi
+        # The first process gets a cap of its own, in case the kill below
+        # never happens: it then stops at the cap, keeps its state file, and
+        # the second process still restores from it.
+        deployment restart-1 $((RESTART_AFTER + 10)) restart-1 -s "$here/restart.bin" -f "$state"
+        sleep "$RESTART_AFTER" &
+        sleeper=$!
+        wait "$sleeper"
+        sleeper=
+        if kill -0 "$child" 2>/dev/null; then
+            kill -KILL "$child"
+            echo "restart: deployment killed (SIGKILL) at $(now), as planned" >>"$info"
+        fi
+        wait "$child"
+        rc=$?
+        child=
+        echo "restart-1: exit=$rc end_utc=$(now)" >>"$info"
+        # 137 is the planned kill; 0 means the cap ended it first (still restorable)
+        [ "$rc" -eq 137 ] || [ "$rc" -eq 0 ] || status=1
+        if [ -f "$state" ]; then
+            cp "$state" "$OUT_DIR/state-restart-at-kill.dat"
+            echo "restart: state file at the kill: $(wc -c <"$state" | tr -d ' ') bytes" >>"$info"
+        else
+            echo "restart: no state file found at the kill" >>"$info"
+            status=1
+        fi
+        sleep 1
+        deployment restart "$RESTART_SECONDS" restart-2 -f "$state"
+        wait "$child"
+        rc=$?
+        child=
+        echo "restart-2: exit=$rc end_utc=$(now)" >>"$info"
+        [ "$rc" -eq 0 ] || status=1
+        ;;
+    *)
+        echo "unknown segment $segment" >>"$info"
+        status=1
+        ;;
+    esac
+done
+echo "end_utc=$(now) status=$status" >>"$info"
+exit "$status"

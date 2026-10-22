@@ -1,0 +1,26 @@
+register_fprime_module(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/RunRecorder.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/RunRecorder.cpp"
+  HEADERS
+    "${CMAKE_CURRENT_LIST_DIR}/RunRecorder.hpp"
+  DEPENDS
+    Mru_Components_RedundancyManager
+    Mru_Components_ReplicaHost
+    Svc_Seq
+)
+
+register_fprime_ut(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/RunRecorder.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/RunRecorderTestMain.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/RunRecorderTester.cpp"
+  DEPENDS
+    STest
+    Mru_Components_RedundancyManager
+    Mru_Components_ReplicaHost
+    Svc_Seq
+  UT_AUTO_HELPERS
+)
