@@ -27,6 +27,15 @@ pass() { printf 'ok    %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1"; fails=$((fails + 1)); }
 field() { printf '%s\n' "$2" | tr ' ' '\n' | sed -n "s/^$1=//p" | head -n 1; }
 abs() { [ "$1" -lt 0 ] && echo $((-$1)) || echo "$1"; }
+# at TEXT CYCLE LATE FILE: an event line "TEXT at cycle N" with CYCLE <= N <=
+# CYCLE + LATE. Each cycle the manager withheld (MRU-RM-023, a loaded CI
+# runner) may move a later event by one cycle; with none withheld, exact.
+# A retirement on a known answer may also log one cycle later: the answer can
+# be dispatched just after the next cycle's tick.
+at() {
+    n=$(grep -F "$1 at cycle " "$4" | sed -n 's/.* at cycle \([0-9]*\).*/\1/p' | head -n 1)
+    [ -n "$n" ] && [ "$n" -ge "$2" ] && [ "$n" -le $(($2 + $3)) ]
+}
 
 dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
@@ -59,16 +68,18 @@ for policy in shrink tmr; do
     fi
 done
 s1=$out/events-shrink.txt
-if grep -q 'Replica 1 retired (KNOWN_ANSWER_FAILED (0)) at cycle 122' "$s1" &&
-    grep -q 'Replica 0 retired (LOST (2)) at cycle 242' "$s1" &&
-    grep -q 'Mode COMPARE (1) -> SELF_CHECK (2) at cycle 243' "$s1" &&
+l1=$(field late "$(sed -n 2p "$out/summary-shrink.txt")")
+if at 'Replica 1 retired (KNOWN_ANSWER_FAILED (0))' 122 $((l1 + 1)) "$s1" &&
+    at 'Replica 0 retired (LOST (2))' 242 "$l1" "$s1" &&
+    at 'Mode COMPARE (1) -> SELF_CHECK (2)' 243 "$l1" "$s1" &&
     grep -q 'CORRUPT (3) applied to replica 2 at cycle 60' "$s1"; then
     pass "shrink: events on their cycles (flip 60, retired 122, lost 242, self-check 243)"
 else
     fail "shrink: events ($(grep -E 'Retired|ModeChanged|FaultApplied' "$s1" | tr '\n' ' '))"
 fi
+lt=$(field late "$(sed -n 2p "$out/summary-tmr.txt")")
 if [ "$(field useful "$(sed -n 2p "$out/summary-tmr.txt")")" = 239 ] &&
-    grep -q 'Replica 0 retired (LOST (2)) at cycle 242' "$out/events-tmr.txt" &&
+    at 'Replica 0 retired (LOST (2))' 242 "$lt" "$out/events-tmr.txt" &&
     ! grep -q 'KNOWN_ANSWER' "$out/events-tmr.txt"; then
     pass "tmr: 239 correct, then nothing; the stuck replica is never diagnosed"
 else
@@ -91,7 +102,7 @@ env DEPLOYMENT="$deployment" CYCLE_MS=20 SEGMENTS=restart RESTART_AFTER=6 RESTAR
     "$dir/run" >"$dir/run2.out" 2>&1 || true
 if grep -q 'removed a state file left by an earlier run' "$out/run-info.txt" &&
     grep -q 'No valid state file' "$out/events-restart-1.txt" &&
-    grep -q 'Replica 1 retired (KNOWN_ANSWER_FAILED (0)) at cycle 202' "$out/events-restart-1.txt"; then
+    at 'Replica 1 retired (KNOWN_ANSWER_FAILED (0))' 202 $(($(grep -c CycleWithheld "$out/events-restart-1.txt") + 1)) "$out/events-restart-1.txt"; then
     pass "restart: a second run in the same folder starts from cycle 1"
 else
     fail "restart: second run in the same folder ($(tail -n 8 "$out/run-info.txt" | tr '\n' ' '))"
