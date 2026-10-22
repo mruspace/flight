@@ -18,7 +18,7 @@ satellite, what it touches, its limits, how to start and stop it, what it sends
 down, and what it can and cannot show. It describes the `quorum` program
 that ran in runs 1 and 2. The package for a planned third run is the F´
 deployment of the same decision core, with F´'s command, event and
-telemetry interfaces ([run 3](#run-3-v060-the-f-deployment-planned)).
+telemetry interfaces ([run 3](#run-3-v070-the-f-deployment-planned)).
 
 ## What runs
 
@@ -143,7 +143,7 @@ target, checks it against `SHA256SUMS`, adds `run`, the schedules, a
 the required ownership and no hidden entries. `QUORUM_BIN=path ./package.sh`
 packages a binary you built yourself.
 
-### Run 3 (v0.6.0, the F´ deployment, planned)
+### Run 3 (v0.7.0, the F´ deployment, planned)
 
 Run 1 flew the demo, `quorum`, and run 2 uses it too. Run 3, planned and
 not yet proposed to ESA, is the package for the F´ components ([design](fprime-design-fpp.md)) in a real F´ deployment,
@@ -223,6 +223,29 @@ length in ESA's image: 147 seconds, every exit as planned, the same counts
 and events as v0.5.1 (342 / 3 / 0 over 448 cycles, 239 / 109 / 0, the
 restore at cycle 303), no cycle withheld, the timed run at 1.25%, 1.47% and
 1.30%. The package is built by `package.sh` from the v0.6.0 release asset.
+
+**Version 2, the package planned for run 3: each replica in a process of
+its own** (v0.7.0, [`opssat/fprime2`](../opssat/fprime2)). Version 1 runs
+the replicas as threads of one process and simulates the kill. Version 2 is
+the most representative setup the OPS-SAT rules allow: `MruQuorum`, the
+manager process, starts three `MruReplica` processes, one `ReplicaHost`
+each, linked through F´'s GenericHub over Unix socket pairs (no network),
+and pins replica 0 to core 0 and replicas 1 and 2 to core 1 of the SEPP. The
+stuck value and the bit flip come from `FaultInjector` as before; the kill is
+real: the manager sends SIGKILL to replica 0's process at the start of cycle
+240. The segments, caps and sequences are the same, except that the kill is
+no longer in the sequence. Eight files: `run`, `MruQuorum`, `MruReplica`,
+the three sequences, `README.txt` and the license. The package built locally
+by `package.sh` and run full length in ESA's image on 22 October 2026: 148
+seconds, every exit as planned, the same counts and events as version 1
+(342 / 3 / 0 over 448 cycles with replica 0 lost at 242; 239 then caught,
+0 wrong; the restore at cycle 303), replica 0 ended by signal 9 and the
+others cleanly, the three replica processes pinned in every segment, 19.9 MB
+of address space for the manager. The experiment's CPU, all four processes,
+was 2.9% to 3.75% of wall time under emulation (the manager 1.5% to 1.8%).
+Most of the replicas' share is their start-up under the emulator, which
+translates each binary; on the SEPP that cost is far lower, and the FlatSat
+test measures it. Version 1 stays the fallback.
 
 The CPU share comes from the cycle rate, not a throttle: the deployment is
 idle between timer ticks. The optimized build matters: an unoptimized F´

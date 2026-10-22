@@ -6,7 +6,7 @@
 #ifndef Mru_RunRecorder_HPP
 #define Mru_RunRecorder_HPP
 
-#include "Mru/Components/ReplicaHost/ReplicaHost.hpp"
+#include "Mru/Payload/Payload.hpp"
 #include "Mru/Components/RunRecorder/RunRecorderComponentAc.hpp"
 #include "Mru/Types/ModeEnumAc.hpp"
 #include "Mru/Types/PolicyEnumAc.hpp"
@@ -50,6 +50,11 @@ class RunRecorder final : public RunRecorderComponentBase {
     //! Ask the command sequencer to run a sequence file
     void startSequence(const char* path);
 
+    //! A function called with the cycle number at the start of every cycle,
+    //! before the manager's: a deployment acts on the cycle there, e.g. a
+    //! real fault in a replica process. nullptr for none.
+    void setCycleHook(void (*hook)(U64 cycle));
+
   private:
     void resultIn_handler(FwIndexType portNum, U64 cycle, U64 value) override;
     void schedIn_handler(FwIndexType portNum, U32 context) override;
@@ -62,8 +67,9 @@ class RunRecorder final : public RunRecorderComponentBase {
     bool readChannel(FwChanIdType localId, Fw::TlmBuffer& val);
 
     FwIdType m_managerIdBase;
+    void (*m_cycleHook)(U64 cycle);
     Totals m_totals;
-    U64 m_block[ReplicaHost::BLOCK_WORDS];
+    U64 m_block[Payload::BLOCK_WORDS];
 };
 
 }  // namespace Mru

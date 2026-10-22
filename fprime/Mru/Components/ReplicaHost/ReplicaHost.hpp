@@ -7,16 +7,17 @@
 #define Mru_ReplicaHost_HPP
 
 #include "Mru/Components/ReplicaHost/ReplicaHostComponentAc.hpp"
+#include "Mru/Payload/Payload.hpp"
 
 namespace Mru {
 
 class ReplicaHost final : public ReplicaHostComponentBase {
   public:
     //! Words in the working block: 4 KiB, as in the quorum demo
-    static constexpr FwSizeType BLOCK_WORDS = 512;
+    static constexpr FwSizeType BLOCK_WORDS = Payload::BLOCK_WORDS;
 
     //! Input of the known-answer test
-    static constexpr U64 KNOWN_ANSWER_INPUT = 0;
+    static constexpr U64 KNOWN_ANSWER_INPUT = Payload::KNOWN_ANSWER_INPUT;
 
     //! Construct ReplicaHost object
     explicit ReplicaHost(const char* const compName);

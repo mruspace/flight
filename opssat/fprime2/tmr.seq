@@ -1,0 +1,12 @@
+; Run 3 on OPS-SAT PRETTY (exp4051), version 2, segment 2: fixed TMR with
+; each replica in a process of its own, on the same faults:
+;   cycle  60  one bit flip in replica 2's computation (FaultInjector)
+;   cycle 120  replica 1 returns the same wrong value (FaultInjector):
+;              outvoted on every cycle; fixed TMR does not diagnose it
+;   cycle 240  replica 0's process is killed with SIGKILL (by the manager
+;              process): lost; fixed TMR compares replicas 1 and 2, which
+;              disagree on every cycle, and delivers nothing more
+R00:00:00 MruQuorum.manager.SET_POLICY TMR
+R00:00:00 MruQuorum.injector.SET_UPSETS 0.0 0.05 1
+R00:00:00 MruQuorum.injector.INJECT CORRUPT 2 60
+R00:00:00 MruQuorum.injector.INJECT STUCK 1 120

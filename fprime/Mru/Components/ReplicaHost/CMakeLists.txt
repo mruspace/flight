@@ -5,6 +5,8 @@ register_fprime_module(
     "${CMAKE_CURRENT_LIST_DIR}/ReplicaHost.cpp"
   HEADERS
     "${CMAKE_CURRENT_LIST_DIR}/ReplicaHost.hpp"
+  DEPENDS
+    Mru_Payload
 )
 
 register_fprime_ut(

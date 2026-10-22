@@ -3,6 +3,19 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
+## 0.7.0 (2026-10-22)
+
+### Added
+
+- Run 3, version 2: each replica in a process of its own. `MruQuorum`, the manager process (RedundancyManager, HealthRegistry, FaultInjector, RunRecorder and F´'s CdhCore services), starts three `MruReplica` processes, one ReplicaHost each, linked through F´'s GenericHub. Requirements MRU-DEP-005 to 007.
+- `SeqPacketDriver`: a byte-stream driver over one end of a `SOCK_SEQPACKET` Unix socket pair, which keeps message boundaries, so the hub needs no framing and the link no network. After it opens, it turns off reopening and ends its reconnect thread, so a send to a dead replica fails at once.
+- Each replica process pins itself to a core (`-C`, default 0,1,1) and reports it. The kill is real: `RunRecorder` calls the deployment at the start of each cycle (MRU-RR-006, one unit test, 45 in all) and the manager sends SIGKILL to replica 0's process at cycle 240; the summary reports how each replica process ended and the experiment's CPU share.
+- `opssat/fprime2/`: the sequences, `run`, `build.sh` and `package.sh` for version 2 (`exp4051-mru-flight-fprime-processes-VERSION.tar.gz`); the release adds `mru-fprime-processes-VERSION-armv7-linux-static.tar.gz`. `VERSION=2 scripts/fprime-deployment.sh` runs it in CI. Full length in ESA's image: 148 s, the same counts and events as version 1, replica 0 killed by SIGKILL at cycle 240, three processes pinned in every segment, 19.9 MB of address space, the experiment's CPU 2.9% to 3.75% under emulation.
+
+### Changed
+
+- The payload (the demo's hash over a 4 KiB block) is the module `Mru/Payload`, shared by ReplicaHost and RunRecorder; ReplicaHost keeps `compute` and `expectedKnownAnswer`.
+
 ## 0.6.0 (2026-10-22)
 
 ### Fixed

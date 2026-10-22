@@ -106,6 +106,7 @@ Added on 22 October 2026 for the OPS-SAT deployment (run 3). It stands in for th
 | MRU-RR-003 | The component shall give the run's counts with the manager's last policy, mode, live replicas, caught count and slot states, read from the telemetry database. | Unit test |
 | MRU-RR-004 | The component shall record the end of the command sequence and whether every command in it succeeded. | Unit test |
 | MRU-RR-005 | The component shall not be part of a flight build. | Inspection of the build |
+| MRU-RR-006 | The component shall call a function the deployment gives it with the number of each cycle, at the start of the cycle, before the manager's work for it. | Unit test |
 
 ## Deployment `MruOpsSat`
 
@@ -117,6 +118,9 @@ Added on 22 October 2026: the first F´ deployment of the components, for OPS-SA
 | MRU-DEP-002 | The policy and the faults shall be commanded by an F´ command sequence that ends before cycle 1. | Integration test |
 | MRU-DEP-003 | The deployment shall stop at a time cap or on SIGTERM and write a summary of the run. | Integration test |
 | MRU-DEP-004 | A static 32-bit ARM Linux build shall run in ESA's OPS-SAT experiment environment as user `exp`, within 128 MB of address space and the registered 5% CPU share. | Full-length run in ESA's environment image |
+| MRU-DEP-005 | Version 2 (`MruQuorum` and `MruReplica`, added 22 October 2026) shall run each replica as a process of its own, linked to the manager process through F´'s GenericHub over a Unix socket pair that keeps message boundaries (no network, no framing). | Integration test (`VERSION=2 scripts/fprime-deployment.sh`) |
+| MRU-DEP-006 | Each replica process shall pin itself to a configured core and report the core it runs on. | Integration test; full-length run in ESA's environment image |
+| MRU-DEP-007 | Version 2 shall apply a kill or a hang as a real signal to a replica process (SIGKILL, SIGSTOP) at the start of a configured cycle, and the summary shall report how each replica process ended. | Integration test |
 
 ## System requirement
 

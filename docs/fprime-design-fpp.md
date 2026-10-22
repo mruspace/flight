@@ -172,7 +172,7 @@ topology that forgets `loadParameters()` does not test every cycle.
 |---|---|
 | Kani, `quorum` and `quorum-ffi` | 9 of 9 proofs verified |
 | C test of `quorum.h` | passes |
-| F´ unit tests | 44 (HealthRegistry 5, ReplicaHost 5, FaultInjector 8, RedundancyManager 23, RunRecorder 3), with address and undefined-behavior sanitizers |
+| F´ unit tests | 45 (HealthRegistry 5, ReplicaHost 5, FaultInjector 8, RedundancyManager 23, RunRecorder 4), with address and undefined-behavior sanitizers |
 | MRU-SYS-001, 60 cases (5 schedules, 2 policies, 3 upset rates, 2 seeds, 4,000 cycles) | 36 identical to the demo. In the other 24, a kill that leaves one replica costs the shrinking quorum 2 correct results and adds 3 caught disagreements, as predicted. Wrong results are identical in all 60. |
 
 The expected counts come from the demo itself (`scripts/parity-cases.sh`),
@@ -217,6 +217,46 @@ RedundancyManager ─resultOut─▶ RunRecorder ─TlmGet─▶ telemetry datab
   static library brings its own integer-division helpers, which libgcc also
   has (`--allow-multiple-definition`), and names a personality routine that
   is never called with `panic=abort` (`MruOpsSat/RustSupport.cpp`).
+
+### Version 2: `MruQuorum` and `MruReplica`
+
+Added on 22 October 2026, option 2 of the [design note](fprime-design.md):
+each replica in a process of its own, for the most representative setup the
+OPS-SAT rules allow.
+
+```
+MruQuorum (manager process)                         MruReplica (x3)
+  manager -> injector -> hub_i -> adapter_i -> link_i ~~ link -> adapter -> hub -> host
+  manager <- injector <- hub_i <- adapter_i <- link_i ~~ link <- adapter <- hub <- host
+```
+
+- **The link**: `SeqPacketDriver`, a byte-stream driver with the shape of F´'s
+  `TcpClient`, over one end of a `SOCK_SEQPACKET` socket pair. Such a socket
+  keeps message boundaries, so each hub message arrives whole and the hub
+  needs no framing. The manager makes the pairs and starts the replica
+  processes before F´ starts (`posix_spawn`), handing each its end; there is
+  no address, no listening and no network. After the link opens, the driver
+  turns off F´'s automatic reopen and ends the reconnect thread: a send to a
+  replica that is gone fails at once instead of waiting a second on the
+  manager's thread (found in the first test, where the manager's queue
+  overflowed after the kill).
+- **Cores**: each replica process pins itself (`sched_setaffinity`, allowed
+  for an unprivileged user) before its threads start; replica 0 on core 0 and
+  replicas 1 and 2 on core 1 by default, so the pair that compares after the
+  stuck replica is retired runs on different cores.
+- **Real faults**: `RunRecorder` calls the deployment at the start of each
+  cycle, before the manager (MRU-RR-006); the manager process sends SIGKILL
+  (or SIGSTOP) to the replica process on the scheduled cycle. The stuck value
+  and the bit flip stay in `FaultInjector`. The summary reports how each
+  replica process ended (`0=signal 9 1=exit 0 2=exit 0`) and the CPU share of
+  all four processes.
+- **The payload** moved to `Mru/Payload`, shared by `ReplicaHost` and
+  `RunRecorder`, so the manager process links the task without the replica
+  component.
+- **A gap in F´'s autocoder** (v4.4.1, direct port calls): the hub's
+  serial-to-typed calls are written in namespace `Svc` and name the port
+  serializer without its module; the two topology headers make the Mru
+  serializers visible there.
 
 ## Change to MRU-SYS-001
 

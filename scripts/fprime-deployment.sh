@@ -1,26 +1,38 @@
 #!/bin/sh
 # fprime-deployment.sh: the OPS-SAT run 3 package, end to end with short caps,
-# against a native build of the MruOpsSat deployment. Runs opssat/fprime/run
-# with its three sequences, then checks each segment against the quorum demo
+# against a native build. Version 1 (VERSION=1, the default) runs
+# opssat/fprime/run with MruOpsSat, the replicas as threads; version 2
+# (VERSION=2) runs opssat/fprime2/run with MruQuorum and MruReplica, each
+# replica a process of its own and the kill a real SIGKILL. Then it checks
+# each segment against the quorum demo
 # on the same faults (MRU-SYS-001: the same wrong count, and a kill may cost
 # up to three correct results; each cycle the manager withheld because it
 # closed late, MRU-RM-023, may cost one more), the events on their cycles, the restore from
 # the state file, and a second run in the same folder. Exit status is
 # non-zero if any check fails.
 #
-#   MRU_DEPLOYMENT    the MruOpsSat binary   [fprime/build-artifacts/Linux/MruOpsSat/bin/MruOpsSat]
-#   MRU_DICTIONARY    its dictionary         [fprime/build-artifacts/Linux/MruOpsSat/dict/MruOpsSatTopologyDictionary.json]
+#   MRU_DEPLOYMENT    the (manager) binary   [fprime/build-artifacts/Linux/NAME/bin/NAME]
+#   MRU_REPLICA       version 2's replica    [fprime/build-artifacts/Linux/MruReplica/bin/MruReplica]
+#   MRU_DICTIONARY    its dictionary         [fprime/build-artifacts/Linux/NAME/dict/NAMETopologyDictionary.json]
 #   QUORUM_BIN        the demo binary        [target/release/quorum, built if missing]
 set -eu
 cd "$(dirname "$0")/.."
-art=fprime/build-artifacts/Linux/MruOpsSat
-deployment=${MRU_DEPLOYMENT:-$art/bin/MruOpsSat}
-dictionary=${MRU_DICTIONARY:-$art/dict/MruOpsSatTopologyDictionary.json}
+version=${VERSION:-1}
+if [ "$version" = 2 ]; then
+    name=MruQuorum package=opssat/fprime2
+else
+    name=MruOpsSat package=opssat/fprime
+fi
+art=fprime/build-artifacts/Linux/$name
+deployment=${MRU_DEPLOYMENT:-$art/bin/$name}
+replica=${MRU_REPLICA:-fprime/build-artifacts/Linux/MruReplica/bin/MruReplica}
+dictionary=${MRU_DICTIONARY:-$art/dict/${name}TopologyDictionary.json}
 if [ -z "${QUORUM_BIN:-}" ]; then
     cargo build --release --quiet -p demo
 fi
 Q=${QUORUM_BIN:-target/release/quorum}
 case "$deployment" in /*) ;; *) deployment="$PWD/$deployment" ;; esac
+case "$replica" in /*) ;; *) replica="$PWD/$replica" ;; esac
 
 fails=0
 pass() { printf 'ok    %s\n' "$1"; }
@@ -39,14 +51,14 @@ at() {
 
 dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
-cp opssat/fprime/run "$dir/run"
+cp "$package/run" "$dir/run"
 for s in shrink tmr restart; do
-    fprime-seqgen --dictionary "$dictionary" "opssat/fprime/$s.seq" "$dir/$s.bin" >/dev/null
+    fprime-seqgen --dictionary "$dictionary" "$package/$s.seq" "$dir/$s.bin" >/dev/null
 done
 
 # 20 ms cycles: segment 1 and 2 reach cycle 400 in 8 s, past the kill at 240;
 # segment 3 is killed near cycle 400, after the periodic saves at 300 and 400
-env DEPLOYMENT="$deployment" CYCLE_MS=20 SHRINK_SECONDS=8 TMR_SECONDS=8 RESTART_AFTER=8 RESTART_SECONDS=3 \
+env DEPLOYMENT="$deployment" REPLICA="$replica" CYCLE_MS=20 SHRINK_SECONDS=8 TMR_SECONDS=8 RESTART_AFTER=8 RESTART_SECONDS=3 \
     "$dir/run" >"$dir/run.out" 2>&1 || fail "run: exit status $? ($(tail -n 5 "$dir/toGround/run-info.txt" | tr '\n' ' '))"
 out=$dir/toGround
 
@@ -97,8 +109,21 @@ else
     fail "restart: restored at '$at' ($r / $(tail -n 6 "$out/run-info.txt" | tr '\n' ' ') / events: $(grep -hE 'Retired|Withheld|StateRestored' "$out/events-restart-1.txt" "$out/events-restart-2.txt" | sed 's/.*) //' | tr '\n' ' '))"
 fi
 
+# version 2: each replica a process on its core, replica 0 killed for real
+if [ "$version" = 2 ]; then
+    r1=$(sed -n 's/^replicas: \(.*\) cores=.*/\1/p' "$out/summary-shrink.txt")
+    if [ "$r1" = "0=signal 9 1=exit 0 2=exit 0" ] &&
+        grep -q 'FAULT: replica 0 (pid [0-9]*) sent SIGKILL at the start of cycle 240: ok' "$out/events-shrink.txt" &&
+        [ "$(grep -c 'replica [0-2]: pid [0-9]*, pinned, on core' "$out/events-shrink.txt")" = 3 ] &&
+        grep -q '^replicas: 0=exit 0 1=exit 0 2=exit 0' "$out/summary-restart.txt"; then
+        pass "processes: three replica processes pinned, replica 0 killed by SIGKILL at cycle 240, the others ended cleanly"
+    else
+        fail "processes: '$r1' / $(grep -h 'FAULT\|pinned' "$out/events-shrink.txt" | tr '\n' ' ')"
+    fi
+fi
+
 # the same package again in the same folder: the old state file is removed
-env DEPLOYMENT="$deployment" CYCLE_MS=20 SEGMENTS=restart RESTART_AFTER=6 RESTART_SECONDS=2 \
+env DEPLOYMENT="$deployment" REPLICA="$replica" CYCLE_MS=20 SEGMENTS=restart RESTART_AFTER=6 RESTART_SECONDS=2 \
     "$dir/run" >"$dir/run2.out" 2>&1 || true
 if grep -q 'removed a state file left by an earlier run' "$out/run-info.txt" &&
     grep -q 'No valid state file' "$out/events-restart-1.txt" &&

@@ -20,6 +20,17 @@ class ManagerChannels : public RedundancyManagerComponentBase {
     using RedundancyManagerComponentBase::CHANNELID_SLOTS;
 };
 
+//! The cycles the hook was called with
+U64 g_hookCycles[8];
+U32 g_hookCalls = 0;
+
+void hook(U64 cycle) {
+    if (g_hookCalls < 8) {
+        g_hookCycles[g_hookCalls] = cycle;
+    }
+    g_hookCalls++;
+}
+
 }  // namespace
 
 RunRecorderTester ::RunRecorderTester()
@@ -34,8 +45,8 @@ RunRecorderTester ::~RunRecorderTester() {
 }
 
 U64 RunRecorderTester ::correctFor(U64 cycle) {
-    U64 block[ReplicaHost::BLOCK_WORDS];
-    return ReplicaHost::compute(block, cycle, false, 0, 0);
+    U64 block[Payload::BLOCK_WORDS];
+    return Payload::compute(block, cycle, false, 0, 0);
 }
 
 Fw::TlmValid RunRecorderTester ::from_tlmGet_handler(FwIndexType portNum,
@@ -107,6 +118,21 @@ void RunRecorderTester ::countsCyclesAndSequence() {
     ASSERT_FALSE(t.seqOk);
     this->invoke_to_seqDoneIn(0, 0, 0, Fw::CmdResponse::OK);
     ASSERT_TRUE(this->component.totals().seqOk);
+}
+
+void RunRecorderTester ::callsTheCycleHook() {
+    g_hookCalls = 0;
+    this->invoke_to_schedIn(0, 0);  // no hook yet
+    ASSERT_EQ(g_hookCalls, 0u);
+    this->component.setCycleHook(hook);
+    this->invoke_to_schedIn(0, 0);
+    this->invoke_to_schedIn(0, 0);
+    ASSERT_EQ(g_hookCalls, 2u);
+    ASSERT_EQ(g_hookCycles[0], 2u);
+    ASSERT_EQ(g_hookCycles[1], 3u);
+    this->component.setCycleHook(nullptr);
+    this->invoke_to_schedIn(0, 0);
+    ASSERT_EQ(g_hookCalls, 2u);
 }
 
 }  // namespace Mru
