@@ -13,7 +13,7 @@
 # against that build's dictionary, from the same release asset), README.txt
 # (for the operators) and LICENSE.
 #
-#   ./package.sh                    uses the release in VERSION (default v0.5.0)
+#   ./package.sh                    uses the release in VERSION (default v0.5.1)
 #   DIST=opssat/fprime/dist ./package.sh   uses a local build (build.sh)
 set -eu
 
@@ -22,7 +22,7 @@ set -eu
 export COPYFILE_DISABLE=1
 
 here=$(cd "$(dirname "$0")" && pwd)
-VERSION=${VERSION:-v0.5.0}
+VERSION=${VERSION:-v0.5.1}
 PLATFORM=armv7-linux-static
 REPO=mruspace/flight
 work=$(mktemp -d)
@@ -94,7 +94,9 @@ One process at a time, about 15 threads. Memory limit 128 MB of address space
 1.4 MB for the package, a few tens of kilobytes of output.
 
 Output, all in toGround/: run-info.txt (start, end, kill time, exit codes,
-checksums); for each segment summary-NAME.txt (counts, footprint) and
+checksums); for each segment summary-NAME.txt (counts, footprint, and the
+CPU time split into start-up, the timed run and the end, user and kernel
+time apart) and
 events-NAME.txt (F´ events as text lines); for segment 3 the events before
 and after the kill (events-restart-1.txt, events-restart-2.txt), the state
 file as it was at the kill (state-restart-at-kill.dat) and the final one

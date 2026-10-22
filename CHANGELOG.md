@@ -3,6 +3,12 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
+## 0.5.1 (2026-10-22)
+
+### Changed
+
+- `MruOpsSat`: the summary has a `cpu:` line that splits the process's CPU time into start-up (process start to the first timer cycle), the timed run and the end (draining the queues, teardown), with user and kernel time apart and the run's own share of wall time. On the run 2 FlatSat test the demo's voter showed 5.6% and 5.8% against its 5% setting, and one total per process could not say where the extra time went; the run 3 package now carries the numbers that would. `scripts/fprime-deployment.sh` checks the line is there.
+
 ## 0.5.0 (2026-10-22)
 
 ### Added

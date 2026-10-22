@@ -50,6 +50,27 @@ double seconds(const struct timespec& t) {
     return static_cast<double>(t.tv_sec) + static_cast<double>(t.tv_nsec) / 1e9;
 }
 
+double seconds(const struct timeval& t) {
+    return static_cast<double>(t.tv_sec) + static_cast<double>(t.tv_usec) / 1e6;
+}
+
+//! CPU time of the whole process (every thread) and the wall clock at one
+//! moment. The summary splits the run at two of them, so a share above the
+//! expected one can be placed: start-up, the timed run, or the end.
+struct Sample {
+    double user;    //!< CPU time in user space
+    double system;  //!< CPU time in the kernel, on behalf of the process
+    double wall;    //!< Monotonic clock
+};
+
+Sample sample() {
+    struct rusage u;
+    (void)getrusage(RUSAGE_SELF, &u);
+    struct timespec now;
+    (void)clock_gettime(CLOCK_MONOTONIC, &now);
+    return Sample{seconds(u.ru_utime), seconds(u.ru_stime), seconds(now)};
+}
+
 const char* modeName(const Mru::Mode& m) {
     switch (m.e) {
         case Mru::Mode::VOTE:
@@ -207,11 +228,14 @@ int main(int argc, char* argv[]) {
         cap.it_value.tv_usec = static_cast<suseconds_t>((l - static_cast<double>(cap.it_value.tv_sec)) * 1e6);
         (void)setitimer(ITIMER_REAL, &cap, nullptr);
     }
+    // start-up ends here: topology, tasks and the sequence are done
+    const Sample started = sample();
     if (std::strcmp(seqStatus, "none") == 0 || std::strcmp(seqStatus, "ok") == 0) {
         MruOpsSat::startRateGroups(state);
     } else {
         g_stopped = "sequence";
     }
+    const Sample stopped = sample();
 
     // let the last cycle's replies and telemetry reach their queues' end
     Os::Task::delay(Fw::TimeInterval(0, 200000));
@@ -220,26 +244,34 @@ int main(int argc, char* argv[]) {
     const unsigned long vmKiB = addressSpaceKiB();
     MruOpsSat::teardownTopology(state);
 
-    struct timespec end;
-    (void)clock_gettime(CLOCK_MONOTONIC, &end);
+    const Sample ended = sample();
     struct rusage usage;
     (void)getrusage(RUSAGE_SELF, &usage);
-    const double cpu = static_cast<double>(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) +
-                       static_cast<double>(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6;
-    const double wall = seconds(end) - seconds(start);
+    const double cpu = ended.user + ended.system;
+    const double wall = ended.wall - seconds(start);
+    // the three phases: start-up (process start to the first timer cycle),
+    // the timed run, and the end (draining the queues, teardown)
+    const double runUser = stopped.user - started.user;
+    const double runSystem = stopped.system - started.system;
+    const double runWall = stopped.wall - started.wall;
+    const double runShare = (runWall > 0.0) ? 100.0 * (runUser + runSystem) / runWall : 0.0;
+    const double endCpu = (ended.user + ended.system) - (stopped.user + stopped.system);
 
-    char text[1024];
+    char text[2048];
     const int n = snprintf(
         text, sizeof(text),
         "policy=%s cycles=%llu cycle_ms=%u sequence=%s\n"
         "useful=%llu detected=%llu wrong=%llu last_useful=%llu live_at_end=%u mode=%s "
         "slots=%s,%s,%s stopped=%s\n"
         "footprint: max_rss=%ldKiB address_space=%luKiB cpu=%.3fs wall=%.3fs\n"
+        "cpu: startup_user=%.3fs startup_system=%.3fs startup_wall=%.3fs run_user=%.3fs run_system=%.3fs "
+        "run_wall=%.3fs run_share=%.2f%% end_cpu=%.3fs\n"
         "limits: memory=%uMB/process max_run=%us\n",
         t.policy.e == Mru::Policy::TMR ? "tmr" : "shrink", static_cast<unsigned long long>(t.cycles), cycleMs,
         seqStatus, static_cast<unsigned long long>(t.correct), static_cast<unsigned long long>(t.caught),
         static_cast<unsigned long long>(t.wrong), static_cast<unsigned long long>(t.lastCorrect), static_cast<unsigned>(t.live), modeName(t.mode),
         slotName(t.slots[0]), slotName(t.slots[1]), slotName(t.slots[2]), g_stopped, usage.ru_maxrss, vmKiB, cpu, wall,
+        started.user, started.system, started.wall - seconds(start), runUser, runSystem, runWall, runShare, endCpu,
         memoryMb, maxSeconds);
     if (n > 0) {
         fputs(text, stdout);

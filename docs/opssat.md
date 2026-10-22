@@ -223,7 +223,12 @@ cycle. Without the start-up, which under emulation includes translating the
 binary, the steady share is about 1.3% (measured between 5 and 30 seconds). In run 1 the SEPP ran the demo
 about three times slower per tick than this emulation, so the share on the
 SEPP could reach about 4%, under the registered 5%. The FlatSat test
-measures it on the flight processor before any run in orbit.
+measures it on the flight processor before any run in orbit. Since v0.5.1
+each summary splits the CPU time into start-up, the timed run and the end,
+with user and kernel time apart (the `cpu:` line), so a share above the
+estimate can be placed. The demo's voter on the run 2 FlatSat test showed
+5.6% and 5.8% against its 5% setting, and one total per process could not
+say why.
 
 [`scripts/fprime-deployment.sh`](../scripts/fprime-deployment.sh) runs the
 same package with short caps against a native build in CI and checks each
