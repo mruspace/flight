@@ -1,0 +1,14 @@
+; Run 3 on OPS-SAT PRETTY (exp4051), version 2, segment 3: the shrinking
+; quorum with the manager's state file, each replica in a process of its own.
+;   cycle 200  replica 1 returns the same wrong value: outvoted on cycles
+;              200, 201 and 202, fails its known-answer test and is retired
+; The state file is saved on every change and, set here by command, every
+; 100 cycles. The entry script then kills the manager process without
+; warning (SIGKILL); its replica processes see their links close and end.
+; The manager is started again with no sequence and new replica processes:
+; it restores the policy, the slots (replica 1 retired) and the cycle
+; counter from the file.
+R00:00:00 MruQuorum.manager.SET_POLICY SHRINK
+R00:00:00 MruQuorum.manager.STATESAVEPERIOD_PRM_SET 100
+R00:00:00 MruQuorum.injector.SET_UPSETS 0.0 0.05 1
+R00:00:00 MruQuorum.injector.INJECT STUCK 1 200

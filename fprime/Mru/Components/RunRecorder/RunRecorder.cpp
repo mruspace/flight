@@ -26,7 +26,7 @@ class ManagerChannels : public RedundancyManagerComponentBase {
 }  // namespace
 
 RunRecorder ::RunRecorder(const char* const compName)
-    : RunRecorderComponentBase(compName), m_managerIdBase(0), m_totals(), m_block() {}
+    : RunRecorderComponentBase(compName), m_managerIdBase(0), m_cycleHook(nullptr), m_totals(), m_block() {}
 
 RunRecorder ::~RunRecorder() {}
 
@@ -37,7 +37,7 @@ void RunRecorder ::configure(FwIdType managerIdBase) {
 void RunRecorder ::resultIn_handler(FwIndexType portNum, U64 cycle, U64 value) {
     (void)portNum;
     // the ground truth: the same task, computed here without any fault
-    if (value == ReplicaHost::compute(this->m_block, cycle, false, 0, 0)) {
+    if (value == Payload::compute(this->m_block, cycle, false, 0, 0)) {
         this->m_totals.correct++;
         this->m_totals.lastCorrect = cycle;
         this->tlmWrite_Correct(this->m_totals.correct);
@@ -48,10 +48,17 @@ void RunRecorder ::resultIn_handler(FwIndexType portNum, U64 cycle, U64 value) {
     }
 }
 
+void RunRecorder ::setCycleHook(void (*hook)(U64 cycle)) {
+    this->m_cycleHook = hook;
+}
+
 void RunRecorder ::schedIn_handler(FwIndexType portNum, U32 context) {
     (void)portNum;
     (void)context;
     this->m_totals.cycles++;
+    if (this->m_cycleHook != nullptr) {
+        this->m_cycleHook(this->m_totals.cycles);
+    }
 }
 
 void RunRecorder ::seqDoneIn_handler(FwIndexType portNum,

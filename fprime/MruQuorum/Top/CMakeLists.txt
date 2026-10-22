@@ -1,0 +1,16 @@
+register_fprime_module(
+    AUTOCODER_INPUTS
+        "${CMAKE_CURRENT_LIST_DIR}/instances.fpp"
+        "${CMAKE_CURRENT_LIST_DIR}/system.fpp"
+        "${CMAKE_CURRENT_LIST_DIR}/topology.fpp"
+    SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/MruQuorumTopology.cpp"
+    DEPENDS
+        Fw_Logger
+        Mru_Components_RedundancyManager
+        Mru_Components_HealthRegistry
+        Mru_Payload
+        Mru_Components_SeqPacketDriver
+        Mru_Components_FaultInjector
+        Mru_Components_RunRecorder
+)

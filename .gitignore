@@ -14,3 +14,6 @@ opssat/fprime/dist-native/
 opssat/fprime/toGround/
 # F´ install folder written by fprime-util
 fprime/build-artifacts/
+opssat/fprime2/dist/
+opssat/fprime2/dist-native/
+opssat/fprime2/toGround/

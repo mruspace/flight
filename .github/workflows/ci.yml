@@ -72,6 +72,8 @@ jobs:
         run: fprime-util generate && fprime-util build -j4
       - name: Deployment end to end (OPS-SAT run 3 package, counts against the demo)
         run: ./scripts/fprime-deployment.sh
+      - name: Deployment end to end, version 2 (replicas as processes, a real kill)
+        run: VERSION=2 ./scripts/fprime-deployment.sh
       - name: Unit tests and parity with the demo (MRU-SYS-001)
         working-directory: fprime
         run: fprime-util generate --ut && fprime-util check --all -j4

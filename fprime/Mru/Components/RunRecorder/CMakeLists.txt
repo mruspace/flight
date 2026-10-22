@@ -7,7 +7,7 @@ register_fprime_module(
     "${CMAKE_CURRENT_LIST_DIR}/RunRecorder.hpp"
   DEPENDS
     Mru_Components_RedundancyManager
-    Mru_Components_ReplicaHost
+    Mru_Payload
     Svc_Seq
 )
 
@@ -20,7 +20,7 @@ register_fprime_ut(
   DEPENDS
     STest
     Mru_Components_RedundancyManager
-    Mru_Components_ReplicaHost
+    Mru_Payload
     Svc_Seq
   UT_AUTO_HELPERS
 )

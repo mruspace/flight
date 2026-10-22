@@ -29,6 +29,13 @@ TEST(Nominal, CountsCyclesAndSequence) {
     tester.countsCyclesAndSequence();
 }
 
+TEST(Nominal, CallsTheCycleHook) {
+    COMMENT("The cycle hook is called with each cycle's number");
+    REQUIREMENT("MRU-RR-006");
+    Mru::RunRecorderTester tester;
+    tester.callsTheCycleHook();
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

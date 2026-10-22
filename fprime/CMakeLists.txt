@@ -46,3 +46,7 @@ add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Mru")
 
 # The OPS-SAT deployment (exp4051, run 3)
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/MruOpsSat")
+
+# OPS-SAT run 3, version 2: the replicas as processes of their own
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/MruReplica")
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/MruQuorum")

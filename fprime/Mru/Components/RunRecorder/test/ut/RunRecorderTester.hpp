@@ -31,6 +31,9 @@ class RunRecorderTester final : public RunRecorderGTestBase {
     //! Cycles are counted, the sequence's end is recorded (MRU-RR-003, 004)
     void countsCyclesAndSequence();
 
+    //! The cycle hook is called with each cycle, before anything else (MRU-RR-006)
+    void callsTheCycleHook();
+
   private:
     void connectPorts();
     void initComponents();

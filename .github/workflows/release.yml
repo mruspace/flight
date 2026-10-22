@@ -71,6 +71,15 @@ jobs:
           cp opssat/fprime/dist/* "pkg/$name/"
           cp opssat/fprime/run opssat/fprime/shrink.seq opssat/fprime/tmr.seq opssat/fprime/restart.seq LICENSE "pkg/$name/"
           tar -C pkg -czf "dist/$name.tar.gz" "$name"
+      - name: Build version 2 (replicas as processes) and compile its sequences
+        run: ./opssat/fprime2/build.sh
+      - name: Package version 2
+        run: |
+          name=mru-fprime-processes-${{ github.ref_name }}-armv7-linux-static
+          mkdir -p "pkg/$name"
+          cp opssat/fprime2/dist/* "pkg/$name/"
+          cp opssat/fprime2/run opssat/fprime2/shrink.seq opssat/fprime2/tmr.seq opssat/fprime2/restart.seq LICENSE "pkg/$name/"
+          tar -C pkg -czf "dist/$name.tar.gz" "$name"
       - uses: actions/upload-artifact@v4
         with:
           name: fprime-armv7-linux-static

@@ -1,0 +1,12 @@
+register_fprime_module(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/SeqPacketDriver.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/SeqPacketDriver.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/SeqPacketSocket.cpp"
+  HEADERS
+    "${CMAKE_CURRENT_LIST_DIR}/SeqPacketDriver.hpp"
+    "${CMAKE_CURRENT_LIST_DIR}/SeqPacketSocket.hpp"
+  DEPENDS
+    Drv_Ip
+)
