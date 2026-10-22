@@ -54,8 +54,30 @@ jobs:
           name: ${{ matrix.target }}
           path: dist/*
 
+  fprime:
+    needs: version
+    name: build (F´ deployment, armv7-linux-static)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build the deployment and compile its sequences in the build container
+        run: ./opssat/fprime/build.sh
+      - name: Package the deployment, sequences, entry script and sources
+        run: |
+          name=mru-fprime-${{ github.ref_name }}-armv7-linux-static
+          mkdir -p "pkg/$name" dist
+          cp opssat/fprime/dist/* "pkg/$name/"
+          cp opssat/fprime/run opssat/fprime/shrink.seq opssat/fprime/tmr.seq opssat/fprime/restart.seq LICENSE "pkg/$name/"
+          tar -C pkg -czf "dist/$name.tar.gz" "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fprime-armv7-linux-static
+          path: dist/*
+
   release:
-    needs: build
+    needs: [build, fprime]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -63,7 +85,7 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Checksums
-        run: cd dist && sha256sum quorum-* > SHA256SUMS && cat SHA256SUMS
+        run: cd dist && sha256sum quorum-* mru-fprime-* > SHA256SUMS && cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*

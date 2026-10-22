@@ -8,3 +8,9 @@ opssat/exp4051-*.tar.gz
 opssat/toGround/
 # OPS-SAT results, kept in the repository
 !opssat/results/**/*.csv
+# F´ deployment builds (opssat/fprime/build.sh)
+opssat/fprime/dist/
+opssat/fprime/dist-native/
+opssat/fprime/toGround/
+# F´ install folder written by fprime-util
+fprime/build-artifacts/

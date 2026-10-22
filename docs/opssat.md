@@ -15,9 +15,10 @@ qualification evidence.
 
 A note for the OPS-SAT Space Lab team: what the experiment does on the
 satellite, what it touches, its limits, how to start and stop it, what it sends
-down, and what it can and cannot show. It describes the current `quorum`
-program; a later version will add F´ command and telemetry interfaces (see
-[fprime-design.md](fprime-design.md)).
+down, and what it can and cannot show. It describes the `quorum` program
+that ran in runs 1 and 2. The package for a planned third run is the F´
+deployment of the same decision core, with F´'s command, event and
+telemetry interfaces ([run 3](#run-3-v050-the-f-deployment-planned)).
 
 ## What runs
 
@@ -141,6 +142,83 @@ target, checks it against `SHA256SUMS`, adds `run`, the schedules, a
 `README.txt` for the operators and the license, and writes the archive with
 the required ownership and no hidden entries. `QUORUM_BIN=path ./package.sh`
 packages a binary you built yourself.
+
+### Run 3 (v0.5.0, the F´ deployment, planned)
+
+Run 1 flew the demo, `quorum`, and run 2 uses it too. Run 3 is the package for the four F´
+components ([design](fprime-design-fpp.md)) in a real F´ deployment,
+`MruOpsSat`: `RedundancyManager`, `HealthRegistry`, three `ReplicaHost`
+threads and the test-only `FaultInjector`, with F´'s own command
+dispatcher, event manager, telemetry database, health pings and command
+sequencer, driven by a Linux timer every 100 ms. No communications stack:
+the SEPP experiment has no network, so events are written as text lines.
+An experiment-only component, `RunRecorder`, checks every delivered result
+against the payload computed without a fault and writes the summary; the
+manager never sees it. Nothing in the four components changed for the
+deployment.
+
+The faults are the ones that flew in run 1, now commanded by F´ command
+sequences, as an operator would command them, and applied by
+`FaultInjector`: one bit flip in replica 2 at cycle 60, replica 1 stuck at
+120, replica 0 stops answering at 240. The prediction is the demo on the
+same faults: MRU-SYS-001 asks for the same wrong count, and lets a kill
+cost up to three correct results.
+
+| # | Segment | Sequence | Cap |
+|---|---|---|---|
+| 1 | shrink | [`shrink.seq`](../opssat/fprime/shrink.seq): `SET_POLICY SHRINK`, the three faults | 45 s |
+| 2 | tmr | [`tmr.seq`](../opssat/fprime/tmr.seq): `SET_POLICY TMR`, the same faults | 35 s |
+| 3 | restart | [`restart.seq`](../opssat/fprime/restart.seq): `SET_POLICY SHRINK`, state saved every 100 cycles, replica 1 stuck at 200; killed with SIGKILL after 35 s and started again with no sequence for 30 s | 35 + 30 s |
+
+The package, `exp4051-mru-flight-fprime-VERSION.tar.gz`, built by
+[`opssat/fprime/package.sh`](../opssat/fprime/package.sh) from the
+release asset `mru-fprime-VERSION-armv7-linux-static.tar.gz` (checksum
+verified), has seven files: `run`, `MruOpsSat` (static 32-bit ARM, hard
+float, about 1.3 MB), the three compiled sequences, `README.txt` and the
+license. [`opssat/fprime/build.sh`](../opssat/fprime/build.sh) builds the
+deployment and compiles the sequences in the build container
+(`fprime/toolchain/Dockerfile`: Debian's armhf cross compiler, static
+glibc, so the binary needs nothing from the SEPP's libraries). The
+segment removes a state file left by an earlier run of the package before
+it starts (the lesson of run 2 on the FlatSat).
+
+Measured on 22 October 2026 in ESA's image on a laptop (Apple silicon,
+Docker's Linux VM, 32-bit ARM under emulation), a local build packaged by
+`package.sh`, as user `exp`:
+
+- Whole run 147 seconds, every exit as planned (the killed process 137),
+  10 files, 23,181 bytes.
+- Segment 1 (shrink): 342 correct results, 3 caught, 0 wrong over 448
+  cycles. Events on their cycles: the flip applied at 60, replica 1 retired
+  at 122 after a failed known-answer test, replica 0 lost at 242, self-check
+  on replica 2 from 243. The demo on the same faults and cycles: 344
+  correct, 0 caught, 0 wrong. The difference is the one MRU-SYS-001 allows:
+  in F´ a replica that dies is found by silence, so the kill costs the
+  shrinking quorum 2 correct results and adds 3 caught disagreements.
+- Segment 2 (fixed TMR): 239 correct results, then a caught disagreement on
+  every cycle to 348, 0 wrong; identical to the demo (239, 109, 0).
+- Segment 3 (restart): replica 1 retired at 202; the process killed 35 s in;
+  the second process restored the policy, the slots (replica 1 retired)
+  and the cycle counter from the state file (`StateRestored ... cycle
+  303`), then 299 correct results, 0 wrong, two replicas alive.
+- CPU 1.3% (shrink), 1.6% (TMR) and 1.5% (restart) of wall time, start-up
+  included. Address space 19 MB (from `/proc/self/maps`) against the
+  128 MB limit. 13 threads. Under emulation the resident size in the
+  summary (about 13 MB) includes the emulator itself.
+
+The CPU share comes from the cycle rate, not a throttle: the deployment is
+idle between timer ticks. The optimized build matters: an unoptimized F´
+build spent 84% of its time in the payload hash and ran at 8% at a 20 ms
+cycle. Without the start-up, which under emulation includes translating the
+binary, the steady share is about 1.3% (measured between 5 and 30 seconds). In run 1 the SEPP ran the demo
+about three times slower per tick than this emulation, so the share on the
+SEPP could reach about 4%, under the registered 5%. The FlatSat test
+measures it on the flight processor before any run in orbit.
+
+[`scripts/fprime-deployment.sh`](../scripts/fprime-deployment.sh) runs the
+same package with short caps against a native build in CI and checks each
+segment against the demo, the events on their cycles, the restore, and a
+second run in the same folder.
 
 ### Run 2 (v0.4.0, tested by ESA on 21 October 2026, not yet scheduled)
 

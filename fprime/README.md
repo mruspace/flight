@@ -23,6 +23,22 @@ fprime-util generate --ut && fprime-util check --all
 and compares the counts with the demo's (`../scripts/parity-cases.sh` writes
 the expected counts from the demo).
 
+## The deployment: `MruOpsSat`
+
+The first F´ deployment of the components, for OPS-SAT run 3: the four
+components with F´'s command, event, telemetry, health and sequencing
+services, driven by a Linux timer ([design](../docs/fprime-design-fpp.md#deployment-mruopssat),
+[package](../docs/opssat.md)). Built and tested on Linux; on macOS, build
+it in the container:
+
+```sh
+./opssat/fprime/build.sh                 # static 32-bit ARM build and sequences, in opssat/fprime/dist
+./scripts/fprime-docker.sh sh -c 'cd fprime && fprime-util generate --build-cache /build/native && fprime-util build --build-cache /build/native && cd .. && ./scripts/fprime-deployment.sh'
+```
+
+`scripts/fprime-deployment.sh` runs the OPS-SAT package with short caps and
+checks each segment against the demo.
+
 On macOS 27, the CMake 3.26 that F´ v4.4.1 pins fails with a recursion error,
 also on F´'s own sample project. Put CMake 4.4 first on the path
 (`pip install cmake` in another environment). Linux works with the pinned

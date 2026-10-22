@@ -94,6 +94,29 @@ Each has a recommended answer. The requirements below assume it.
 | MRU-FI-002 | A command shall set a random upset rate and seed, as the demo's `--upset-rate` and `--seed` do. | Unit test |
 | MRU-FI-003 | The component shall not be part of a flight build. | Inspection of the build |
 
+## `RunRecorder` (passive, experiment builds only)
+
+Added on 22 October 2026 for the OPS-SAT deployment (run 3). It stands in for the ground: the manager never sees it.
+
+| ID | Requirement | Verification |
+|---|---|---|
+| MRU-RR-001 | The component shall check each delivered result against the payload computed for its cycle without a fault, count correct and wrong results, and report both as telemetry. | Unit test |
+| MRU-RR-002 | A wrong result shall emit a throttled warning event with its cycle. | Unit test |
+| MRU-RR-003 | The component shall give the run's counts with the manager's last policy, mode, live replicas, caught count and slot states, read from the telemetry database. | Unit test |
+| MRU-RR-004 | The component shall record the end of the command sequence and whether every command in it succeeded. | Unit test |
+| MRU-RR-005 | The component shall not be part of a flight build. | Inspection of the build |
+
+## Deployment `MruOpsSat`
+
+Added on 22 October 2026: the first F´ deployment of the components, for OPS-SAT run 3.
+
+| ID | Requirement | Verification |
+|---|---|---|
+| MRU-DEP-001 | The deployment shall run the four components with F´'s command dispatcher, event manager, telemetry database, health pings and command sequencer, driven by a Linux timer. | Integration test (`scripts/fprime-deployment.sh`) |
+| MRU-DEP-002 | The policy and the faults shall be commanded by an F´ command sequence that ends before cycle 1. | Integration test |
+| MRU-DEP-003 | The deployment shall stop at a time cap or on SIGTERM and write a summary of the run. | Integration test |
+| MRU-DEP-004 | A static 32-bit ARM Linux build shall run in ESA's OPS-SAT experiment environment as user `exp`, within 128 MB of address space and the registered 5% CPU share. | Full-length run in ESA's environment image |
+
 ## System requirement
 
 | ID | Requirement | Verification |

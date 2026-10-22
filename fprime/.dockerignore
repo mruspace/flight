@@ -1,0 +1,4 @@
+# Build context of toolchain/Dockerfile: only the requirements files
+*
+!requirements.txt
+!lib/fprime/requirements.txt

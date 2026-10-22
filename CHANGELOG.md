@@ -3,6 +3,16 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
+## 0.5.0 (2026-10-22)
+
+### Added
+
+- `MruOpsSat`, the first F´ deployment of the components (`fprime/MruOpsSat`): `RedundancyManager`, `HealthRegistry`, three `ReplicaHost` threads and `FaultInjector`, with F´'s command dispatcher, event manager, telemetry database, health pings and command sequencer (`CdhCore`), driven by a Linux timer. No communications stack; events as text lines, a summary from `Main.cpp` (counts, footprint, address space). Requirements MRU-DEP-001 to 004.
+- `RunRecorder`, an experiment-only F´ component: checks every delivered result against the payload computed without a fault, counts correct and wrong, and reads the manager's last telemetry for the summary (MRU-RR-001 to 005, three unit tests).
+- The OPS-SAT run 3 package (`opssat/fprime/`): `run` with three segments (the run 1 faults under the shrinking quorum, the same under fixed TMR, a SIGKILL and a restore from the manager's state file), the faults and the policy as F´ command sequences (`shrink.seq`, `tmr.seq`, `restart.seq`), `build.sh` and `package.sh`. Full length in ESA's image: 147 s, 0 wrong in every segment, counts against the demo as MRU-SYS-001 allows, CPU 1.3% to 1.6%, 19 MB of address space. `docs/opssat.md` has the numbers.
+- A build container (`fprime/toolchain/Dockerfile`, `scripts/fprime-docker.sh`) and a static, optimized 32-bit ARM toolchain (`fprime/cmake/toolchain/armv7-linux-static.cmake`); the F´ CMake project builds the Rust core for the toolchain's target.
+- CI: `scripts/fprime-deployment.sh` runs the run 3 package against a native build and checks each segment against the demo, the events on their cycles, the restore and a second run in the same folder. The release builds the ARM deployment with its sequences (`mru-fprime-VERSION-armv7-linux-static.tar.gz`, in `SHA256SUMS`).
+
 ## 0.4.1 (2026-10-22)
 
 ### Fixed
