@@ -49,7 +49,8 @@ for policy in shrink tmr; do
     du=$(abs $(($(field useful "$s") - $(field useful "$d"))))
     dd=$(abs $(($(field detected "$s") - $(field detected "$d"))))
     if [ "$cycles" -gt 300 ] && [ "$(field wrong "$s")" = 0 ] && [ "$(field wrong "$d")" = 0 ] &&
-        [ "$du" -le 3 ] && [ "$dd" -le 3 ] && grep -q "sequence=ok" "$out/summary-$policy.txt"; then
+        [ "$du" -le 3 ] && [ "$dd" -le 3 ] && grep -q "sequence=ok" "$out/summary-$policy.txt" &&
+        grep -q '^cpu: startup_user=.* run_share=.* end_cpu=' "$out/summary-$policy.txt"; then
         pass "$policy: $(field useful "$s") correct, $(field detected "$s") caught, 0 wrong over $ticks cycles (demo $(field useful "$d") / $(field detected "$d") / 0)"
     else
         fail "$policy: F' $s / demo $d over $ticks cycles"
