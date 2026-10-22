@@ -206,15 +206,19 @@ Docker's Linux VM, 32-bit ARM under emulation), a local build packaged by
   128 MB limit. 13 threads. Under emulation the resident size in the
   summary (about 13 MB) includes the emulator itself.
 
-Repeated the same day with the published package,
-`exp4051-mru-flight-fprime-v0.5.0.tar.gz` (648,525 bytes, sha256
-`90cc2488b83ba15471ab3f7329a45ce9b0380f28c39b458235d05d6d797bfbce`,
+Repeated the same day with the published package for run 3,
+`exp4051-mru-flight-fprime-v0.5.1.tar.gz` (648,790 bytes, sha256
+`c4add3b7711a6b7a0d942770aeb931158e14fd146a64b3121b976a99d59698f6`,
 `MruOpsSat` sha256
-`ebac0c17a0c6d1500e8dfb021b95f852f8344ddde4a9d859f6bed94ce94784f0`), built
+`9fa5efc5f28086b3b96567b29e875ad1fa645b59a3f79b3c9982c14bb9645b3a`), built
 by `package.sh` from the release asset: 148 seconds, the same counts and the
 same events on the same cycles in all three segments, the restore at cycle
-303, CPU 1.3%, 1.4% and 1.5%, 10 files, 23,092 bytes, and the version event
-`Project Version: [v0.5.0]`.
+303, 10 files, 23,960 bytes, and the version event `Project Version:
+[v0.5.1]`. Its `cpu:` lines: start-up under 0.05 s of CPU in each segment;
+the timed run at 1.18% (shrink), 1.48% (TMR) and 1.46% (restart) of wall
+time, of which kernel time is about a sixth. (v0.5.0, the same deployment
+without the `cpu:` line, gave the same counts with its package, 648,525
+bytes.)
 
 The CPU share comes from the cycle rate, not a throttle: the deployment is
 idle between timer ticks. The optimized build matters: an unoptimized F´
