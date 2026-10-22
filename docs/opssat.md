@@ -18,7 +18,7 @@ satellite, what it touches, its limits, how to start and stop it, what it sends
 down, and what it can and cannot show. It describes the `quorum` program
 that ran in runs 1 and 2. The package for a planned third run is the F´
 deployment of the same decision core, with F´'s command, event and
-telemetry interfaces ([run 3](#run-3-v050-the-f-deployment-planned)).
+telemetry interfaces ([run 3](#run-3-v051-the-f-deployment-planned)).
 
 ## What runs
 
@@ -143,10 +143,10 @@ target, checks it against `SHA256SUMS`, adds `run`, the schedules, a
 the required ownership and no hidden entries. `QUORUM_BIN=path ./package.sh`
 packages a binary you built yourself.
 
-### Run 3 (v0.5.0, the F´ deployment, planned)
+### Run 3 (v0.5.1, the F´ deployment, planned)
 
-Run 1 flew the demo, `quorum`, and run 2 uses it too. Run 3 is the package for the four F´
-components ([design](fprime-design-fpp.md)) in a real F´ deployment,
+Run 1 flew the demo, `quorum`, and run 2 uses it too. Run 3, planned and
+not yet proposed to ESA, is the package for the F´ components ([design](fprime-design-fpp.md)) in a real F´ deployment,
 `MruOpsSat`: `RedundancyManager`, `HealthRegistry`, three `ReplicaHost`
 threads and the test-only `FaultInjector`, with F´'s own command
 dispatcher, event manager, telemetry database, health pings and command

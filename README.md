@@ -48,9 +48,9 @@ from a schedule, 227 seconds, every result as predicted in writing before the
 run ([in orbit](#in-orbit)). That tests the software policy on a flight
 processor. It is not a hardware-redundancy test and not qualification
 evidence. The decision core, the demo on real processes with faults injected,
-and four F´ components work today, with a first F´ deployment that runs in
-ESA's OPS-SAT experiment environment; the F´ components have not run on
-flight hardware.
+and the F´ components (three for flight, two test-only) work today, with a
+first F´ deployment that runs in ESA's OPS-SAT experiment environment; the
+F´ components have not run on flight hardware.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/chart-dark.png">
@@ -63,7 +63,7 @@ flight hardware.
 |---|---|
 | [`quorum`](quorum/src/lib.rs) | The decision core: vote, compare, self-check, and the health record that decides when a replica must be diagnosed. `no_std`, no allocation, no dependencies. Unit-tested, checked with [Kani](https://github.com/model-checking/kani), and built in CI for a bare-metal ARM Cortex-M target. |
 | [`quorum-ffi`](quorum-ffi/src/lib.rs) | The C interface to the core ([`quorum.h`](quorum-ffi/include/quorum.h)), as a `no_std` static library. Kani proves that its decide, mode, strike and clear functions give the core's answer. Used by the F´ components, and usable from any C or C++ framework. |
-| [`fprime`](fprime) | F´ v4.4.1 components: `RedundancyManager`, `HealthRegistry`, `ReplicaHost` and the test-only `FaultInjector`, with spares, standby and state that survives resets. 40 unit tests, and a system test against the demo on the bench schedules: wrong results match in all 60 cases, and correct results match exactly in 36 ([requirements](docs/fprime-requirements.md), [design and results](docs/fprime-design-fpp.md)). `MruOpsSat`, the first F´ deployment: the components with F´'s command, event, telemetry, health and sequencing services, driven by a Linux timer, built as a static 32-bit ARM binary for OPS-SAT PRETTY's processor ([run 3 package](docs/opssat.md)). |
+| [`fprime`](fprime) | F´ v4.4.1 components: `RedundancyManager`, `HealthRegistry`, `ReplicaHost`, and the test-only `FaultInjector` and `RunRecorder`, with spares, standby and state that survives resets. 40 unit tests, and a system test against the demo on the bench schedules: wrong results match in all 60 cases, and correct results match exactly in 36 ([requirements](docs/fprime-requirements.md), [design and results](docs/fprime-design-fpp.md)). `MruOpsSat`, the first F´ deployment: the components with F´'s command, event, telemetry, health and sequencing services, driven by a Linux timer, built as a static 32-bit ARM binary for OPS-SAT PRETTY's processor ([run 3 package](docs/opssat.md)). |
 | [`bench`](bench/src/main.rs) | Times the decision core on the host: nanoseconds per call of `decide()` for each policy and mode, and of `Health::strike()`. No dependencies. |
 | [`demo`](demo/src/main.rs) | The `quorum` program: three replica processes, a voter built on the core, fault injection, enforced resource limits, and a report of what was delivered and what it cost. Runs on Linux and macOS; release builds are fully static binaries for 64-bit and 32-bit ARM Linux and x86_64 Linux. Its only dependency is `libc`, for the system calls behind the limits. |
 
@@ -390,11 +390,12 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## Roadmap
 
-1. **F´ components**: `RedundancyManager`, `HealthRegistry`, `ReplicaHost` and a
-   test-only `FaultInjector` are built ([design](docs/fprime-design.md)). The
-   first deployment, `MruOpsSat`, runs them with F´'s own services and is
-   packaged for a third OPS-SAT run (planned): it ran full length in ESA's
-   experiment environment. Next: `PowerAccountant` and `ScrubScheduler`.
+1. **F´ components**: `RedundancyManager`, `HealthRegistry`, `ReplicaHost`, and
+   the test-only `FaultInjector` and `RunRecorder` are built
+   ([design](docs/fprime-design.md)). The first deployment, `MruOpsSat`, runs
+   them with F´'s own services. It is built for OPS-SAT PRETTY's processor and
+   ran full length in ESA's experiment environment; a run on the SEPP is
+   planned, not yet proposed. Next: `PowerAccountant` and `ScrubScheduler`.
 2. **Measurements on representative processors**: static ARM Linux binaries are
    built and tested in CI under emulation. The 32-bit ARM binary ran on the
    SEPP, the flight processor of OPS-SAT PRETTY, on the FlatSat and in orbit
