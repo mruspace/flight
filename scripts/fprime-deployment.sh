@@ -94,7 +94,7 @@ if grep -q 'restart-1: exit=137' "$out/run-info.txt" && [ -n "$at" ] && [ "$at" 
     [ -s "$out/state-restart-at-kill.dat" ] && grep -q 'status=0' "$out/run-info.txt"; then
     pass "restart: killed, restored at cycle $at with replica 1 retired, 0 wrong after"
 else
-    fail "restart: restored at '$at' ($r / $(tail -n 6 "$out/run-info.txt" | tr '\n' ' '))"
+    fail "restart: restored at '$at' ($r / $(tail -n 6 "$out/run-info.txt" | tr '\n' ' ') / events: $(grep -hE 'Retired|Withheld|StateRestored' "$out/events-restart-1.txt" "$out/events-restart-2.txt" | sed 's/.*) //' | tr '\n' ' '))"
 fi
 
 # the same package again in the same folder: the old state file is removed
@@ -105,7 +105,7 @@ if grep -q 'removed a state file left by an earlier run' "$out/run-info.txt" &&
     at 'Replica 1 retired (KNOWN_ANSWER_FAILED (0))' 202 $(($(grep -c CycleWithheld "$out/events-restart-1.txt") + 1)) "$out/events-restart-1.txt"; then
     pass "restart: a second run in the same folder starts from cycle 1"
 else
-    fail "restart: second run in the same folder ($(tail -n 8 "$out/run-info.txt" | tr '\n' ' '))"
+    fail "restart: second run in the same folder ($(tail -n 8 "$out/run-info.txt" | tr '\n' ' ') / events: $(grep -hE 'Retired|Withheld|StateRestored|StateNotRestored' "$out/events-restart-1.txt" | sed 's/.*) //' | tr '\n' ' '))"
 fi
 
 echo
