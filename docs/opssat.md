@@ -18,7 +18,7 @@ satellite, what it touches, its limits, how to start and stop it, what it sends
 down, and what it can and cannot show. It describes the `quorum` program
 that ran in runs 1 and 2. The package for a planned third run is the F´
 deployment of the same decision core, with F´'s command, event and
-telemetry interfaces ([run 3](#run-3-v051-the-f-deployment-planned)).
+telemetry interfaces ([run 3](#run-3-v060-the-f-deployment-planned)).
 
 ## What runs
 
@@ -143,7 +143,7 @@ target, checks it against `SHA256SUMS`, adds `run`, the schedules, a
 the required ownership and no hidden entries. `QUORUM_BIN=path ./package.sh`
 packages a binary you built yourself.
 
-### Run 3 (v0.5.1, the F´ deployment, planned)
+### Run 3 (v0.6.0, the F´ deployment, planned)
 
 Run 1 flew the demo, `quorum`, and run 2 uses it too. Run 3, planned and
 not yet proposed to ESA, is the package for the F´ components ([design](fprime-design-fpp.md)) in a real F´ deployment,
@@ -206,19 +206,23 @@ Docker's Linux VM, 32-bit ARM under emulation), a local build packaged by
   128 MB limit. 13 threads. Under emulation the resident size in the
   summary (about 13 MB) includes the emulator itself.
 
-Repeated the same day with the published package for run 3,
-`exp4051-mru-flight-fprime-v0.5.1.tar.gz` (648,790 bytes, sha256
-`c4add3b7711a6b7a0d942770aeb931158e14fd146a64b3121b976a99d59698f6`,
-`MruOpsSat` sha256
-`9fa5efc5f28086b3b96567b29e875ad1fa645b59a3f79b3c9982c14bb9645b3a`), built
-by `package.sh` from the release asset: 148 seconds, the same counts and the
-same events on the same cycles in all three segments, the restore at cycle
-303, 10 files, 23,960 bytes, and the version event `Project Version:
-[v0.5.1]`. Its `cpu:` lines: start-up under 0.05 s of CPU in each segment;
-the timed run at 1.18% (shrink), 1.48% (TMR) and 1.46% (restart) of wall
-time, of which kernel time is about a sixth. (v0.5.0, the same deployment
-without the `cpu:` line, gave the same counts with its package, 648,525
-bytes.)
+Repeated the same day with the published v0.5.1 package
+(`exp4051-mru-flight-fprime-v0.5.1.tar.gz`, built by `package.sh` from the
+release asset): 148 seconds, the same counts and events. Its `cpu:` lines:
+start-up under 0.05 s of CPU in each segment; the timed run at 1.18%
+(shrink), 1.48% (TMR) and 1.46% (restart) of wall time, of which kernel time
+is about a sixth.
+
+**v0.6.0, the package for run 3.** The same day, a restart test in CI found
+all three replicas retired as lost: the manager had fallen behind and closed
+cycles before their answers were dispatched, so healthy replicas looked
+silent. MRU-RM-023 fixes it: a cycle that closes late is withheld and counts
+against no replica ([design](fprime-design-fpp.md)). The summary reports
+those cycles (`late=`). The v0.6.0 package, built locally and run full
+length in ESA's image: 147 seconds, every exit as planned, the same counts
+and events as v0.5.1 (342 / 3 / 0 over 448 cycles, 239 / 109 / 0, the
+restore at cycle 303), no cycle withheld, the timed run at 1.25%, 1.47% and
+1.30%. The package is built by `package.sh` from the v0.6.0 release asset.
 
 The CPU share comes from the cycle rate, not a throttle: the deployment is
 idle between timer ticks. The optimized build matters: an unoptimized F´

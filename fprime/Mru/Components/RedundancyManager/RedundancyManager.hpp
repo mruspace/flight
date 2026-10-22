@@ -65,8 +65,14 @@ class RedundancyManager final : public RedundancyManagerComponentBase {
     enum class KatPurpose : U8 { NONE, DIAGNOSIS, PERIODIC, ADMISSION };
 
     //! Close the cycle in flight: decide it if not yet decided, and resolve
-    //! answers that did not arrive (MRU-RM-002, 009, 010, 020)
-    void finishCycle();
+    //! answers that did not arrive (MRU-RM-002, 009, 010, 020). `behind`:
+    //! other messages wait in the queue, so a missing answer may only be
+    //! late. A late cycle, or one with every expected answer missing, is
+    //! withheld and nothing is resolved (MRU-RM-023)
+    void finishCycle(bool behind);
+
+    //! Withhold the cycle in flight: deliver nothing, blame no replica (MRU-RM-023)
+    void withhold();
 
     //! Start the next cycle: mode, requests, periodic test (MRU-RM-001, 004, 008, 012)
     void startCycle();
@@ -122,6 +128,7 @@ class RedundancyManager final : public RedundancyManagerComponentBase {
     bool m_halted;
     U64 m_delivered;
     U64 m_caught;
+    U64 m_late;
     U8 m_retired;
 
     // state file

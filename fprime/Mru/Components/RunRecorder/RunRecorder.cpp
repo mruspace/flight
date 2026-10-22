@@ -18,6 +18,7 @@ class ManagerChannels : public RedundancyManagerComponentBase {
     using RedundancyManagerComponentBase::CHANNELID_CAUGHT;
     using RedundancyManagerComponentBase::CHANNELID_CURRENTMODE;
     using RedundancyManagerComponentBase::CHANNELID_CURRENTPOLICY;
+    using RedundancyManagerComponentBase::CHANNELID_LATE;
     using RedundancyManagerComponentBase::CHANNELID_LIVEREPLICAS;
     using RedundancyManagerComponentBase::CHANNELID_SLOTS;
 };
@@ -86,12 +87,16 @@ RunRecorder::Totals RunRecorder ::totals() {
     Fw::TlmBuffer val;
     using Base = ManagerChannels;
     U64 caught = 0;
+    U64 late = 0;
     U8 live = 0;
     Mode mode;
     Policy policy;
     SlotStates slots;
     if (this->readChannel(Base::CHANNELID_CAUGHT, val)) {
         (void)val.deserializeTo(caught);
+    }
+    if (this->readChannel(Base::CHANNELID_LATE, val)) {
+        (void)val.deserializeTo(late);
     }
     if (this->readChannel(Base::CHANNELID_LIVEREPLICAS, val)) {
         (void)val.deserializeTo(live);
@@ -109,6 +114,7 @@ RunRecorder::Totals RunRecorder ::totals() {
     t = this->m_totals;
     this->unLock();
     t.caught = caught;
+    t.late = late;
     t.live = live;
     t.mode = mode;
     t.policy = policy;

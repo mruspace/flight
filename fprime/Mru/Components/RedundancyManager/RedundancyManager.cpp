@@ -11,6 +11,14 @@
 //      with what arrived; strikes, diagnosis and the periodic test follow;
 //   3. resolve known-answer tests and admissions when their answers arrive,
 //      or at the end of the next cycle if they do not.
+// Silence is held against a replica only when it can only be the replica's
+// (MRU-RM-023). A cycle closed while other messages still wait in the queue
+// closed late: the manager fell behind (a slow write, a starved thread), and
+// a missing answer may be one of those messages. A cycle in which every one
+// of two or more expected answers is missing points at the processor they
+// share, not at each replica at once. Either cycle is withheld: nothing is
+// delivered and no replica is blamed. An answer that arrives after its cycle
+// closed shows the replica is alive, and clears its count of misses.
 // ======================================================================
 
 #include "Mru/Components/RedundancyManager/RedundancyManager.hpp"
@@ -78,6 +86,7 @@ RedundancyManager ::RedundancyManager(const char* const compName)
       m_halted(false),
       m_delivered(0),
       m_caught(0),
+      m_late(0),
       m_retired(0),
       m_statePath(),
       m_configured(false),
@@ -116,7 +125,10 @@ void RedundancyManager ::schedIn_handler(FwIndexType portNum, U32 context) {
     (void)context;
     // configure() is part of the topology's setup, not input
     FW_ASSERT(this->m_configured);
-    this->finishCycle();
+    // anything still queued behind this call means the manager is behind:
+    // replies, a command or another cycle wait their turn (MRU-RM-023)
+    const bool behind = this->m_queue.getMessagesAvailable() > 0;
+    this->finishCycle(behind);
     this->startCycle();
 
     Fw::ParamValid valid;
@@ -181,8 +193,12 @@ void RedundancyManager ::replyIn_handler(FwIndexType portNum,
         return;
     }
 
+    if (cycle < this->m_cycle && this->m_slots[i] == SlotState::ACTIVE) {
+        this->m_missed[i] = 0;  // late, so alive (MRU-RM-023); too late to count
+        return;
+    }
     if (cycle != this->m_cycle || this->m_decided || !this->m_expect[i] || this->m_slots[i] != SlotState::ACTIVE) {
-        return;  // late, or from a replica no longer asked
+        return;  // from a replica no longer asked
     }
     this->m_reply[i] = (kind.e == RequestKind::COMPUTE_TWICE) ? quorum_reply{QUORUM_PAIR, first, second}
                                                               : quorum_reply{QUORUM_SINGLE, first, 0};
@@ -266,12 +282,27 @@ void RedundancyManager ::ADMIT_REPLICA_cmdHandler(FwOpcodeType opCode, U32 cmdSe
 // Cycle steps
 // ----------------------------------------------------------------------
 
-void RedundancyManager ::finishCycle() {
+void RedundancyManager ::finishCycle(bool behind) {
     if (this->m_cycle == 0) {
         return;
     }
+    // every one of two or more expected answers missing: the shared processor
+    U32 expected = 0;
+    U32 got = 0;
+    for (FwIndexType i = 0; i < Replicas; i++) {
+        if (this->m_expect[i] && this->m_slots[i] == SlotState::ACTIVE) {
+            expected++;
+            got += this->m_got[i] ? 1 : 0;
+        }
+    }
+    const bool commonSilence = (expected >= 2) && (got == 0);
+    const bool late = behind || commonSilence;
     if (!this->m_decided) {
-        this->decide();
+        if (late) {
+            this->withhold();
+        } else {
+            this->decide();
+        }
     }
     for (FwIndexType i = 0; i < Replicas; i++) {
         if (!this->m_expect[i] || this->m_slots[i] != SlotState::ACTIVE) {
@@ -279,12 +310,15 @@ void RedundancyManager ::finishCycle() {
         }
         if (this->m_got[i]) {
             this->m_missed[i] = 0;
-        } else {
+        } else if (!late) {
             this->m_missed[i]++;
             if (this->m_missed[i] >= MISSES_TO_LOSE) {
                 this->retire(i, RetireReason::LOST);
             }
         }
+    }
+    if (late) {
+        return;  // a missing known answer may be late too
     }
     // known-answer tests asked before this cycle had a full cycle to answer
     for (FwIndexType i = 0; i < Replicas; i++) {
@@ -438,6 +472,19 @@ void RedundancyManager ::decide() {
     }
 }
 
+void RedundancyManager ::withhold() {
+    this->m_decided = true;
+    // the cycle's periodic test, if any, is void with the cycle: its answer,
+    // if it comes, is ignored, and the next test is asked on schedule
+    for (FwIndexType i = 0; i < Replicas; i++) {
+        if (this->m_katPurpose[i] == KatPurpose::PERIODIC) {
+            this->m_katPurpose[i] = KatPurpose::NONE;
+        }
+    }
+    this->m_late++;
+    this->log_WARNING_LO_CycleWithheld(this->m_cycle);
+}
+
 void RedundancyManager ::requestKnownAnswer(FwIndexType slot, KatPurpose purpose) {
     if (this->m_katPurpose[slot] != KatPurpose::NONE) {
         return;  // one test at a time per replica
@@ -478,6 +525,7 @@ void RedundancyManager ::report() {
     this->tlmWrite_Caught(this->m_caught);
     this->tlmWrite_Retired(this->m_retired);
     this->tlmWrite_Slots(SlotStates(this->m_slots));
+    this->tlmWrite_Late(this->m_late);
 }
 
 // ----------------------------------------------------------------------

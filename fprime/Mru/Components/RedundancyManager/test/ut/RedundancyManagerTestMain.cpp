@@ -57,6 +57,18 @@ MRU_TEST(Nominal, Ping, ping, "Health ping is returned", "MRU-RM-014")
 MRU_TEST(OffNominal, UnloadedParameters, unloadedParametersUseDefaults,
          "Parameters never loaded: the model's defaults, not zero", "MRU-RM-015", "MRU-RM-022")
 
+MRU_TEST(OffNominal, LateAnswersAreNotSilence, lateAnswersAreNotSilence,
+         "Answers queued behind the next cycle: the cycle is withheld and no replica is lost", "MRU-RM-023",
+         "MRU-RM-010", "MRU-RM-014")
+MRU_TEST(OffNominal, LateKnownAnswerIsNotMissing, lateKnownAnswerIsNotMissing,
+         "A known answer queued behind the next cycle does not retire the replica, and then counts", "MRU-RM-023",
+         "MRU-RM-009")
+MRU_TEST(OffNominal, CommonSilenceIsNotLoss, commonSilenceIsNotLoss,
+         "Every expected answer missing at once: the cycle is withheld and no replica is lost", "MRU-RM-023",
+         "MRU-RM-010")
+MRU_TEST(OffNominal, LateReplicaStaysAlive, lateReplicaStaysAlive,
+         "A replica that answers after its cycle closed is alive and is not lost", "MRU-RM-023", "MRU-RM-010")
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

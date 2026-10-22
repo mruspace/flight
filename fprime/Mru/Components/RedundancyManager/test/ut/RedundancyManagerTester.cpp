@@ -81,6 +81,12 @@ void RedundancyManagerTester ::cycle() {
     this->component.doDispatch();
 }
 
+void RedundancyManagerTester ::dispatchAll() {
+    while (this->component.m_queue.getMessagesAvailable() > 0) {
+        this->component.doDispatch();
+    }
+}
+
 void RedundancyManagerTester ::reply(FwIndexType slot, U64 cycle, RequestKind::T kind, U64 first, U64 second) {
     this->clearHistory();
     this->invoke_to_replyIn(slot, cycle, kind, first, second);
@@ -314,6 +320,75 @@ void RedundancyManagerTester ::silentReplicaIsLost() {
     ASSERT_EQ(this->requestCount(RequestKind::COMPUTE), 2);
 }
 
+void RedundancyManagerTester ::lateAnswersAreNotSilence() {
+    this->cycle();  // cycle 1 requested
+    for (U64 c = 1; c <= 4; c++) {
+        // the manager fell behind: the next tick is queued before the answers
+        this->clearHistory();
+        this->invoke_to_schedIn(0, 0);
+        this->invoke_to_replyIn(0, c, RequestKind::COMPUTE, GOOD, 0);
+        this->invoke_to_replyIn(1, c, RequestKind::COMPUTE, GOOD, 0);
+        this->invoke_to_replyIn(2, c, RequestKind::COMPUTE, GOOD, 0);
+        this->dispatchAll();
+        ASSERT_EVENTS_CycleWithheld_SIZE(1);
+        ASSERT_EVENTS_CycleWithheld(0, c);
+        ASSERT_EVENTS_DisagreementCaught_SIZE(0);
+        ASSERT_TLM_Late(0, c);
+    }
+    // four cycles without an answer in time, and nobody is lost or blamed
+    ASSERT_EVENTS_ReplicaRetired_SIZE(0);
+    ASSERT_EQ(this->requestCount(RequestKind::COMPUTE), 3);
+    // on time again: cycle 5 is decided as usual
+    this->replyAll(5, GOOD, GOOD, GOOD);
+    ASSERT_EVENTS_CycleWithheld_SIZE(0);
+    this->cycle();
+    ASSERT_EVENTS_ReplicaRetired_SIZE(0);
+    ASSERT_EVENTS_CycleWithheld_SIZE(0);
+}
+
+void RedundancyManagerTester ::lateKnownAnswerIsNotMissing() {
+    this->m_strikeAnswer = true;
+    this->cycle();
+    this->replyAll(1, BAD, GOOD, GOOD);  // replica 0 must be diagnosed
+    this->m_strikeAnswer = false;
+    this->cycle();  // cycle 2: the test had this cycle to answer
+    this->replyAll(2, GOOD, GOOD, GOOD);
+    // cycle 3's tick arrives before the known answer: not a missing answer
+    this->clearHistory();
+    this->invoke_to_schedIn(0, 0);
+    this->invoke_to_replyIn(0, 1, RequestKind::KNOWN_ANSWER, KNOWN_ANSWER, 0);
+    this->dispatchAll();
+    ASSERT_EVENTS_ReplicaRetired_SIZE(0);
+    ASSERT_EVENTS_ReplicaCleared_SIZE(1);
+    ASSERT_EVENTS_ReplicaCleared(0, 0, 1);
+}
+
+void RedundancyManagerTester ::commonSilenceIsNotLoss() {
+    for (U64 c = 1; c <= 4; c++) {
+        this->cycle();  // closes cycle c - 1 with no answer from anyone
+        if (c > 1) {
+            ASSERT_EVENTS_CycleWithheld_SIZE(1);
+            ASSERT_EVENTS_CycleWithheld(0, c - 1);
+        }
+    }
+    ASSERT_EVENTS_ReplicaRetired_SIZE(0);
+    ASSERT_EQ(this->requestCount(RequestKind::COMPUTE), 3);
+}
+
+void RedundancyManagerTester ::lateReplicaStaysAlive() {
+    for (U64 c = 1; c <= 5; c++) {
+        this->cycle();
+        if (c > 1) {
+            this->reply(2, c - 1, RequestKind::COMPUTE, GOOD);  // cycle c - 1, after it closed
+        }
+        this->reply(0, c, RequestKind::COMPUTE, GOOD);
+        this->reply(1, c, RequestKind::COMPUTE, GOOD);
+    }
+    this->cycle();
+    ASSERT_EVENTS_ReplicaRetired_SIZE(0);
+    ASSERT_EQ(this->requestCount(RequestKind::COMPUTE), 3);
+}
+
 void RedundancyManagerTester ::tmrHaltsOnOne() {
     this->policyCmd(Policy::TMR);
     this->standbyCmd(0);
@@ -398,10 +473,13 @@ void RedundancyManagerTester ::admit() {
     this->reply(1, 2, RequestKind::KNOWN_ANSWER, BAD);
     ASSERT_EVENTS_AdmitFailed(0, 1, AdmitFailure::KNOWN_ANSWER_FAILED, 2);
     ASSERT_EQ(this->m_enabled[1], 0);
-    // no answer by the end of the next cycle
+    // no answer by the end of the next cycle, while the active replicas
+    // answer (with every answer missing the cycle would close late, MRU-RM-023)
     this->admitCmd(1);
     this->cycle();  // 3
     ASSERT_EVENTS_AdmitFailed_SIZE(0);
+    this->reply(0, 3, RequestKind::COMPUTE, GOOD);
+    this->reply(2, 3, RequestKind::COMPUTE, GOOD);
     this->cycle();  // 4
     ASSERT_EVENTS_AdmitFailed(0, 1, AdmitFailure::KNOWN_ANSWER_MISSING, 3);
 }

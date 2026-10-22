@@ -23,6 +23,7 @@ class RunRecorder final : public RunRecorderComponentBase {
         U64 wrong;       //!< Delivered and wrong
         U64 lastCorrect; //!< Cycle of the last correct result, 0 if none
         U64 caught;      //!< The manager's Caught channel
+        U64 late;        //!< The manager's Late channel: cycles withheld
         U8 live;         //!< The manager's LiveReplicas channel
         Mode mode;       //!< The manager's CurrentMode channel
         Policy policy;   //!< The manager's CurrentPolicy channel
