@@ -35,6 +35,14 @@ class RedundancyManagerTester final : public RedundancyManagerGTestBase {
     void selfCheckEveryOtherCycleWithPeriodicTest();
     void periodicTestFailureWithholdsTheCycle();
     void silentReplicaIsLost();
+    //! Answers queued behind the next cycle: the cycle is withheld, nobody is lost (MRU-RM-023)
+    void lateAnswersAreNotSilence();
+    //! A known answer queued behind the next cycle: no retirement, then it counts (MRU-RM-023)
+    void lateKnownAnswerIsNotMissing();
+    //! Every expected answer missing at once: withheld, nobody lost (MRU-RM-023)
+    void commonSilenceIsNotLoss();
+    //! A replica that answers after its cycle closed is alive, never lost (MRU-RM-023)
+    void lateReplicaStaysAlive();
     void tmrHaltsOnOne();
     void setPolicy();
     void standby();
@@ -71,6 +79,9 @@ class RedundancyManagerTester final : public RedundancyManagerGTestBase {
 
     //! One rate-group cycle
     void cycle();
+
+    //! Dispatch every queued message, in order
+    void dispatchAll();
 
     //! One reply from a replica
     void reply(FwIndexType slot, U64 cycle, RequestKind::T kind, U64 first, U64 second = 0);

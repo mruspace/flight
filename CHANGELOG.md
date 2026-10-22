@@ -3,6 +3,13 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
+## 0.6.0 (2026-10-22)
+
+### Fixed
+
+- `RedundancyManager`: a manager that fell behind retired healthy replicas as lost. On one processor, when the manager's thread is held up (a slow write of the state file, a starved processor), the next cycle's tick waits in its queue in front of the replies, so each cycle closed before its answers were dispatched; three such cycles retired every replica and halted the run. Seen once in CI in the deployment's restart test (22 October 2026) and reproduced on every try under CPU starvation. New requirement MRU-RM-023: a cycle closes late when other messages wait in the queue as it closes, or when every one of two or more expected answers is missing; in such a cycle a missing answer counts against no replica (no miss, no known-answer test or admission failed), and a cycle with an answer missing is withheld (nothing delivered, no strike). A reply that arrives after its cycle closed clears the replica's misses. New event `CycleWithheld` and telemetry `Late`. Under CPU starvation, 15 runs of the deployment halted 9 times before and never after; replicas lost without cause fell from 28 to 14; no wrong result either way. Four unit tests (44 in all); MRU-RM-002, 009, 010, 014 and D3 updated; the parity test is unchanged (36 of 60 identical, wrong results identical in all 60).
+- `RunRecorder` reads `Late`; the `MruOpsSat` summary reports `late=`. `scripts/fprime-deployment.sh` allows one count of slack per withheld cycle, so load on a CI runner cannot fail the comparison with the demo.
+
 ## 0.5.1 (2026-10-22)
 
 ### Changed

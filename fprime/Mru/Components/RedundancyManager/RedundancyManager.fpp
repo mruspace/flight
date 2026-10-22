@@ -204,6 +204,16 @@ module Mru {
       severity warning high \
       format "Halted at cycle {}"
 
+    @ A cycle closed late, with an answer not in: the manager was behind, or
+    @ every expected answer was missing at once. The cycle is withheld and no
+    @ replica is blamed (MRU-RM-023)
+    event CycleWithheld(
+      cycle: U64 @< The cycle
+    ) \
+      severity warning low \
+      format "Cycle {} withheld: closed late, an answer not in" \
+      throttle 10
+
     # ----------------------------------------------------------------------
     # Telemetry (MRU-RM-014)
     # ----------------------------------------------------------------------
@@ -228,6 +238,9 @@ module Mru {
 
     @ State of each slot (MRU-RM-021)
     telemetry Slots: SlotStates update on change
+
+    @ Cycles withheld because they closed late (MRU-RM-023)
+    telemetry Late: U64
 
   }
 

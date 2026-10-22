@@ -261,7 +261,7 @@ int main(int argc, char* argv[]) {
     const int n = snprintf(
         text, sizeof(text),
         "policy=%s cycles=%llu cycle_ms=%u sequence=%s\n"
-        "useful=%llu detected=%llu wrong=%llu last_useful=%llu live_at_end=%u mode=%s "
+        "useful=%llu detected=%llu wrong=%llu late=%llu last_useful=%llu live_at_end=%u mode=%s "
         "slots=%s,%s,%s stopped=%s\n"
         "footprint: max_rss=%ldKiB address_space=%luKiB cpu=%.3fs wall=%.3fs\n"
         "cpu: startup_user=%.3fs startup_system=%.3fs startup_wall=%.3fs run_user=%.3fs run_system=%.3fs "
@@ -269,7 +269,8 @@ int main(int argc, char* argv[]) {
         "limits: memory=%uMB/process max_run=%us\n",
         t.policy.e == Mru::Policy::TMR ? "tmr" : "shrink", static_cast<unsigned long long>(t.cycles), cycleMs,
         seqStatus, static_cast<unsigned long long>(t.correct), static_cast<unsigned long long>(t.caught),
-        static_cast<unsigned long long>(t.wrong), static_cast<unsigned long long>(t.lastCorrect), static_cast<unsigned>(t.live), modeName(t.mode),
+        static_cast<unsigned long long>(t.wrong), static_cast<unsigned long long>(t.late),
+        static_cast<unsigned long long>(t.lastCorrect), static_cast<unsigned>(t.live), modeName(t.mode),
         slotName(t.slots[0]), slotName(t.slots[1]), slotName(t.slots[2]), g_stopped, usage.ru_maxrss, vmKiB, cpu, wall,
         started.user, started.system, started.wall - seconds(start), runUser, runSystem, runWall, runShare, endCpu,
         memoryMb, maxSeconds);

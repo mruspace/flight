@@ -25,7 +25,7 @@ Each has a recommended answer. The requirements below assume it.
 |---|---|---|---|
 | D1 | Where replicas run first | One deployment, three `ReplicaHost` threads | Step 1 of fprime-design.md. Fastest way to validate the logic in F´. Three processes and separate processors follow with the same components. |
 | D2 | What drives a cycle | An F´ rate group calls `RedundancyManager` once per cycle | Deadline-driven work, as in F´ reference deployments. One result per cycle, as one tick in the demo. |
-| D3 | When a replica that does not answer is absent | A reply that has not arrived by the next cycle is absent for its cycle. Three missed cycles in a row mark the replica lost. | Bounded and deterministic. The demo uses a reply timeout; in F´ the cycle is the clock. |
+| D3 | When a replica that does not answer is absent | A reply that has not arrived by the next cycle is absent for its cycle. Three missed cycles in a row mark the replica lost. Changed on 22 October 2026 by MRU-RM-023: a cycle that closes late does not count as a miss. | Bounded and deterministic. The demo uses a reply timeout; in F´ the cycle is the clock. The change: on one processor the manager and the replicas share the clock, so a late manager or a starved processor looked like three dead replicas (found in CI, 22 October 2026). |
 | D4 | Health as its own component | Yes: `HealthRegistry`, passive, called by `RedundancyManager` | As in fprime-design.md. It complements F´'s `Svc.Health`, which finds silent components but not wrong answers. |
 | D5 | Strike limits | Fixed in the `quorum` crate (3 outvotes in 200 cycles), reported, not changeable at run time | They are compile-time constants in the core today. `KAT_PERIOD` is an F´ parameter. |
 | D6 | Payload | A result is one 64-bit value per cycle. The reference payload is the demo's task (a hash over a 4 KiB block). A mission replaces it. | Keeps the manager independent of the payload. |
@@ -47,19 +47,19 @@ Each has a recommended answer. The requirements below assume it.
 | ID | Requirement | Verification |
 |---|---|---|
 | MRU-RM-001 | Each cycle, the component shall request one result from every live replica. With one live replica under the shrinking quorum, the request shall ask for two results of the same computation. | Unit test |
-| MRU-RM-002 | Each cycle, the component shall decide the previous cycle with `decide()` from the replies received for it. A reply not received by then shall count as absent. | Unit test |
+| MRU-RM-002 | Each cycle, the component shall decide the previous cycle with `decide()` from the replies received for it. A reply not received by then shall count as absent, except in a cycle that closes late (MRU-RM-023). | Unit test |
 | MRU-RM-003 | The component shall send a result downstream only when the verdict is Deliver, and with the delivered value. | Unit test |
 | MRU-RM-004 | The component shall run in the mode `mode()` gives for the policy and the number of live replicas, and emit an event when the mode changes. | Unit test |
 | MRU-RM-005 | On a caught disagreement, the component shall deliver nothing for that cycle, count it, and emit a throttled event. | Unit test |
 | MRU-RM-006 | The component shall pass each outvote to `HealthRegistry`. When `HealthRegistry` asks for a diagnosis, the component shall request a known-answer test from that replica. | Unit test |
 | MRU-RM-007 | When two replicas disagree under the shrinking quorum, the component shall request a known-answer test from both. | Unit test |
 | MRU-RM-008 | With one live replica under the shrinking quorum, the component shall request a known-answer test every `KAT_PERIOD` cycles. | Unit test |
-| MRU-RM-009 | A replica whose known-answer result is wrong, or missing by the next cycle, shall be retired. A replica that passes shall have its strikes cleared. | Unit test |
-| MRU-RM-010 | A replica that misses three cycles in a row shall be marked lost and retired. | Unit test |
+| MRU-RM-009 | A replica whose known-answer result is wrong, or missing by the next cycle, shall be retired. A replica that passes shall have its strikes cleared. A result is missing only when a cycle closes on time without it (MRU-RM-023). | Unit test |
+| MRU-RM-010 | A replica that misses three cycles in a row shall be marked lost and retired. A cycle that closes late is not a miss, and a reply that arrives after its cycle closed clears the replica's misses (MRU-RM-023). | Unit test |
 | MRU-RM-011 | Each retirement shall emit an event with the replica and the reason: failed known-answer test, no known-answer result, or lost. A retired replica shall be disabled and receive no further requests. | Unit test |
 | MRU-RM-012 | When the mode is Halted, the component shall stop requesting results and emit one event, until a replica is admitted (MRU-RM-020). | Unit test |
 | MRU-RM-013 | A `SET_POLICY` command shall choose the shrinking quorum or fixed TMR. | Unit test |
-| MRU-RM-014 | The component shall report as telemetry: mode, live replicas, results delivered, disagreements caught, replicas retired. | Unit test |
+| MRU-RM-014 | The component shall report as telemetry: mode, live replicas, results delivered, disagreements caught, replicas retired, cycles withheld (MRU-RM-023). | Unit test |
 | MRU-RM-015 | `KAT_PERIOD` shall be an F´ parameter, default 64 cycles. | Unit test |
 | MRU-RM-016 | The component shall make no decision itself: votes, comparisons, self-checks and modes come from the `quorum` crate. | Inspection |
 | MRU-RM-017 | The component shall allocate no memory after initialization. | Inspection |
@@ -68,6 +68,7 @@ Each has a recommended answer. The requirements below assume it.
 | MRU-RM-020 | An `ADMIT_REPLICA` command on a STANDBY or RETIRED slot shall enable it and request a known-answer test. If the result is right by the next cycle, the slot shall become ACTIVE with no strikes. If not, it shall be disabled and keep its state. A RETIRED slot admitted this way holds new hardware: a spare or salvaged processor (whitepaper §4.5, §8). | Unit test |
 | MRU-RM-021 | The component shall report the state of each slot as telemetry. | Unit test |
 | MRU-RM-022 | The component shall save the slot states, the policy and the cycle counter to a state file when any of them changes, and every `StateSavePeriod` cycles (a parameter, default 1000; 0 saves on change only). It shall replace the file atomically. At start, it shall restore them from a valid file and emit an event, or start with all slots ACTIVE and emit a warning. Strikes are not saved. | Unit test |
+| MRU-RM-023 | A cycle closes late when other messages still wait in the component's queue as it closes (the component fell behind), or when every one of two or more expected answers is missing (the processor they share fell behind). In a cycle that closes late, a missing answer shall not count against a replica: no miss, and no known-answer test or admission failed for a missing answer. If an expected answer is missing, the cycle shall be withheld: nothing delivered, no strike, counted as telemetry, with a throttled warning event. A reply that arrives after its cycle closed shall clear that replica's count of misses. Added on 22 October 2026. | Unit test; a load test of the deployment, run by hand on 22 October 2026 (no halt under CPU starvation) |
 
 ## `HealthRegistry` (passive)
 

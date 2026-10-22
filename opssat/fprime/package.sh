@@ -13,7 +13,7 @@
 # against that build's dictionary, from the same release asset), README.txt
 # (for the operators) and LICENSE.
 #
-#   ./package.sh                    uses the release in VERSION (default v0.5.1)
+#   ./package.sh                    uses the release in VERSION (default v0.6.0)
 #   DIST=opssat/fprime/dist ./package.sh   uses a local build (build.sh)
 set -eu
 
@@ -22,7 +22,7 @@ set -eu
 export COPYFILE_DISABLE=1
 
 here=$(cd "$(dirname "$0")" && pwd)
-VERSION=${VERSION:-v0.5.1}
+VERSION=${VERSION:-v0.6.0}
 PLATFORM=armv7-linux-static
 REPO=mruspace/flight
 work=$(mktemp -d)

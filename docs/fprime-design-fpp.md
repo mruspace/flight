@@ -142,6 +142,26 @@ after three cycles in a row (D3). When the death leaves one replica, the
 cycles in which the manager still asks for single results end as caught
 disagreements.
 
+**Silence counts only on time** (MRU-RM-023, 22 October 2026). On one
+processor the manager and the replicas share the processor. If the manager
+falls behind, the next cycle's tick waits in its queue in front of the
+replies, and each cycle closes before its answers are dispatched: before
+this rule, three such cycles retired every replica as lost and halted the
+run. CI found it once in the restart test of the deployment, and a load test
+reproduced it on every try. Now a cycle that closes with an answer missing
+closes late when anything else waits in the queue, or when every one of two
+or more expected answers is missing (the processor, not each replica, fell
+behind). It is withheld: nothing is delivered, no replica gets a strike or a
+miss, and no known-answer test or admission fails for a missing answer.
+`Late` counts these cycles, and `CycleWithheld` reports them. A reply that
+arrives after its cycle closed shows the replica is alive and clears its
+misses. Under CPU starvation (the deployment in a container with half a
+processor against busy loops, 20 ms cycles), 15 runs halted 9 times with
+the old rule and never with the new one; replicas lost without cause fell
+from 28 to 14, and no run gave a wrong result. The losses left need one
+replica's thread to get no processor time for three cycles while the others
+run: at the 100 ms cycle of the OPS-SAT package, 300 ms of starvation.
+
 **Parameters not loaded.** F´ returns 0 for a parameter that was never
 loaded. The manager then uses the model's defaults (64 and 1000), so a
 topology that forgets `loadParameters()` does not test every cycle.
@@ -152,7 +172,7 @@ topology that forgets `loadParameters()` does not test every cycle.
 |---|---|
 | Kani, `quorum` and `quorum-ffi` | 9 of 9 proofs verified |
 | C test of `quorum.h` | passes |
-| F´ unit tests | 40 (HealthRegistry 5, ReplicaHost 5, FaultInjector 8, RedundancyManager 19, RunRecorder 3), with address and undefined-behavior sanitizers |
+| F´ unit tests | 44 (HealthRegistry 5, ReplicaHost 5, FaultInjector 8, RedundancyManager 23, RunRecorder 3), with address and undefined-behavior sanitizers |
 | MRU-SYS-001, 60 cases (5 schedules, 2 policies, 3 upset rates, 2 seeds, 4,000 cycles) | 36 identical to the demo. In the other 24, a kill that leaves one replica costs the shrinking quorum 2 correct results and adds 3 caught disagreements, as predicted. Wrong results are identical in all 60. |
 
 The expected counts come from the demo itself (`scripts/parity-cases.sh`),

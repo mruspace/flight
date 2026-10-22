@@ -3,7 +3,8 @@
 # against a native build of the MruOpsSat deployment. Runs opssat/fprime/run
 # with its three sequences, then checks each segment against the quorum demo
 # on the same faults (MRU-SYS-001: the same wrong count, and a kill may cost
-# up to three correct results), the events on their cycles, the restore from
+# up to three correct results; each cycle the manager withheld because it
+# closed late, MRU-RM-023, may cost one more), the events on their cycles, the restore from
 # the state file, and a second run in the same folder. Exit status is
 # non-zero if any check fails.
 #
@@ -48,10 +49,11 @@ for policy in shrink tmr; do
     d=$("$Q" --policy "$policy" --ticks "$ticks" --seed 1 --fault corrupt:2@60 --fault stuck:1@120 --fault kill:0@240 | sed -n 2p)
     du=$(abs $(($(field useful "$s") - $(field useful "$d"))))
     dd=$(abs $(($(field detected "$s") - $(field detected "$d"))))
+    slack=$((3 + $(field late "$s")))
     if [ "$cycles" -gt 300 ] && [ "$(field wrong "$s")" = 0 ] && [ "$(field wrong "$d")" = 0 ] &&
-        [ "$du" -le 3 ] && [ "$dd" -le 3 ] && grep -q "sequence=ok" "$out/summary-$policy.txt" &&
+        [ "$du" -le "$slack" ] && [ "$dd" -le "$slack" ] && grep -q "sequence=ok" "$out/summary-$policy.txt" &&
         grep -q '^cpu: startup_user=.* run_share=.* end_cpu=' "$out/summary-$policy.txt"; then
-        pass "$policy: $(field useful "$s") correct, $(field detected "$s") caught, 0 wrong over $ticks cycles (demo $(field useful "$d") / $(field detected "$d") / 0)"
+        pass "$policy: $(field useful "$s") correct, $(field detected "$s") caught, 0 wrong, $(field late "$s") withheld over $ticks cycles (demo $(field useful "$d") / $(field detected "$d") / 0)"
     else
         fail "$policy: F' $s / demo $d over $ticks cycles"
     fi
