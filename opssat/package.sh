@@ -11,7 +11,7 @@
 # schedule), faults-restart.txt (the restart schedule), README.txt (for the
 # operators) and LICENSE.
 #
-#   ./package.sh            uses the release in VERSION (default v0.4.0)
+#   ./package.sh            uses the release in VERSION (default v0.4.1)
 #   VERSION=v0.2.0 ./package.sh
 #   QUORUM_BIN=path ./package.sh   uses a binary you built yourself
 set -eu
@@ -22,7 +22,7 @@ set -eu
 export COPYFILE_DISABLE=1
 
 here=$(cd "$(dirname "$0")" && pwd)
-VERSION=${VERSION:-v0.4.0}
+VERSION=${VERSION:-v0.4.1}
 TARGET=armv7-unknown-linux-musleabihf
 REPO=mruspace/flight
 work=$(mktemp -d)
@@ -71,7 +71,10 @@ one after the other, then it exits:
               After 30 s the script kills the voter without warning (SIGKILL,
               our own process, in user space), copies its checkpoint aside and
               starts it again; it resumes from the checkpoint and runs 30 s
-              more. No platform reboot, nothing commanded. The shell that
+              more. The segment starts from tick 0: a checkpoint left in this
+              folder by an earlier run of the package is removed first, and
+              run-info.txt says so. No platform reboot, nothing commanded.
+              The shell that
               runs the script may print one "Killed" line for this; it is
               the planned kill, recorded in run-info.txt.
 

@@ -975,6 +975,14 @@ fn main() {
     }));
     if let Some(l) = log.borrow_mut().as_mut() {
         if resuming {
+            // a run of identical events still open at the checkpoint ends at
+            // the resume: its count is written here, and the next event starts
+            // a new run after the resumed line
+            if let Some((w, d, first, last, n)) = cp.streak.take() {
+                if n > 1 {
+                    let _ = writeln!(l, "{last},{w},{d} repeated {n}x ticks {first}-{last}");
+                }
+            }
             let _ = writeln!(l, "{},resumed,{}", cp.tick, cp.resumes);
         } else {
             let _ = writeln!(l, "tick,event,detail");
@@ -1374,6 +1382,16 @@ fn main() {
             "progress",
             progress(useful, detected, wrong, alive_at_end),
         );
+    }
+    // a run of identical events still open at the end gets its count, so the
+    // log does not end on its first line (the checkpoint, saved above, keeps
+    // the run open and cuts this line off on a resume)
+    if let (Some(l), Some((w, d, first, last, n))) =
+        (log.borrow_mut().as_mut(), streak.borrow().as_ref())
+    {
+        if *n > 1 {
+            let _ = writeln!(l, "{last},{w},{d} repeated {n}x ticks {first}-{last}");
+        }
     }
     for r in replicas.into_iter().flatten() {
         if r.hung {
