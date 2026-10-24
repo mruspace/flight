@@ -149,8 +149,7 @@ packages a binary you built yourself.
 
 ### Run 3 (v0.7.0, the F´ deployment, planned)
 
-Run 1 flew the demo, `quorum`, and run 2 uses it too. Run 3, planned and
-not yet proposed to ESA, is the package for the F´ components ([design](fprime-design-fpp.md)) in a real F´ deployment,
+Run 1 flew the demo, `quorum`, and run 2 flew it too. Run 3, planned, is the package for the F´ components ([design](fprime-design-fpp.md)) in a real F´ deployment,
 `MruOpsSat`: `RedundancyManager`, `HealthRegistry`, three `ReplicaHost`
 threads and the test-only `FaultInjector`, with F´'s own command
 dispatcher, event manager, telemetry database, health pings and command

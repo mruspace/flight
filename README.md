@@ -416,7 +416,7 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
    processes, puts each replica in a process of its own on the SEPP's two
    cores, linked through F´'s GenericHub, with a real kill. Both are built for
    OPS-SAT PRETTY's processor and ran full length in ESA's experiment
-   environment; a run on the SEPP is planned, not yet proposed. Next:
+   environment; a run on the SEPP is planned. Next:
    `PowerAccountant` and `ScrubScheduler`.
 2. **Measurements on representative processors**: static ARM Linux binaries are
    built and tested in CI under emulation. The 32-bit ARM binary ran on the
