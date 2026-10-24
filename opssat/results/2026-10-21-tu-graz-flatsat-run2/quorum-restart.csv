@@ -1,0 +1,9 @@
+tick,event,detail
+200,stuck,1
+200,outvoted,1
+202,outvoted,1 repeated 3x ticks 200-202
+202,retired,1
+1000,resumed,1
+2001,stopped,time-limit
+2000,resumed,2
+3000,resumed,3

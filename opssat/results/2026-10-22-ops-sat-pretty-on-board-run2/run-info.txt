@@ -1,0 +1,49 @@
+experiment=exp4051 package=mru-flight run=2
+start_utc=2026-10-22T09:49:48Z
+uname=Linux exp-4051 4.9.0 #7 SMP Fri Nov 12 13:21:34 UTC 2021 armv7l Linux
+user=uid=1024(exp) gid=1024(exp) groups=1024(exp)
+nproc=2 loadavg=0.31 0.11 0.04 2/87 70
+--- /proc/cpuinfo ---
+processor	: 0
+model name	: ARMv7 Processor rev 0 (v7l)
+BogoMIPS	: 200.00
+Features	: half thumb fastmult vfp edsp thumbee neon vfpv3 tls vfpd32 
+CPU implementer	: 0x41
+CPU architecture: 7
+CPU variant	: 0x3
+CPU part	: 0xc09
+CPU revision	: 0
+
+processor	: 1
+model name	: ARMv7 Processor rev 0 (v7l)
+BogoMIPS	: 200.00
+Features	: half thumb fastmult vfp edsp thumbee neon vfpv3 tls vfpd32 
+CPU implementer	: 0x41
+CPU architecture: 7
+CPU variant	: 0x3
+CPU part	: 0xc09
+CPU revision	: 0
+
+Hardware	: Altera SOCFPGA
+Revision	: 0000
+Serial		: 0000000000000000
+--- /proc/meminfo (head) ---
+MemTotal:        1027320 kB
+MemFree:          911604 kB
+MemAvailable:     982228 kB
+Buffers:            8352 kB
+Cached:            72612 kB
+---
+quorum_sha256=573278fda06685c336b2d5949b8d7c51b5608407c59273ecadfeb720f0c3d87b
+settings: segments=shrink tmr restart shrink_seconds=80 tmr_seconds=30 restart_after=30 restart_seconds=30 checkpoint_every=100 seed=1 cpu_percent=5 memory_mb=128 sensor_mb=64 sensor_every=250
+shrink: start_utc=2026-10-22T09:49:48Z max_seconds=80
+shrink: exit=0 end_utc=2026-10-22T09:50:33Z
+tmr: start_utc=2026-10-22T09:50:33Z max_seconds=30
+tmr: exit=0 end_utc=2026-10-22T09:51:03Z
+restart: start_utc=2026-10-22T09:51:03Z max_seconds=40
+restart: voter killed (SIGKILL) at 2026-10-22T09:51:33Z, as planned
+restart-1: exit=137 end_utc=2026-10-22T09:51:33Z
+restart: checkpoint at the kill: tick=900 resumes=0 
+restart: start_utc=2026-10-22T09:51:34Z max_seconds=30
+restart-2: exit=0 end_utc=2026-10-22T09:52:04Z
+end_utc=2026-10-22T09:52:04Z status=0

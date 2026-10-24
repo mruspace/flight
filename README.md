@@ -41,11 +41,14 @@ This repository is where that policy becomes flight software: a small,
 verified Rust core, wrapped as components for NASA JPL's open-source
 [F´](https://github.com/nasa/fprime) framework.
 
-**Status (October 2026): the demo ran in orbit.** On 18 October 2026, Mru
-Flight v0.3.1 ran on the SEPP payload processor of ESA's OPS-SAT PRETTY as
+**Status (October 2026): the demo ran in orbit twice.** On 18 October 2026,
+Mru Flight v0.3.1 ran on the SEPP payload processor of ESA's OPS-SAT PRETTY as
 experiment exp4051: three software replicas on one processor, with faults
 from a schedule, 227 seconds, every result as predicted in writing before the
-run ([in orbit](#in-orbit)). That tests the software policy on a flight
+run. On 22 October 2026, v0.4.0 ran there again: a hung replica, a stuck
+replica, a stuck bit on the last replica caught for a safe halt with no wrong
+result, and a resume after the voter was killed, again as predicted
+([in orbit](#in-orbit)). That tests the software policy on a flight
 processor. It is not a hardware-redundancy test and not qualification
 evidence. The decision core, the demo on real processes with faults injected,
 and the F´ components (three for flight, two test-only) work today, with a
@@ -273,7 +276,7 @@ Method, results and limits: [docs.mru.space/core/bench](https://docs.mru.space/c
 Linux board over SSH, with reboots or real power cuts. No run with `board.sh`
 has been done yet; the procedure is in [docs/board.md](docs/board.md). The
 OPS-SAT package, which runs the demo without `board.sh`, has run on the
-PRETTY FlatSat and in orbit ([in orbit](#in-orbit)).
+PRETTY FlatSat and in orbit, twice ([in orbit](#in-orbit)).
 
 ### Footprint and limits
 
@@ -287,8 +290,8 @@ Largest resident memory of any process over all 300 bench runs per host, from
 | macOS (Apple M4) | 1.9 MB |
 
 The static `quorum` binaries in the v0.2.0 release packages are 642 to 675 kB.
-The 32-bit ARM (hard float) binary of v0.3.1 is the one that ran on the SEPP,
-on the FlatSat and in orbit.
+The 32-bit ARM (hard float) binaries of v0.3.1 and v0.4.0 are the ones that
+ran on the SEPP, on the FlatSat and in orbit.
 
 The scenario tests also check the safety limits: a hung replica is dropped
 after the reply timeout, SIGTERM ends the run cleanly with no replica left, the
@@ -316,12 +319,28 @@ policy capped at 110 seconds at a 5% CPU share:
 | 18 Oct 2026, 09:45 UTC, in orbit | SEPP on OPS-SAT PRETTY | 2,745 / 0 / 5,250 | 239, then 4,500 | 113.5 s, 113.1 s | 0, 0 |
 
 Every event landed on the same tick on all three hosts, and the orbit run
-matched the prediction written to ESA on 16 October, before the run. Scope:
+matched the prediction written to ESA on 16 October, before the run.
+
+On 22 October 2026, run 2 (v0.4.0) ran in orbit, 136 seconds in three
+segments: the shrinking quorum on the lifecycle schedule (a bit flip at 30,
+replica 2 hangs at 60, replica 1 stuck at 120, a stuck bit in the last
+replica at 1,280), fixed TMR on the same schedule, and a restart, where the
+voter is killed without warning and resumes from its checkpoint:
+
+| Run 2 | Host | 1 shrink: correct / wrong | 2 fixed TMR: correct, then detected to tick | 3 restart: correct / wrong | Exit |
+|---|---|---|---|---|---|
+| 21 Oct 2026, TU Graz FlatSat | SEPP on the bench | 698 / 0, halted at 1,281 | 119, then 1,000 | 4,000 / 0, three resumes (an old checkpoint in the folder) | 0, 0, 137 and 0 |
+| 22 Oct 2026, 09:49 UTC, in orbit | SEPP on OPS-SAT PRETTY | 698 / 0, halted at 1,281 | 119, then 750 | 1,750 / 0, one resume at tick 900 | 0, 0, 137 and 0 |
+
+The known-answer test caught the stuck bit on the last replica on the tick
+it appeared, so the quorum halted with no wrong result. After the kill, the
+voter resumed with the retired replica still retired. The orbit run matched
+the prediction written to ESA before it. Scope, for both runs:
 three software replicas on one Linux payload processor, in user space, with
-faults from a schedule, 227 seconds in orbit with no real upset in the 64 MB
-sensor block. This tests the software policy on a flight processor. It is
+faults from a schedule, 227 and 136 seconds in orbit with no real upset in
+the 64 MB sensor block. This tests the software policy on a flight processor. It is
 not a hardware-redundancy test and not qualification evidence, and the 1.34×
-above comes from dusk's simulated missions, not from this run. Numbers, logs
+above comes from dusk's simulated missions, not from these runs. Numbers, logs
 and the operations note: [docs/opssat.md](docs/opssat.md) and
 [`opssat/results`](opssat/results).
 
@@ -402,20 +421,18 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
 2. **Measurements on representative processors**: static ARM Linux binaries are
    built and tested in CI under emulation. The 32-bit ARM binary ran on the
    SEPP, the flight processor of OPS-SAT PRETTY, on the FlatSat and in orbit
-   (October 2026). Next: real boards on the bench.
+   (v0.3.1 and v0.4.0, October 2026). Next: real boards on the bench.
 3. **Hardware-in-the-loop bench**: real boards with injected faults (bit flips,
    resets, power cuts). The scripts and the procedure are ready
    ([docs/board.md](docs/board.md)).
 4. **In orbit**: done. Experiment exp4051 with ESA's
    [OPS-SAT Space Lab](https://opssat.esa.int/missions) ran the shrinking
    quorum under injected faults on the flight processor of OPS-SAT PRETTY on
-   18 October 2026, with the software's own radiation sensor logged; results
-   matched the written prediction ([operations note](docs/opssat.md)). Next:
-   a second run of five minutes or less, confirmed by ESA on 20 October 2026,
-   run in ESA's sandbox and on the FlatSat on 21 October 2026, and not yet
-   scheduled in orbit: one replica hangs, one gets stuck, the last one gets
-   a stuck bit and the quorum halts by itself with no wrong result, then a
-   kill and a resume from a checkpoint ([the package](docs/opssat.md)).
+   18 October 2026, with the software's own radiation sensor logged, and the
+   rest of the lifecycle on 22 October 2026: a hung replica, a stuck bit on
+   the last replica with a safe halt, and a resume after a kill. Both matched
+   the written prediction ([operations note](docs/opssat.md)). Next: run 3,
+   the F´ deployment on the SEPP, planned.
 5. **On Earth**: the same software on an unattended ocean node, proposed for an
    EMSO ERIC observatory test.
 

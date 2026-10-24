@@ -1,0 +1,12 @@
+tick,event,detail
+20,sensor_injected,
+30,outvoted,2
+60,hang,2
+60,lost,2
+120,stuck,1
+120,detected,Compare
+250,detected,Compare repeated 131x ticks 120-250
+250,sensor_upset,20:20
+251,detected,Compare
+750,detected,Compare repeated 500x ticks 251-750
+751,stopped,time-limit

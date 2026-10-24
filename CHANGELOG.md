@@ -3,6 +3,12 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
+## Unreleased
+
+### Added
+
+- Run 2 ran in orbit on 22 October 2026 (v0.4.0, the package ESA validated): segment 1 shrink 698 correct, 0 wrong, halted at tick 1,281 after the known-answer test caught the stuck bit on the last replica; segment 2 fixed TMR 119, then detected; segment 3 killed at tick 900, resumed once from its checkpoint, 1,750 correct, 0 wrong. Matches the prediction. Result files in `opssat/results/2026-10-22-ops-sat-pretty-on-board-run2`, with the run 2 FlatSat files in `opssat/results/2026-10-21-tu-graz-flatsat-run2`. `docs/opssat.md` has the results; README, board, qualification, security and contributing notes say two runs.
+
 ## 0.7.0 (2026-10-22)
 
 ### Added

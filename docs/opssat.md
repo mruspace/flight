@@ -1,17 +1,21 @@
 # Running Mru Flight on OPS-SAT
 
-**Status: ran in orbit on 18 October 2026.**
+**Status: ran in orbit twice, on 18 and 22 October 2026.**
 ESA's OPS-SAT Space Lab confirmed the experiment on 14 October 2026 as
-**exp4051** for OPS-SAT PRETTY. The same package,
-`exp4051-mru-flight-v0.3.1.tar.gz` (release v0.3.1), then ran three times:
+**exp4051** for OPS-SAT PRETTY. Run 1, the package
+`exp4051-mru-flight-v0.3.1.tar.gz` (release v0.3.1), ran three times:
 in ESA's software environment on 15 October 2026, on TU Graz's PRETTY
 FlatSat, the flight processor on the bench, on 16 October 2026, and in orbit
 on the satellite on 18 October 2026 at 09:45 UTC. Each time both runs exit
-0 and every fault lands on its scheduled tick. The orbit run matched the
-prediction written to ESA on 16 October, before the run (numbers below).
-Scope: three software replicas on one Linux payload processor, in user
-space, with faults from a schedule. Not a hardware-redundancy test, and not
-qualification evidence.
+0 and every fault lands on its scheduled tick. Run 2, the package
+`exp4051-mru-flight-v0.4.0.tar.gz` (release v0.4.0), went through ESA's
+software environment and the FlatSat on 21 October 2026 and ran in orbit on
+22 October 2026 at 09:49 UTC: a hung replica, a stuck replica, a stuck bit
+on the last replica with a safe halt, and a resume after the voter was
+killed. Each orbit run matched the prediction written to ESA before the run
+(numbers below). Scope: three software replicas on one Linux payload
+processor, in user space, with faults from a schedule. Not a
+hardware-redundancy test, and not qualification evidence.
 
 A note for the OPS-SAT Space Lab team: what the experiment does on the
 satellite, what it touches, its limits, how to start and stop it, what it sends
@@ -266,7 +270,7 @@ same package with short caps against a native build in CI and checks each
 segment against the demo, the events on their cycles, the restore, and a
 second run in the same folder.
 
-### Run 2 (v0.4.0, tested by ESA on 21 October 2026, not yet scheduled)
+### Run 2 (v0.4.0, flown 22 October 2026)
 
 Run 1 showed the policy comparison on the flight processor. Run 2 shows the
 rest of the lifecycle, and that a reset loses nothing. `run` has three
@@ -370,6 +374,65 @@ written. Scenario checks 29 (a second run in the same folder) and 30 (open
 runs of events at the end and at a resume) cover both fixes. Still open:
 voter CPU on the SEPP was 4.7%, 5.6% and 5.8% of wall time in the three
 segments against the 5% setting (4.3% to 4.6% on the laptop).
+
+### In orbit, 22 October 2026
+
+Run 2 ran in orbit. The v0.4.0 package, the file ESA validated, ran on the
+SEPP of OPS-SAT PRETTY (host `sepp1`, Linux 4.9, systemd unit "Experiment
+4051", container `exp-4051`, user `exp`, user space only) on 22 October 2026
+from 09:49:48 to 09:52:04 UTC by the SEPP's clock: 136 s in total, status 0.
+The checksum of `quorum` in `run-info.txt` matches release v0.4.0. The
+planned SIGKILL shows in the journal as "Killed" at 09:51:33. The home folder
+was empty at the start: the checkpoint at the kill says `resumes=0`. The
+files that came down, plus the journal lines, are in
+[`opssat/results/2026-10-22-ops-sat-pretty-on-board-run2`](../opssat/results/2026-10-22-ops-sat-pretty-on-board-run2);
+the FlatSat run of 21 October is in
+[`2026-10-21-tu-graz-flatsat-run2`](../opssat/results/2026-10-21-tu-graz-flatsat-run2).
+
+| | 1 shrink | 2 fixed TMR | 3 restart |
+|---|---|---|---|
+| Start (UTC) | 09:49:48 | 09:50:33 | 09:51:03, killed 09:51:33, started again 09:51:34 |
+| Wall time | 44.4 s, halted by itself | 30.0 s (cap) | 30 s, then 30.0 s (caps) |
+| Exit code | 0 | 0 | 137 (the planned kill), then 0 |
+| Correct results | 698 | 119, then a detected disagreement on every tick from 120 to 750 | 1,750 over ticks 1 to 1,750 |
+| Wrong results | 0 | 0 | 0 |
+| Detected | 2 | 631 | 0 |
+| Known-answer tests | 21 | 0 | 1 |
+| Replicas alive at the end | 0 (halted at tick 1,281) | 2 | 2 |
+| Checkpoint | none | none | at the kill: tick 900; one `resumed` line at 900; `resumes=1` |
+| Ticks per second | about 29 | about 25 | about 30, then about 28 |
+| Memory, voter and replicas | 66,004 KiB, 464 KiB | 66,004 KiB, 464 KiB | 66,004 KiB, 464 KiB |
+| Voter CPU time | 2.050 s of 44.394 s (4.6%) | 1.380 s of 30.001 s (4.6%) | 1.710 s of 30.007 s (5.7%), after the restart |
+| Sensor, 64 MB | 5 scans, 1 flip (the self-test) | 3 scans, 1 flip (the self-test) | 7 scans, 0 flips |
+
+Events, from the logs. Segment 1: sensor self-test injected at tick 20,
+replica 2 outvoted at 30, replica 2 hung and lost at 60, replica 1 stuck,
+retired and the disagreement detected at 120, the self-test flip found and
+repaired at 250, the stuck bit set on replica 0, caught by the known-answer
+test and replica 0 retired at 1,280, halted at 1,281. The segment 1 event log
+is byte for byte the same as on the FlatSat. Segment 2: the same fault events
+on the same ticks; fixed TMR could not tell which replica failed at tick 120
+and delivered nothing more. Segment 3: replica 1 stuck at 200, outvoted on
+200 to 202 and retired at 202; the voter killed 30 s in, with its checkpoint
+at tick 900; started again, resumed once from tick 900 with replica 1 still
+retired (`alive=1,0,1` in both checkpoints), and stopped at the cap at tick
+1,751 with the final `stopped,time-limit` line.
+
+Every point matches the prediction written to ESA on 20 October and restated
+on 22 October after the FlatSat test: segments 1 and 2 as on the FlatSat
+(698 correct, 0 wrong, the halt at 1,281; 119 for fixed TMR, then a detected
+disagreement on every tick), and one `resumed` line in segment 3. The run
+took 136 s against a worst case of about 200 s.
+
+Still open: the voter after the restart used 5.7% of wall time against the 5%
+setting (FlatSat 5.8%); segments 1 and 2 stayed at 4.6%. The tick rate was
+about 25 to 30 per second, against 31 to 33 on the FlatSat; the load average
+at the start was 0.31 (FlatSat 0.00).
+
+Scope, as for run 1: three software replicas on one Linux payload processor,
+in user space, with faults from a schedule and a kill by our own script. Not
+a hardware-redundancy test, not a platform reset, and not qualification
+evidence. No real upset in either orbit run.
 
 ### Run 1 (v0.3.1, flown 18 October 2026)
 
@@ -568,19 +631,23 @@ All in the output folder:
 ## What success looks like
 
 1. The shrinking quorum delivers more correct results than fixed TMR under the
-   same injected faults, as on the ground. **Outcome in orbit:** 2,745
-   against 239, zero wrong in both.
+   same injected faults, as on the ground. **Outcome in orbit:** run 1,
+   2,745 against 239, zero wrong in both; run 2, 698 against 119 before the
+   planned halt, zero wrong in both.
 2. Every injected fault is detected and handled as expected (stuck replica
    retired, lost replica dropped, mode stepped down, sensor self-test flip
    found). **Outcome:** all four, on the same ticks as on the ground: stuck at
    120 and retired at 122, killed at 240 with the mode stepped down, the
    self-test flip found and repaired at the scan at 250, the bit flip at 60
-   outvoted at once.
+   outvoted at once. Run 2: all of its faults, on the same ticks as on the
+   FlatSat, including the hung replica at 60 and the stuck bit on the last
+   replica, caught by the known-answer test at 1,280 for a safe halt.
 3. Any real bit flips, in the replicas or in the sensor, are logged with their
    time and location. PRETTY's dosimeter data is not available to
    experimenters (ESA, 16 October 2026), so the sensor's counts stand on their
-   own. **Outcome:** none in 227 seconds. The only flip in the 64 MB sensor
-   block was the injected self-test, one per run (21 and 18 scans).
+   own. **Outcome:** none in 227 seconds in run 1 or in 136 seconds in run 2.
+   The only flip in the 64 MB sensor block was the injected self-test, one
+   per segment that has it (21 and 18 scans in run 1, 5 and 3 in run 2).
 4. No limit is ever exceeded, and the platform is never affected. **Outcome:**
    the voter stayed at 65,992 KiB and each replica at 452 KiB against the 128
    MB limit; voter CPU time was 5.930 s over 113.521 s of wall (shrink) and
@@ -589,5 +656,12 @@ All in the output folder:
    was overrun by about 3 seconds (see above). On the platform, the only
    evidence is what ESA's OPS-SAT Space Lab reported: the run "has been
    completed successfully". Nothing else about the platform was reported.
+   Run 2: 66,004 KiB and 464 KiB; voter CPU 4.6%, 4.6% and, after the
+   restart, 5.7% against the 5% setting (open, see above); no cap overrun;
+   for run 2 too ESA reported only that "the flight run has been completed".
+5. A reset loses nothing. **Outcome in orbit (run 2):** the voter, killed
+   without warning at tick 900, resumed once from its checkpoint with the
+   retired replica still retired, the strikes and the counts kept, and
+   delivered 1,750 correct results and 0 wrong in that segment.
 
 Result files: [`opssat/results`](../opssat/results).
