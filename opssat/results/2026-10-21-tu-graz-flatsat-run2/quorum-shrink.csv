@@ -1,0 +1,13 @@
+tick,event,detail
+20,sensor_injected,
+30,outvoted,2
+60,hang,2
+60,lost,2
+120,stuck,1
+120,retired,1
+120,detected,Compare
+250,sensor_upset,20:20
+1280,stuckbit,0/out.0.0
+1280,retired,0
+1280,detected,SelfCheck
+1281,halted,0

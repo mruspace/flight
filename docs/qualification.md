@@ -24,7 +24,7 @@ because nothing here has been assessed against one.
 | Formal verification of critical code | Nine Kani proofs: four of the core's decision function, five that the C interface gives the core's answer | `quorum/src/lib.rs`, `quorum-ffi/src/lib.rs` | Exists. Scope: one decision at a time. Does not cover Health in the core, diagnosis, timing or the system. |
 | Integration and system test | Scenario checks against the real binary (`scripts/scenarios.sh`); a parity system test between the F´ components and the demo | `scripts/scenarios.sh`, `fprime/Mru/Test/Parity/` | Exists. Faults are injected in software on general-purpose processors. |
 | Performance and resource measurement | Bench of 300 runs per host on three host types; known-answer test coverage campaign | `scripts/bench.sh`, `scripts/kat-coverage.sh`, `bench/results/` | Exists. General-purpose processors, not flight hardware. |
-| Test on the target processor | The OPS-SAT package (the demo, release v0.3.1) on the SEPP, the payload processor of ESA's OPS-SAT PRETTY: on the FlatSat on 16 October 2026 and in orbit on 18 October 2026 | `opssat/results/`, `docs/opssat.md` | Exists. One run each, three software replicas on one processor, in user space, faults injected from a schedule. Not qualification evidence. |
+| Test on the target processor | The OPS-SAT packages (the demo, releases v0.3.1 and v0.4.0) on the SEPP, the payload processor of ESA's OPS-SAT PRETTY: on the FlatSat on 16 and 21 October 2026 and in orbit on 18 and 22 October 2026 | `opssat/results/`, `docs/opssat.md` | Exists. Two runs in orbit, three software replicas on one processor, in user space, faults injected from a schedule. Not qualification evidence. |
 | Continuous integration and configuration control | CI on Linux x86_64, Linux ARM64 and macOS; static ARM builds tested under emulation; Kani on every change; tagged releases with checksums | `.github/workflows/` | Exists. |
 | Software requirements | F´ requirements note | `docs/fprime-requirements.md` | Draft. Not baselined or reviewed by a program. |
 | Software design | F´ design notes | `docs/fprime-design.md`, `docs/fprime-design-fpp.md` | Draft. |
@@ -38,7 +38,7 @@ because nothing here has been assessed against one.
 - A coding standard and a check that the code meets it.
 - Independent verification and validation.
 - Hardware-in-the-loop testing with resets and power cuts on target-class processors. The scripts exist (`scripts/board.sh`); no board run has been done. The OPS-SAT runs above are software runs on the target processor, not hardware-in-the-loop tests.
-- Radiation testing. The 227-second OPS-SAT run of 18 October 2026 saw no real upset; it is not a radiation test.
+- Radiation testing. The OPS-SAT runs of 18 and 22 October 2026 (227 and 136 seconds) saw no real upset; they are not radiation tests.
 - A qualification plan for the Rust toolchain (compiler, `core` library, Kani). **TODO.**
 
 ## Questions

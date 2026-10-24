@@ -1,0 +1,7 @@
+policy=shrink ticks=1000000000000 seed=1 upset_rate=0
+useful=1750 detected=0 wrong=0 halted_at=never alive_at_end=2 stopped=time-limit last_useful=1750 kat_tests=1
+footprint: voter_max_rss=66004KiB replica_max_rss=464KiB cpu=1.710s wall=30.007s
+limits: memory=128MB/process cpu_time=none cpu_share=5% max_run=30s reply_timeout=2000ms
+sensor: size=64MB scans=7 flips=0
+detection: faults=1 caught=1 latency_mean=0.0 latency_max=0 (ticks)
+checkpoint: every=100 resumes=1

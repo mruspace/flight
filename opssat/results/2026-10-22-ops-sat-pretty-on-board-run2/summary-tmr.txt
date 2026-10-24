@@ -1,0 +1,6 @@
+policy=tmr ticks=1000000000000 seed=1 upset_rate=0
+useful=119 detected=631 wrong=0 halted_at=never alive_at_end=2 stopped=time-limit last_useful=119 kat_tests=0
+footprint: voter_max_rss=66004KiB replica_max_rss=464KiB cpu=1.380s wall=30.001s
+limits: memory=128MB/process cpu_time=none cpu_share=5% max_run=30s reply_timeout=2000ms
+sensor: size=64MB scans=3 flips=1
+detection: faults=3 caught=3 latency_mean=0.0 latency_max=0 (ticks)
