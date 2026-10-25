@@ -9,8 +9,8 @@ Prototype to Bench-tested on the
 
 No run with `board.sh` has been done yet. This note is the procedure. The
 OPS-SAT package, which runs the demo without this bench, has run on the SEPP
-of ESA's OPS-SAT PRETTY, on the FlatSat on 16 and 21 October 2026 and in orbit
-on 18 and 22 October 2026 ([opssat.md](opssat.md)). Those runs had no resets
+of ESA's OPS-SAT PRETTY, on the FlatSat on October 16 and 21, 2026, and in orbit
+on October 18 and 22, 2026 ([opssat.md](opssat.md)). Those runs had no resets
 or power cuts; run 2 killed and restarted the voter process, in user space.
 
 ## Which board
@@ -98,4 +98,4 @@ reboot.
   replica, are the next step of the bench.
 - It is not a radiation test. Upsets are still injected. A beam test (for
   example RADNEXT) or a long flight record gives real upsets; the OPS-SAT runs
-  of 18 and 22 October 2026 (227 and 136 seconds) saw none.
+  of October 18 and 22, 2026 (227 and 136 seconds) saw none.

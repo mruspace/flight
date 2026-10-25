@@ -17,7 +17,7 @@
 set -eu
 
 # macOS tar stores extended attributes as extra "._NAME" entries, which the
-# macOS tar listing then hides. ESA's first test (16 Oct 2026) found them in
+# macOS tar listing then hides. ESA's first test (2026-10-16) found them in
 # the package. Both lines below stop them, on bsdtar and on GNU tar.
 export COPYFILE_DISABLE=1
 

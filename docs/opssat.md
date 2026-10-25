@@ -1,16 +1,16 @@
 # Running Mru Flight on OPS-SAT
 
-**Status: ran in orbit twice, on 18 and 22 October 2026.**
-ESA's OPS-SAT Space Lab confirmed the experiment on 14 October 2026 as
+**Status: ran in orbit twice, on October 18 and 22, 2026.**
+ESA's OPS-SAT Space Lab confirmed the experiment on October 14, 2026, as
 **exp4051** for OPS-SAT PRETTY. Run 1, the package
 `exp4051-mru-flight-v0.3.1.tar.gz` (release v0.3.1), ran three times:
-in ESA's software environment on 15 October 2026, on TU Graz's PRETTY
-FlatSat, the flight processor on the bench, on 16 October 2026, and in orbit
-on the satellite on 18 October 2026 at 09:45 UTC. Each time both runs exit
+in ESA's software environment on October 15, 2026, on TU Graz's PRETTY
+FlatSat, the flight processor on the bench, on October 16, 2026, and in orbit
+on the satellite on October 18, 2026, at 09:45 UTC. Each time both runs exit
 0 and every fault lands on its scheduled tick. Run 2, the package
 `exp4051-mru-flight-v0.4.0.tar.gz` (release v0.4.0), went through ESA's
-software environment and the FlatSat on 21 October 2026 and ran in orbit on
-22 October 2026 at 09:49 UTC: a hung replica, a stuck replica, a stuck bit
+software environment and the FlatSat on October 21, 2026, and ran in orbit on
+October 22, 2026, at 09:49 UTC: a hung replica, a stuck replica, a stuck bit
 on the last replica with a safe halt, and a resume after the voter was
 killed. Each orbit run matched the prediction written to ESA before the run
 (numbers below). Scope: three software replicas on one Linux payload
@@ -66,7 +66,7 @@ repaired.
   Earth orbit, real upsets in the replicas will be rare, so the main evidence
   comes from the injected faults. Real upsets are a bonus. For statistics over
   thousands of simulated missions, see dusk. The 227-second run in orbit on
-  18 October 2026 found no real flip in the 64 MB sensor block, only the
+  October 18, 2026, found no real flip in the 64 MB sensor block, only the
   injected self-test.
 - **Upsets behind error correction.** If the platform memory has error
   correction, the sensor will report few or no flips. That is a valid result:
@@ -185,7 +185,7 @@ glibc, so the binary needs nothing from the SEPP's libraries). The
 segment removes a state file left by an earlier run of the package before
 it starts (the lesson of run 2 on the FlatSat).
 
-Measured on 22 October 2026 in ESA's image on a laptop (Apple silicon,
+Measured on October 22, 2026, in ESA's image on a laptop (Apple silicon,
 Docker's Linux VM, 32-bit ARM under emulation), a local build packaged by
 `package.sh`, as user `exp`:
 
@@ -239,7 +239,7 @@ real: the manager sends SIGKILL to replica 0's process at the start of cycle
 240. The segments, caps and sequences are the same, except that the kill is
 no longer in the sequence. Eight files: `run`, `MruQuorum`, `MruReplica`,
 the three sequences, `README.txt` and the license. The package built locally
-by `package.sh` and run full length in ESA's image on 22 October 2026: 148
+by `package.sh` and run full length in ESA's image on October 22, 2026: 148
 seconds, every exit as planned, the same counts and events as version 1
 (342 / 3 / 0 over 448 cycles with replica 0 lost at 242; 239 then caught,
 0 wrong; the restore at cycle 303), replica 0 ended by signal 9 and the
@@ -269,7 +269,7 @@ same package with short caps against a native build in CI and checks each
 segment against the demo, the events on their cycles, the restore, and a
 second run in the same folder.
 
-### Run 2 (v0.4.0, flown 22 October 2026)
+### Run 2 (v0.4.0, flown October 22, 2026)
 
 Run 1 showed the policy comparison on the flight processor. Run 2 shows the
 rest of the lifecycle, and that a reset loses nothing. `run` has three
@@ -309,7 +309,7 @@ for the whole run (`resumes=1`). Since v0.4.1 the segment starts from tick 0
 every time: a checkpoint left in the home folder by an earlier run of the
 package is removed first, and `run-info.txt` says so.
 
-Measured on 20 October 2026 in ESA's image on a laptop (Apple silicon,
+Measured on October 20, 2026, in ESA's image on a laptop (Apple silicon,
 Docker's Linux VM, 32-bit ARM mode), the package built from the development
 build, then repeated with the published package
 `exp4051-mru-flight-v0.4.0.tar.gz` (329,108 bytes, sha256
@@ -352,7 +352,7 @@ two replicas compute on every tick). Segment 1 should take about 40 s there
 against its 80 s cap. The caps add up to 170 s plus a few seconds of start-up
 per voter, so the whole run stays under about 200 s in the worst case.
 
-**Ground tests by ESA, 21 October 2026.** ESA ran the v0.4.0 package in its
+**Ground tests by ESA, October 21, 2026.** ESA ran the v0.4.0 package in its
 software environment and TU Graz ran it on the PRETTY FlatSat (the SEPP,
 host `sepp`), as user `exp`, 133 s in total, status 0, binary checksum as
 released. Segment 1 as predicted: 698 correct results, 0 wrong, every event
@@ -374,18 +374,18 @@ runs of events at the end and at a resume) cover both fixes. Still open:
 voter CPU on the SEPP was 4.7%, 5.6% and 5.8% of wall time in the three
 segments against the 5% setting (4.3% to 4.6% on the laptop).
 
-### In orbit, 22 October 2026
+### In orbit, October 22, 2026
 
 Run 2 ran in orbit. The v0.4.0 package, the file ESA validated, ran on the
 SEPP of OPS-SAT PRETTY (host `sepp1`, Linux 4.9, systemd unit "Experiment
-4051", container `exp-4051`, user `exp`, user space only) on 22 October 2026
+4051", container `exp-4051`, user `exp`, user space only) on October 22, 2026,
 from 09:49:48 to 09:52:04 UTC by the SEPP's clock: 136 s in total, status 0.
 The checksum of `quorum` in `run-info.txt` matches release v0.4.0. The
 planned SIGKILL shows in the journal as "Killed" at 09:51:33. The home folder
 was empty at the start: the checkpoint at the kill says `resumes=0`. The
 files that came down, plus the journal lines, are in
 [`opssat/results/2026-10-22-ops-sat-pretty-on-board-run2`](../opssat/results/2026-10-22-ops-sat-pretty-on-board-run2);
-the FlatSat run of 21 October is in
+the FlatSat run of October 21 is in
 [`2026-10-21-tu-graz-flatsat-run2`](../opssat/results/2026-10-21-tu-graz-flatsat-run2).
 
 | | 1 shrink | 2 fixed TMR | 3 restart |
@@ -417,8 +417,8 @@ at tick 900; started again, resumed once from tick 900 with replica 1 still
 retired (`alive=1,0,1` in both checkpoints), and stopped at the cap at tick
 1,751 with the final `stopped,time-limit` line.
 
-Every point matches the prediction written to ESA on 20 October and restated
-on 22 October after the FlatSat test: segments 1 and 2 as on the FlatSat
+Every point matches the prediction written to ESA on October 20 and restated
+on October 22 after the FlatSat test: segments 1 and 2 as on the FlatSat
 (698 correct, 0 wrong, the halt at 1,281; 119 for fixed TMR, then a detected
 disagreement on every tick), and one `resumed` line in segment 3. The run
 took 136 s against a worst case of about 200 s.
@@ -433,7 +433,7 @@ in user space, with faults from a schedule and a kill by our own script. Not
 a hardware-redundancy test, not a platform reset, and not qualification
 evidence. No real upset in either orbit run.
 
-### Run 1 (v0.3.1, flown 18 October 2026)
+### Run 1 (v0.3.1, flown October 18, 2026)
 
 In run 1, `run` ran one policy after the other, shrink then fixed TMR, with
 the same seed and fault schedule, each capped at 110 seconds.
@@ -456,7 +456,7 @@ docker run --rm --platform linux/arm/v7 -v "$PWD/home:/home/exp" -w /home/exp \
     -u 1024:1024 -e HOME=/home/exp opssat-pretty-env:v0.3 ./run
 ```
 
-Measured on 15 October 2026 in that image on a laptop (Apple silicon, Docker's
+Measured on October 15, 2026, in that image on a laptop (Apple silicon, Docker's
 Linux VM, 32-bit ARM mode), the published package
 `exp4051-mru-flight-v0.3.1.tar.gz` (release v0.3.1), 5% CPU share, 64 MB
 sensor scanned every 250 ticks, 110 seconds per policy:
@@ -474,9 +474,9 @@ sensor scanned every 250 ticks, 110 seconds per policy:
   for fixed TMR over the same 220 seconds. The share was lowered to match the
   registration.
 
-ESA's software environment test of the same package, run on 15 October 2026
+ESA's software environment test of the same package, run on October 15, 2026
 (start 13:05:29 UTC) on a Linux VM with two Cortex-A53 cores in 32-bit mode,
-4 GB of memory, as root; results received 16 October:
+4 GB of memory, as root; results received October 16:
 
 - Whole run 222 seconds, both exit 0, seven files. The checksum of `quorum`
   in `run-info.txt` matches the release.
@@ -497,7 +497,7 @@ about twice the results; every event sits on the same tick. In self-check mode
 the voter computes on even ticks only, so the shrink count is about half the
 tick count after tick 240 by design.
 
-TU Graz's FlatSat test of the same package, run on 16 October 2026 (start
+TU Graz's FlatSat test of the same package, run on October 16, 2026 (start
 05:20:11 UTC) on the SEPP itself: Altera SoC FPGA, two Cortex-A9 cores, 1 GB
 of memory, Linux 4.9, started by systemd as "Experiment 4051" in a container
 named exp-4051, as user exp; results received the same day:
@@ -522,15 +522,15 @@ named exp-4051, as user exp; results received the same day:
   110.004 s (5.4%) for fixed TMR, including the unthrottled start-up.
 
 Every event sits on the same tick on all three hosts. Expected for the run in
-orbit, stated to ESA on 16 October before the run: the same events on the
+orbit, stated to ESA on October 16 before the run: the same events on the
 same ticks, about 2,700 correct results for shrink and 239 for fixed TMR,
 zero wrong in both, about 225 seconds in total, and any real bit flip in the
 64 MB sensor block as an extra `sensor_upset` line with its location.
 
-### In orbit, 18 October 2026
+### In orbit, October 18, 2026
 
 Mru Flight ran in orbit. ESA started experiment exp4051 on OPS-SAT PRETTY on
-18 October 2026 at 09:45:37 UTC, on the SEPP payload processor (host `sepp1`,
+October 18, 2026, at 09:45:37 UTC, on the SEPP payload processor (host `sepp1`,
 Linux 4.9, systemd unit "Experiment 4051", container `exp-4051`, user `exp`,
 user space only), eleven days after registration. The whole run took 227
 seconds: the shrinking quorum ended at 09:47:31 UTC and fixed TMR at 09:49:24
@@ -567,7 +567,7 @@ the same tick as on the FlatSat and in ESA's software environment. The shrink
 counts (2,745 correct over 5,250 ticks) and the 239 for fixed TMR are the
 same as on the FlatSat two days earlier.
 
-Every number matches the prediction written to ESA on 16 October at 14:10
+Every number matches the prediction written to ESA on October 16 at 14:10
 UTC, before the run: the same events on the same ticks, about 2,700 correct
 results for shrink (2,745), 239 for fixed TMR (239), zero wrong (0 and 0),
 about 225 seconds (227), and no `sensor_upset` line other than the self-test
@@ -643,7 +643,7 @@ All in the output folder:
    replica, caught by the known-answer test at 1,280 for a safe halt.
 3. Any real bit flips, in the replicas or in the sensor, are logged with their
    time and location. PRETTY's dosimeter data is not available to
-   experimenters (ESA, 16 October 2026), so the sensor's counts stand on their
+   experimenters (ESA, October 16, 2026), so the sensor's counts stand on their
    own. **Outcome:** none in 227 seconds in run 1 or in 136 seconds in run 2.
    The only flip in the 64 MB sensor block was the injected self-test, one
    per segment that has it (21 and 18 scans in run 1, 5 and 3 in run 2).

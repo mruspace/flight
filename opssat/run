@@ -117,8 +117,8 @@ for segment in $SEGMENTS; do
     restart)
         cp_file=$OUT_DIR/checkpoint-restart.txt
         # A checkpoint left in $HOME by an earlier run of this package would
-        # make the first voter resume from it (seen on the FlatSat, 21 Oct
-        # 2026: three resumes instead of one). The segment starts from tick 0.
+        # make the first voter resume from it (seen on the FlatSat, 2026-10-21:
+        # three resumes instead of one). The segment starts from tick 0.
         if [ -e "$cp_file" ] || [ -e "$OUT_DIR/checkpoint-restart-at-kill.txt" ]; then
             rm -f "$cp_file" "$OUT_DIR/checkpoint-restart-at-kill.txt"
             echo "restart: removed a checkpoint left by an earlier run" >>"$info"

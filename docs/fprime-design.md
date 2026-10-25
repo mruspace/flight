@@ -60,7 +60,7 @@ involved.
    between replicas.
 2. **Three processes.** One deployment per replica, linked through F´'s generic
    hub over local sockets. Matches the demo, and an OPS-SAT experiment can run
-   this way on one Linux processor. Built on 22 October 2026: `MruQuorum` and
+   this way on one Linux processor. Built on October 22, 2026: `MruQuorum` and
    `MruReplica`, over Unix socket pairs, the replicas pinned to the SEPP's two
    cores ([design](fprime-design-fpp.md#version-2-mruquorum-and-mrureplica)).
 3. **Separate processors.** The same deployments on separate boards of the

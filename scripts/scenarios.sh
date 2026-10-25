@@ -205,7 +205,7 @@ fi
 #     counts as a run that was never interrupted. The log keeps every event up
 #     to the checkpoint, once: a reset can land after the log was flushed and
 #     before the checkpoint was renamed into place (seen in CI under emulation,
-#     16 Oct 2026), so one event past the checkpoint is planted in the log and
+#     2026-10-16), so one event past the checkpoint is planted in the log and
 #     must be gone after the resume. A checkpoint from another run is refused.
 dir=$(mktemp -d)
 set -- --policy shrink --ticks 12000 --seed 2 --upset-rate 0.01 --cpu-percent 60 \
@@ -410,7 +410,7 @@ if env QUORUM="$q" OUT_DIR="$dir/toGround" FAULTS_FILE="$dir/faults.txt" RESTART
         fail "opssat run: outputs ($s1 / $s2 / $(printf '%s' "$s3" | tr '\n' ' ') / $(tr '\n' ' ' <"$l3"))"
     fi
     # The same package run a second time in the same $HOME, as on the FlatSat
-    # on 21 Oct 2026: the restart segment starts again from tick 0 and resumes
+    # on 2026-10-21: the restart segment starts again from tick 0 and resumes
     # once, instead of resuming from the first run's checkpoint.
     if env QUORUM="$q" OUT_DIR="$dir/toGround" RESTART_FAULTS="$dir/faults-restart.txt" SEGMENTS=restart \
         CPU_PERCENT=50 SENSOR_MB=8 RESTART_AFTER=3 RESTART_SECONDS=3 ./opssat/run >"$dir/run2.out" 2>&1 &&
@@ -429,7 +429,7 @@ rm -rf "$dir"
 # 30. The log ends on the count of a run of identical events that is still
 #     open at the end: fixed TMR detecting on every tick to the last one. And
 #     a resume ends an open run: a voter stopped twice at its cap, with a
-#     resume between, logs two stop lines (the FlatSat log of 21 Oct 2026
+#     resume between, logs two stop lines (the FlatSat log of 2026-10-21
 #     lost its last line, folded into a count that was never written).
 log=$(mktemp)
 run --policy tmr --ticks 300 --seed 1 --fault kill:0@50 --fault stuck:1@100 --log "$log" >/dev/null

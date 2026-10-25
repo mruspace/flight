@@ -1,6 +1,6 @@
 # F´ components: requirements
 
-Status: **approved on 11 October 2026**, with decisions D1 to D7 as
+Status: **approved on October 11, 2026**, with decisions D1 to D7 as
 recommended. After a comparison with the whitepaper, three additions were
 approved the same day: spares and standby (MRU-RM-018 to 021), reset
 survival (MRU-RM-022, which replaces D8), and Kani proofs on the C interface
@@ -25,7 +25,7 @@ Each has a recommended answer. The requirements below assume it.
 |---|---|---|---|
 | D1 | Where replicas run first | One deployment, three `ReplicaHost` threads | Step 1 of fprime-design.md. Fastest way to validate the logic in F´. Three processes and separate processors follow with the same components. |
 | D2 | What drives a cycle | An F´ rate group calls `RedundancyManager` once per cycle | Deadline-driven work, as in F´ reference deployments. One result per cycle, as one tick in the demo. |
-| D3 | When a replica that does not answer is absent | A reply that has not arrived by the next cycle is absent for its cycle. Three missed cycles in a row mark the replica lost. Changed on 22 October 2026 by MRU-RM-023: a cycle that closes late does not count as a miss. | Bounded and deterministic. The demo uses a reply timeout; in F´ the cycle is the clock. The change: on one processor the manager and the replicas share the clock, so a late manager or a starved processor looked like three dead replicas (found in CI, 22 October 2026). |
+| D3 | When a replica that does not answer is absent | A reply that has not arrived by the next cycle is absent for its cycle. Three missed cycles in a row mark the replica lost. Changed on 2026-10-22 by MRU-RM-023: a cycle that closes late does not count as a miss. | Bounded and deterministic. The demo uses a reply timeout; in F´ the cycle is the clock. The change: on one processor the manager and the replicas share the clock, so a late manager or a starved processor looked like three dead replicas (found in CI, 2026-10-22). |
 | D4 | Health as its own component | Yes: `HealthRegistry`, passive, called by `RedundancyManager` | As in fprime-design.md. It complements F´'s `Svc.Health`, which finds silent components but not wrong answers. |
 | D5 | Strike limits | Fixed in the `quorum` crate (3 outvotes in 200 cycles), reported, not changeable at run time | They are compile-time constants in the core today. `KAT_PERIOD` is an F´ parameter. |
 | D6 | Payload | A result is one 64-bit value per cycle. The reference payload is the demo's task (a hash over a 4 KiB block). A mission replaces it. | Keeps the manager independent of the payload. |
@@ -68,7 +68,7 @@ Each has a recommended answer. The requirements below assume it.
 | MRU-RM-020 | An `ADMIT_REPLICA` command on a STANDBY or RETIRED slot shall enable it and request a known-answer test. If the result is right by the next cycle, the slot shall become ACTIVE with no strikes. If not, it shall be disabled and keep its state. A RETIRED slot admitted this way holds new hardware: a spare or salvaged processor (whitepaper §4.5, §8). | Unit test |
 | MRU-RM-021 | The component shall report the state of each slot as telemetry. | Unit test |
 | MRU-RM-022 | The component shall save the slot states, the policy and the cycle counter to a state file when any of them changes, and every `StateSavePeriod` cycles (a parameter, default 1000; 0 saves on change only). It shall replace the file atomically. At start, it shall restore them from a valid file and emit an event, or start with all slots ACTIVE and emit a warning. Strikes are not saved. | Unit test |
-| MRU-RM-023 | A cycle closes late when other messages still wait in the component's queue as it closes (the component fell behind), or when every one of two or more expected answers is missing (the processor they share fell behind). In a cycle that closes late, a missing answer shall not count against a replica: no miss, and no known-answer test or admission failed for a missing answer. If an expected answer is missing, the cycle shall be withheld: nothing delivered, no strike, counted as telemetry, with a throttled warning event. A reply that arrives after its cycle closed shall clear that replica's count of misses. Added on 22 October 2026. | Unit test; a load test of the deployment, run by hand on 22 October 2026 (no halt under CPU starvation) |
+| MRU-RM-023 | A cycle closes late when other messages still wait in the component's queue as it closes (the component fell behind), or when every one of two or more expected answers is missing (the processor they share fell behind). In a cycle that closes late, a missing answer shall not count against a replica: no miss, and no known-answer test or admission failed for a missing answer. If an expected answer is missing, the cycle shall be withheld: nothing delivered, no strike, counted as telemetry, with a throttled warning event. A reply that arrives after its cycle closed shall clear that replica's count of misses. Added on 2026-10-22. | Unit test; a load test of the deployment, run by hand on 2026-10-22 (no halt under CPU starvation) |
 
 ## `HealthRegistry` (passive)
 
@@ -97,7 +97,7 @@ Each has a recommended answer. The requirements below assume it.
 
 ## `RunRecorder` (passive, experiment builds only)
 
-Added on 22 October 2026 for the OPS-SAT deployment (run 3). It stands in for the ground: the manager never sees it.
+Added on October 22, 2026, for the OPS-SAT deployment (run 3). It stands in for the ground: the manager never sees it.
 
 | ID | Requirement | Verification |
 |---|---|---|
@@ -110,7 +110,7 @@ Added on 22 October 2026 for the OPS-SAT deployment (run 3). It stands in for th
 
 ## Deployment `MruOpsSat`
 
-Added on 22 October 2026: the first F´ deployment of the components, for OPS-SAT run 3.
+Added on October 22, 2026: the first F´ deployment of the components, for OPS-SAT run 3.
 
 | ID | Requirement | Verification |
 |---|---|---|
@@ -118,7 +118,7 @@ Added on 22 October 2026: the first F´ deployment of the components, for OPS-SA
 | MRU-DEP-002 | The policy and the faults shall be commanded by an F´ command sequence that ends before cycle 1. | Integration test |
 | MRU-DEP-003 | The deployment shall stop at a time cap or on SIGTERM and write a summary of the run. | Integration test |
 | MRU-DEP-004 | A static 32-bit ARM Linux build shall run in ESA's OPS-SAT experiment environment as user `exp`, within 128 MB of address space and the registered 5% CPU share. | Full-length run in ESA's environment image |
-| MRU-DEP-005 | Version 2 (`MruQuorum` and `MruReplica`, added 22 October 2026) shall run each replica as a process of its own, linked to the manager process through F´'s GenericHub over a Unix socket pair that keeps message boundaries (no network, no framing). | Integration test (`VERSION=2 scripts/fprime-deployment.sh`) |
+| MRU-DEP-005 | Version 2 (`MruQuorum` and `MruReplica`, added 2026-10-22) shall run each replica as a process of its own, linked to the manager process through F´'s GenericHub over a Unix socket pair that keeps message boundaries (no network, no framing). | Integration test (`VERSION=2 scripts/fprime-deployment.sh`) |
 | MRU-DEP-006 | Each replica process shall pin itself to a configured core and report the core it runs on. | Integration test; full-length run in ESA's environment image |
 | MRU-DEP-007 | Version 2 shall apply a kill or a hang as a real signal to a replica process (SIGKILL, SIGSTOP) at the start of a configured cycle, and the summary shall report how each replica process ended. | Integration test |
 
