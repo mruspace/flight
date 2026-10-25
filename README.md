@@ -41,11 +41,11 @@ This repository is where that policy becomes flight software: a small,
 verified Rust core, wrapped as components for NASA JPL's open-source
 [F´](https://github.com/nasa/fprime) framework.
 
-**Status (October 2026): the demo ran in orbit twice.** On 18 October 2026,
+**Status (October 2026): the demo ran in orbit twice.** On October 18, 2026,
 Mru Flight v0.3.1 ran on the SEPP payload processor of ESA's OPS-SAT PRETTY as
 experiment exp4051: three software replicas on one processor, with faults
 from a schedule, 227 seconds, every result as predicted in writing before the
-run. On 22 October 2026, v0.4.0 ran there again: a hung replica, a stuck
+run. On October 22, 2026, v0.4.0 ran there again: a hung replica, a stuck
 replica, a stuck bit on the last replica caught for a safe halt with no wrong
 result, and a resume after the voter was killed, again as predicted
 ([in orbit](#in-orbit)). That tests the software policy on a flight
@@ -305,7 +305,7 @@ schedule and the operations note.
 
 ## In orbit
 
-On 18 October 2026, Mru Flight v0.3.1 ran on ESA's OPS-SAT PRETTY satellite
+On October 18, 2026, Mru Flight v0.3.1 ran on ESA's OPS-SAT PRETTY satellite
 as experiment exp4051 of the OPS-SAT Space Lab, eleven days after
 registration. The same package ran three times on three hosts with the same
 seed and the same fault schedule (sensor self-test at tick 20, a bit flip in
@@ -314,14 +314,14 @@ policy capped at 110 seconds at a 5% CPU share:
 
 | Run | Host | Shrinking quorum: correct / wrong / ticks | Fixed TMR: correct, then detected to tick | Wall (shrink, TMR) | Exit |
 |---|---|---|---|---|---|
-| 15 Oct 2026, ESA software environment | Linux VM, two Cortex-A53 cores in 32-bit mode | 14,886 / 0 / 29,532 | 239, then 19,250 | 110.0 s, 110.8 s | 0, 0 |
-| 16 Oct 2026, TU Graz FlatSat | SEPP (Cyclone V SoC, two Cortex-A9 cores) on the bench | 2,745 / 0 / 5,250 | 239, then 4,778 | 113.2 s, 110.0 s | 0, 0 |
-| 18 Oct 2026, 09:45 UTC, in orbit | SEPP on OPS-SAT PRETTY | 2,745 / 0 / 5,250 | 239, then 4,500 | 113.5 s, 113.1 s | 0, 0 |
+| 2026-10-15, ESA software environment | Linux VM, two Cortex-A53 cores in 32-bit mode | 14,886 / 0 / 29,532 | 239, then 19,250 | 110.0 s, 110.8 s | 0, 0 |
+| 2026-10-16, TU Graz FlatSat | SEPP (Cyclone V SoC, two Cortex-A9 cores) on the bench | 2,745 / 0 / 5,250 | 239, then 4,778 | 113.2 s, 110.0 s | 0, 0 |
+| 2026-10-18, 09:45 UTC, in orbit | SEPP on OPS-SAT PRETTY | 2,745 / 0 / 5,250 | 239, then 4,500 | 113.5 s, 113.1 s | 0, 0 |
 
 Every event landed on the same tick on all three hosts, and the orbit run
-matched the prediction written to ESA on 16 October, before the run.
+matched the prediction written to ESA on October 16, before the run.
 
-On 22 October 2026, run 2 (v0.4.0) ran in orbit, 136 seconds in three
+On October 22, 2026, run 2 (v0.4.0) ran in orbit, 136 seconds in three
 segments: the shrinking quorum on the lifecycle schedule (a bit flip at 30,
 replica 2 hangs at 60, replica 1 stuck at 120, a stuck bit in the last
 replica at 1,280), fixed TMR on the same schedule, and a restart, where the
@@ -329,8 +329,8 @@ voter is killed without warning and resumes from its checkpoint:
 
 | Run 2 | Host | 1 shrink: correct / wrong | 2 fixed TMR: correct, then detected to tick | 3 restart: correct / wrong | Exit |
 |---|---|---|---|---|---|
-| 21 Oct 2026, TU Graz FlatSat | SEPP on the bench | 698 / 0, halted at 1,281 | 119, then 1,000 | 4,000 / 0, three resumes (an old checkpoint in the folder) | 0, 0, 137 and 0 |
-| 22 Oct 2026, 09:49 UTC, in orbit | SEPP on OPS-SAT PRETTY | 698 / 0, halted at 1,281 | 119, then 750 | 1,750 / 0, one resume at tick 900 | 0, 0, 137 and 0 |
+| 2026-10-21, TU Graz FlatSat | SEPP on the bench | 698 / 0, halted at 1,281 | 119, then 1,000 | 4,000 / 0, three resumes (an old checkpoint in the folder) | 0, 0, 137 and 0 |
+| 2026-10-22, 09:49 UTC, in orbit | SEPP on OPS-SAT PRETTY | 698 / 0, halted at 1,281 | 119, then 750 | 1,750 / 0, one resume at tick 900 | 0, 0, 137 and 0 |
 
 The known-answer test caught the stuck bit on the last replica on the tick
 it appeared, so the quorum halted with no wrong result. After the kill, the
@@ -428,8 +428,8 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
 4. **In orbit**: done. Experiment exp4051 with ESA's
    [OPS-SAT Space Lab](https://opssat.esa.int/missions) ran the shrinking
    quorum under injected faults on the flight processor of OPS-SAT PRETTY on
-   18 October 2026, with the software's own radiation sensor logged, and the
-   rest of the lifecycle on 22 October 2026: a hung replica, a stuck bit on
+   October 18, 2026, with the software's own radiation sensor logged, and the
+   rest of the lifecycle on October 22, 2026: a hung replica, a stuck bit on
    the last replica with a safe halt, and a resume after a kill. Both matched
    the written prediction ([operations note](docs/opssat.md)). Next: run 3,
    the F´ deployment on the SEPP, planned.

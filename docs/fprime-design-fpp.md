@@ -1,6 +1,6 @@
 # F´ components: design (draft for review)
 
-Status: **approved on 11 October 2026**, with the change to MRU-SYS-001 and
+Status: **approved on October 11, 2026**, with the change to MRU-SYS-001 and
 three additions from a comparison with the whitepaper: spares and standby,
 reset survival and Kani proofs on the C interface. This is the second gate of
 F´'s development process; the [requirements](fprime-requirements.md) are the
@@ -142,7 +142,7 @@ after three cycles in a row (D3). When the death leaves one replica, the
 cycles in which the manager still asks for single results end as caught
 disagreements.
 
-**Silence counts only on time** (MRU-RM-023, 22 October 2026). On one
+**Silence counts only on time** (MRU-RM-023, October 22, 2026). On one
 processor the manager and the replicas share the processor. If the manager
 falls behind, the next cycle's tick waits in its queue in front of the
 replies, and each cycle closes before its answers are dispatched: before
@@ -180,7 +180,7 @@ and CI checks that they are current.
 
 ## Deployment: `MruOpsSat`
 
-Added on 22 October 2026, for OPS-SAT run 3 ([package](opssat.md)). The
+Added on October 22, 2026, for OPS-SAT run 3 ([package](opssat.md)). The
 first F´ deployment of the components, in [`fprime/MruOpsSat`](../fprime/MruOpsSat):
 
 ```
@@ -220,7 +220,7 @@ RedundancyManager ─resultOut─▶ RunRecorder ─TlmGet─▶ telemetry datab
 
 ### Version 2: `MruQuorum` and `MruReplica`
 
-Added on 22 October 2026, option 2 of the [design note](fprime-design.md):
+Added on October 22, 2026, option 2 of the [design note](fprime-design.md):
 each replica in a process of its own, for the most representative setup the
 OPS-SAT rules allow.
 
