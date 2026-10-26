@@ -20,9 +20,9 @@ hardware-redundancy test, and not qualification evidence.
 A note for the OPS-SAT Space Lab team: what the experiment does on the
 satellite, what it touches, its limits, how to start and stop it, what it sends
 down, and what it can and cannot show. It describes the `quorum` program
-that ran in runs 1 and 2. The package for a planned third run is the F´
+that ran in runs 1 and 2. The package for a third run, proposed to ESA on October 26, 2026, is the F´
 deployment of the same decision core, with F´'s command, event and
-telemetry interfaces ([run 3](#run-3-v070-the-f-deployment-planned)).
+telemetry interfaces ([run 3](#run-3-v070-the-f-deployment-proposed)).
 
 ## What runs
 
@@ -147,9 +147,9 @@ target, checks it against `SHA256SUMS`, adds `run`, the schedules, a
 the required ownership and no hidden entries. `QUORUM_BIN=path ./package.sh`
 packages a binary you built yourself.
 
-### Run 3 (v0.7.0, the F´ deployment, planned)
+### Run 3 (v0.7.0, the F´ deployment, proposed)
 
-Run 1 flew the demo, `quorum`, and run 2 flew it too. Run 3, planned, is the package for the F´ components ([design](fprime-design-fpp.md)) in a real F´ deployment,
+Run 1 flew the demo, `quorum`, and run 2 flew it too. Run 3, proposed to ESA on October 26, 2026, is the package for the F´ components ([design](fprime-design-fpp.md)) in a real F´ deployment,
 `MruOpsSat`: `RedundancyManager`, `HealthRegistry`, three `ReplicaHost`
 threads and the test-only `FaultInjector`, with F´'s own command
 dispatcher, event manager, telemetry database, health pings and command
@@ -227,7 +227,7 @@ and events as v0.5.1 (342 / 3 / 0 over 448 cycles, 239 / 109 / 0, the
 restore at cycle 303), no cycle withheld, the timed run at 1.25%, 1.47% and
 1.30%. The package is built by `package.sh` from the v0.6.0 release asset.
 
-**Version 2, the package planned for run 3: each replica in a process of
+**Version 2, the package proposed for run 3: each replica in a process of
 its own** (v0.7.0, [`opssat/fprime2`](../opssat/fprime2)). Version 1 runs
 the replicas as threads of one process and simulates the kill. Version 2 is
 the most representative setup the OPS-SAT rules allow: `MruQuorum`, the
