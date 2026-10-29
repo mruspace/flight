@@ -1,0 +1,66 @@
+replica 0: pid 215, pinned, on core 0
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+replica 1: pid 217, pinned, on core 1
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+replica 2: pid 221, pinned, on core 1
+EVENT: (16789504) (2:1793170622,168209) ACTIVITY_LO: (CdhCore.version) FrameworkVersion : Framework Version: [558b7ef]
+EVENT: (16789505) (2:1793170622,168318) ACTIVITY_LO: (CdhCore.version) ProjectVersion : Project Version: [v0.7.0]
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+EVENT: (268451851) (2:1793170622,320332) ACTIVITY_HI: (MruQuorum.manager) StateRestored : State restored: policy SHRINK (0), slots [ ACTIVE (0), RETIRED (2), ACTIVE (0) ], cycle 303
+EVENT: (268451841) (2:1793170622,320559) ACTIVITY_HI: (MruQuorum.manager) ModeChanged : Mode VOTE (0) -> COMPARE (1) at cycle 303
+[WARNING] link0 failed to recv from port with status -8 and errno 0
+[WARNING] link failed to recv from port with status -8 and errno 0
+EVENT: (268550146) (2:1793170652,420951) WARNING_LO: (MruQuorum.adapter0) DataReceiveError : Data reception error status: 3
+[WARNING] link1 failed to recv from port with status -8 and errno 0
+[WARNING] link failed to recv from port with status -8 and errno 0
+EVENT: (268554242) (2:1793170652,421203) WARNING_LO: (MruQuorum.adapter1) DataReceiveError : Data reception error status: 3
+[WARNING] link2 failed to recv from port with status -8 and errno 0
+EVENT: (268558338) (2:1793170652,421389) WARNING_LO: (MruQuorum.adapter2) DataReceiveError : Data reception error status: 3
+[WARNING] link failed to recv from port with status -8 and errno 0
+policy=shrink cycles=299 cycle_ms=100 sequence=none
+useful=299 detected=0 wrong=0 late=0 last_useful=601 live_at_end=2 mode=compare slots=active,retired,active stopped=time-limit
+footprint: max_rss=1708KiB address_space=11808KiB cpu=0.130s wall=30.299s
+cpu: startup_user=0.000s startup_system=0.000s startup_wall=0.057s run_user=0.130s run_system=0.000s run_wall=30.000s run_share=0.43% end_cpu=0.000s
+replicas: 0=exit 0 1=exit 0 2=exit 0 cores=0,1,1 cpu=0.130s experiment_share=0.86%
+limits: memory=128MB/process max_run=30s

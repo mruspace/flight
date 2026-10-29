@@ -1,6 +1,6 @@
 # Running Mru Flight on OPS-SAT
 
-**Status: ran in orbit twice, on October 18 and 22, 2026.**
+**Status: ran in orbit three times, on October 18, 22 and 28, 2026.**
 ESA's OPS-SAT Space Lab confirmed the experiment on October 14, 2026, as
 **exp4051** for OPS-SAT PRETTY. Run 1, the package
 `exp4051-mru-flight-v0.3.1.tar.gz` (release v0.3.1), ran three times:
@@ -12,17 +12,20 @@ on the satellite on October 18, 2026, at 09:45 UTC. Each time both runs exit
 software environment and the FlatSat on October 21, 2026, and ran in orbit on
 October 22, 2026, at 09:49 UTC: a hung replica, a stuck replica, a stuck bit
 on the last replica with a safe halt, and a resume after the voter was
-killed. Each orbit run matched the prediction written to ESA before the run
-(numbers below). Scope: three software replicas on one Linux payload
+killed. Run 3, the package
+`exp4051-mru-flight-fprime-processes-v0.7.0.tar.gz` (release v0.7.0), the
+F´ deployment with each replica in a process of its own, ran on the FlatSat
+and in orbit on October 28, 2026, at 09:13 UTC. Each orbit run matched the
+prediction written to ESA before the run (numbers below). Scope: three software replicas on one Linux payload
 processor, in user space, with faults from a schedule. Not a
 hardware-redundancy test, and not qualification evidence.
 
 A note for the OPS-SAT Space Lab team: what the experiment does on the
 satellite, what it touches, its limits, how to start and stop it, what it sends
 down, and what it can and cannot show. It describes the `quorum` program
-that ran in runs 1 and 2. The package for a third run, proposed to ESA on October 26, 2026, is the F´
+that ran in runs 1 and 2. Run 3, on October 28, 2026, flew the F´
 deployment of the same decision core, with F´'s command, event and
-telemetry interfaces ([run 3](#run-3-v070-the-f-deployment-proposed)).
+telemetry interfaces ([run 3](#run-3-v070-the-f-deployment-flown-october-28-2026)).
 
 ## What runs
 
@@ -54,6 +57,9 @@ repaired.
   cleanly on command.
 - How often real radiation flips bits in unprotected memory, if the platform
   memory has no error correction, measured by the sensor.
+- From run 3: the same decisions inside a real F´ deployment, with each
+  replica a process of its own on the SEPP's two cores and a real process
+  kill.
 
 **What it does not show**
 
@@ -147,10 +153,13 @@ target, checks it against `SHA256SUMS`, adds `run`, the schedules, a
 the required ownership and no hidden entries. `QUORUM_BIN=path ./package.sh`
 packages a binary you built yourself.
 
-### Run 3 (v0.7.0, the F´ deployment, proposed)
+### Run 3 (v0.7.0, the F´ deployment, flown October 28, 2026)
 
-Run 1 flew the demo, `quorum`, and run 2 flew it too. Run 3, proposed to ESA on October 26, 2026, is the package for the F´ components ([design](fprime-design-fpp.md)) in a real F´ deployment,
-`MruOpsSat`: `RedundancyManager`, `HealthRegistry`, three `ReplicaHost`
+Run 1 flew the demo, `quorum`, and run 2 flew it too. Run 3, proposed to
+ESA on October 26, 2026, flew the F´ components
+([design](fprime-design-fpp.md)) on October 28, 2026, in version 2 of the
+package, with each replica in a process of its own (below). Version 1 is a
+real F´ deployment, `MruOpsSat`: `RedundancyManager`, `HealthRegistry`, three `ReplicaHost`
 threads and the test-only `FaultInjector`, with F´'s own command
 dispatcher, event manager, telemetry database, health pings and command
 sequencer, driven by a Linux timer every 100 ms. No communications stack:
@@ -216,7 +225,7 @@ start-up under 0.05 s of CPU in each segment; the timed run at 1.18%
 (shrink), 1.48% (TMR) and 1.46% (restart) of wall time, of which kernel time
 is about a sixth.
 
-**v0.6.0, the package for run 3.** The same day, a restart test in CI found
+**v0.6.0, version 1 for run 3.** The same day, a restart test in CI found
 all three replicas retired as lost: the manager had fallen behind and closed
 cycles before their answers were dispatched, so healthy replicas looked
 silent. MRU-RM-023 fixes it: a cycle that closes late is withheld and counts
@@ -227,7 +236,7 @@ and events as v0.5.1 (342 / 3 / 0 over 448 cycles, 239 / 109 / 0, the
 restore at cycle 303), no cycle withheld, the timed run at 1.25%, 1.47% and
 1.30%. The package is built by `package.sh` from the v0.6.0 release asset.
 
-**Version 2, the package proposed for run 3: each replica in a process of
+**Version 2, the package that flew in run 3: each replica in a process of
 its own** (v0.7.0, [`opssat/fprime2`](../opssat/fprime2)). Version 1 runs
 the replicas as threads of one process and simulates the kill. Version 2 is
 the most representative setup the OPS-SAT rules allow: `MruQuorum`, the
@@ -248,7 +257,7 @@ of address space for the manager. The experiment's CPU, all four processes,
 was 2.9% to 3.75% of wall time under emulation (the manager 1.5% to 1.8%).
 Most of the replicas' share is their start-up under the emulator, which
 translates each binary; on the SEPP that cost is far lower, and the FlatSat
-test measures it. Version 1 stays the fallback.
+test measures it. Version 1 was the fallback.
 
 The CPU share comes from the cycle rate, not a throttle: the deployment is
 idle between timer ticks. The optimized build matters: an unoptimized F´
@@ -262,12 +271,87 @@ each summary splits the CPU time into start-up, the timed run and the end,
 with user and kernel time apart (the `cpu:` line), so a share above the
 estimate can be placed. The demo's voter on the run 2 FlatSat test showed
 5.6% and 5.8% against its 5% setting, and one total per process could not
-say why.
+say why. Measured on the SEPP on October 28, 2026, version 2 used 0.38% to
+0.46% of wall time for the manager and 0.75% to 0.99% for all four
+processes ([in orbit](#in-orbit-october-28-2026)).
 
 [`scripts/fprime-deployment.sh`](../scripts/fprime-deployment.sh) runs the
 same package with short caps against a native build in CI and checks each
 segment against the demo, the events on their cycles, the restore, and a
 second run in the same folder.
+
+### In orbit, October 28, 2026
+
+Run 3 ran in orbit: the first run of the F´ components on flight hardware.
+The v0.7.0 package (version 2), the file ESA validated, ran on the SEPP of
+OPS-SAT PRETTY (host `sepp1`, Linux 4.9, systemd unit "Experiment 4051",
+container `exp-4051`, user `exp`, user space only) on October 28, 2026, from
+09:13:01 to 09:15:29 UTC by the SEPP's clock: 148 s in total, status 0. The
+checksums of `MruQuorum`, `MruReplica` and the three sequences in
+`run-info.txt` match release v0.7.0. TU Graz ran the same package on the
+FlatSat (host `sepp`) the same morning, from 06:55:04 to 06:57:32 UTC. The
+files that came down, plus the journal lines, are in
+[`opssat/results/2026-10-28-ops-sat-pretty-on-board-run3`](../opssat/results/2026-10-28-ops-sat-pretty-on-board-run3);
+the FlatSat run is in
+[`2026-10-28-tu-graz-flatsat-run3`](../opssat/results/2026-10-28-tu-graz-flatsat-run3).
+
+| | 1 shrink | 2 fixed TMR | 3 restart |
+|---|---|---|---|
+| Start (UTC) | 09:13:01 | 09:13:47 | 09:14:22, killed 09:14:57, started again 09:14:59 |
+| Wall time | 45.3 s (cap) | 35.3 s (cap) | 35 s, then 30.3 s (caps) |
+| Exit code | 0 | 0 | 137 (the planned kill), then 0 |
+| Cycles | 449 | 349 | 299 after the restore (303 to 601) |
+| Correct results | 342 | 239, then a caught disagreement on every cycle from 240 to 348 | 299 |
+| Wrong results | 0 | 0 | 0 |
+| Caught | 3 | 109 | 0 |
+| Withheld (`late=`) | 0 | 0 | 0 |
+| Replica processes | 0 ended by SIGKILL at cycle 240; 1 and 2 exit 0 | the same | all three exit 0 |
+| Cores of replicas 0, 1, 2 | 0, 1, 1 | 0, 1, 1 | 0, 1, 1 |
+| Manager memory | 1,712 KiB resident, 11,808 KiB address space | the same | 1,708 KiB, 11,808 KiB |
+| CPU share of wall time, manager / all four processes | 0.40% / 0.79% | 0.46% / 0.96% | 0.43% / 0.82% |
+
+Events, from the logs. Segment 1: the flip applied to replica 2 at cycle 60
+and outvoted; replica 1 stuck at 120, a known-answer test at 122 and replica
+1 retired; compare mode from 123; replica 0's process killed at the start of
+cycle 240, disagreements caught on 240 to 242, replica 0 retired as lost at
+242; self-check on replica 2 from 243 to the end. Segment 2: the same faults
+on the same cycles; fixed TMR retired replica 0 as lost at 242 and, left
+comparing a good replica with a stuck one, delivered nothing more. Segment 3:
+replica 1 stuck at 200 and retired at 202; the manager killed 35 s in, its
+state file 21 bytes; started again, `StateRestored` with policy SHRINK,
+slots active, retired, active, and cycle 303; then 299 correct results, 0
+wrong, two replicas alive. The manager's and the fault injector's events are
+the same, cycle for cycle, as in our full run of the release package in
+ESA's image on October 22, 2026.
+
+On the FlatSat, the kill landed while replica 0's link errors were still
+waiting in the manager's queue, so the manager withheld cycle 240 instead of
+blaming replica 0 for a missing answer. This is the late-cycle rule added in
+v0.6.0 (MRU-RM-023): a cycle that closes while the manager is behind
+delivers nothing and counts against no replica. Replica 0 was retired one
+cycle later than on our test host, at cycle 243 instead of 242, and the
+counts did not change: 342 correct, 3 caught, 0 wrong (in segment 2, 239
+correct, 108 caught and 1 withheld). In orbit, no cycle was withheld: replica
+0 was retired at cycle 242, as on our test host. The prediction covered both.
+
+Every count matches the prediction written to ESA on October 26 and restated
+on October 28 after the FlatSat test: zero wrong results in every segment;
+about 340 correct results in segment 1, with the quorum down to its last
+replica (342); 239 for fixed TMR, then a caught disagreement on every cycle;
+and one restore in segment 3, with the retired replica still retired. The run
+took 148 s, as in ESA's image.
+
+CPU, measured on the SEPP: the manager used 0.40% to 0.46% of wall time and
+all four processes 0.79% to 0.96%, under the registered 5% (FlatSat: 0.38% to
+0.46% and 0.75% to 0.99%). The CPU times come in steps of 10 ms (0.12 s to
+0.19 s per segment), so the shares are coarse. The load average at the start
+was 0.07, as on the FlatSat.
+
+Scope: the F´ components in a real F´ deployment, three replica processes on
+the two cores of one Linux payload processor, in user space, with faults from
+a command sequence and a real process kill by the manager. Not a
+hardware-redundancy test, not a platform reset, and not qualification
+evidence. The run 3 package has no radiation sensor.
 
 ### Run 2 (v0.4.0, flown October 22, 2026)
 
@@ -626,13 +710,19 @@ All in the output folder:
   and after the kill (`stdout-restart-1.txt`, `stdout-restart-2.txt`), the
   checkpoint as it was at the kill (`checkpoint-restart-at-kill.txt`) and
   the final checkpoint (`checkpoint-restart.txt`), a few hundred bytes each.
+- The run 3 package (F´) writes its own files instead: `events-SEGMENT.txt`
+  (F´'s events as text lines, with the console notes), `summary-SEGMENT.txt`
+  (counts, footprint, CPU by phase, how each replica process ended and its
+  core), `run-info.txt`, and the manager's state file at the kill and at the
+  end (`state-restart-at-kill.dat`, `state-restart.dat`, 21 bytes each).
 
 ## What success looks like
 
 1. The shrinking quorum delivers more correct results than fixed TMR under the
    same injected faults, as on the ground. **Outcome in orbit:** run 1,
    2,745 against 239, zero wrong in both; run 2, 698 against 119 before the
-   planned halt, zero wrong in both.
+   planned halt, zero wrong in both; run 3, in F´, 342 against 239, zero
+   wrong in both.
 2. Every injected fault is detected and handled as expected (stuck replica
    retired, lost replica dropped, mode stepped down, sensor self-test flip
    found). **Outcome:** all four, on the same ticks as on the ground: stuck at
@@ -641,12 +731,16 @@ All in the output folder:
    outvoted at once. Run 2: all of its faults, on the same ticks as on the
    FlatSat, including the hung replica at 60 and the stuck bit on the last
    replica, caught by the known-answer test at 1,280 for a safe halt.
+   Run 3: the flip at 60 outvoted, replica 1 retired at 122, replica 0's
+   process killed at 240 and retired as lost at 242, self-check from 243, on
+   the same cycles as in ESA's image.
 3. Any real bit flips, in the replicas or in the sensor, are logged with their
    time and location. PRETTY's dosimeter data is not available to
    experimenters (ESA, October 16, 2026), so the sensor's counts stand on their
    own. **Outcome:** none in 227 seconds in run 1 or in 136 seconds in run 2.
    The only flip in the 64 MB sensor block was the injected self-test, one
    per segment that has it (21 and 18 scans in run 1, 5 and 3 in run 2).
+   The run 3 package has no sensor.
 4. No limit is ever exceeded, and the platform is never affected. **Outcome:**
    the voter stayed at 65,992 KiB and each replica at 452 KiB against the 128
    MB limit; voter CPU time was 5.930 s over 113.521 s of wall (shrink) and
@@ -658,9 +752,15 @@ All in the output folder:
    Run 2: 66,004 KiB and 464 KiB; voter CPU 4.6%, 4.6% and, after the
    restart, 5.7% against the 5% setting (open, see above); no cap overrun;
    for run 2 too ESA reported only that "the flight run has been completed".
+   Run 3: the manager at 1.7 MB resident and 11.8 MB of address space; all
+   four processes 0.79% to 0.96% of wall time; ESA reported that the package
+   "has now been executed on the spacecraft".
 5. A reset loses nothing. **Outcome in orbit (run 2):** the voter, killed
    without warning at tick 900, resumed once from its checkpoint with the
    retired replica still retired, the strikes and the counts kept, and
-   delivered 1,750 correct results and 0 wrong in that segment.
+   delivered 1,750 correct results and 0 wrong in that segment. **Run 3:**
+   the F´ manager, killed without warning 35 s in, restored the policy, the
+   slots (replica 1 still retired) and the cycle counter from its state file,
+   and delivered 299 correct results and 0 wrong.
 
 Result files: [`opssat/results`](../opssat/results).

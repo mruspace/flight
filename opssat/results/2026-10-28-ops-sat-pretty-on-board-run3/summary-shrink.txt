@@ -1,0 +1,6 @@
+policy=shrink cycles=449 cycle_ms=100 sequence=ok
+useful=342 detected=3 wrong=0 late=0 last_useful=448 live_at_end=1 mode=self-check slots=retired,retired,active stopped=time-limit
+footprint: max_rss=1712KiB address_space=11808KiB cpu=0.190s wall=45.290s
+cpu: startup_user=0.010s startup_system=0.000s startup_wall=0.068s run_user=0.120s run_system=0.060s run_wall=45.000s run_share=0.40% end_cpu=0.000s
+replicas: 0=signal 9 1=exit 0 2=exit 0 cores=0,1,1 cpu=0.170s experiment_share=0.79%
+limits: memory=128MB/process max_run=45s

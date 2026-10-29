@@ -1,0 +1,6 @@
+policy=tmr cycles=349 cycle_ms=100 sequence=ok
+useful=239 detected=109 wrong=0 late=0 last_useful=239 live_at_end=2 mode=compare slots=retired,active,active stopped=time-limit
+footprint: max_rss=1712KiB address_space=11808KiB cpu=0.170s wall=35.309s
+cpu: startup_user=0.010s startup_system=0.000s startup_wall=0.067s run_user=0.160s run_system=0.000s run_wall=35.000s run_share=0.46% end_cpu=0.000s
+replicas: 0=signal 9 1=exit 0 2=exit 0 cores=0,1,1 cpu=0.170s experiment_share=0.96%
+limits: memory=128MB/process max_run=35s

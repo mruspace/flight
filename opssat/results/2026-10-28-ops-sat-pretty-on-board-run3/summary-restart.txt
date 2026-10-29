@@ -1,0 +1,6 @@
+policy=shrink cycles=299 cycle_ms=100 sequence=none
+useful=299 detected=0 wrong=0 late=0 last_useful=601 live_at_end=2 mode=compare slots=active,retired,active stopped=time-limit
+footprint: max_rss=1708KiB address_space=11808KiB cpu=0.130s wall=30.319s
+cpu: startup_user=0.000s startup_system=0.000s startup_wall=0.057s run_user=0.000s run_system=0.130s run_wall=30.000s run_share=0.43% end_cpu=0.000s
+replicas: 0=exit 0 1=exit 0 2=exit 0 cores=0,1,1 cpu=0.120s experiment_share=0.82%
+limits: memory=128MB/process max_run=30s

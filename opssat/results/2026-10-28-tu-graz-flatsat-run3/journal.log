@@ -1,0 +1,5 @@
+-- Logs begin at Tue 2026-10-27 09:59:12 UTC, end at Wed 2026-10-28 06:57:32 UTC. --
+Oct 28 06:55:02 sepp systemd[1]: Starting Experiment 4051...
+Oct 28 06:55:02 sepp spawn[2953]: starting experiment 4051
+Oct 28 06:55:02 sepp systemd[1]: Started Experiment 4051.
+Oct 28 06:57:32 sepp systemd-machined[1848]: Machine exp-4051 terminated.

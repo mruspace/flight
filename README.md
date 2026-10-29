@@ -41,19 +41,20 @@ This repository is where that policy becomes flight software: a small,
 verified Rust core, wrapped as components for NASA JPL's open-source
 [F´](https://github.com/nasa/fprime) framework.
 
-**Status (October 2026): the demo ran in orbit twice.** On October 18, 2026,
+**Status (October 2026): Mru Flight ran in orbit three times.** On October 18, 2026,
 Mru Flight v0.3.1 ran on the SEPP payload processor of ESA's OPS-SAT PRETTY as
 experiment exp4051: three software replicas on one processor, with faults
 from a schedule, 227 seconds, every result as predicted in writing before the
 run. On October 22, 2026, v0.4.0 ran there again: a hung replica, a stuck
 replica, a stuck bit on the last replica caught for a safe halt with no wrong
 result, and a resume after the voter was killed, again as predicted
-([in orbit](#in-orbit)). That tests the software policy on a flight
-processor. It is not a hardware-redundancy test and not qualification
-evidence. The decision core, the demo on real processes with faults injected,
-and the F´ components (three for flight, two test-only) work today, with a
-first F´ deployment that runs in ESA's OPS-SAT experiment environment; the
-F´ components have not run on flight hardware.
+([in orbit](#in-orbit)). On October 28, 2026, v0.7.0 ran there as an F´
+deployment: the F´ components, with each replica a process of its own on the
+SEPP's two cores and a real process kill, again as predicted. That tests the
+software policy on a flight processor. It is not a hardware-redundancy test
+and not qualification evidence. The decision core, the demo on real
+processes with faults injected, and the F´ components (three for flight, two
+test-only) work today.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/chart-dark.png">
@@ -66,7 +67,7 @@ F´ components have not run on flight hardware.
 |---|---|
 | [`quorum`](quorum/src/lib.rs) | The decision core: vote, compare, self-check, and the health record that decides when a replica must be diagnosed. `no_std`, no allocation, no dependencies. Unit-tested, checked with [Kani](https://github.com/model-checking/kani), and built in CI for a bare-metal ARM Cortex-M target. |
 | [`quorum-ffi`](quorum-ffi/src/lib.rs) | The C interface to the core ([`quorum.h`](quorum-ffi/include/quorum.h)), as a `no_std` static library. Kani proves that its decide, mode, strike and clear functions give the core's answer. Used by the F´ components, and usable from any C or C++ framework. |
-| [`fprime`](fprime) | F´ v4.4.1 components: `RedundancyManager`, `HealthRegistry`, `ReplicaHost`, and the test-only `FaultInjector` and `RunRecorder`, with spares, standby and state that survives resets. 45 unit tests, and a system test against the demo on the bench schedules: wrong results match in all 60 cases, and correct results match exactly in 36 ([requirements](docs/fprime-requirements.md), [design and results](docs/fprime-design-fpp.md)). `MruOpsSat`, the first F´ deployment: the components with F´'s command, event, telemetry, health and sequencing services, driven by a Linux timer, built as a static 32-bit ARM binary for OPS-SAT PRETTY's processor ([run 3 package](docs/opssat.md)). |
+| [`fprime`](fprime) | F´ v4.4.1 components: `RedundancyManager`, `HealthRegistry`, `ReplicaHost`, and the test-only `FaultInjector` and `RunRecorder`, with spares, standby and state that survives resets. 45 unit tests, and a system test against the demo on the bench schedules: wrong results match in all 60 cases, and correct results match exactly in 36 ([requirements](docs/fprime-requirements.md), [design and results](docs/fprime-design-fpp.md)). `MruOpsSat`, the first F´ deployment: the components with F´'s command, event, telemetry, health and sequencing services, driven by a Linux timer, built as a static 32-bit ARM binary for OPS-SAT PRETTY's processor. `MruQuorum` with three `MruReplica` processes, the second, puts each replica in a process of its own; it ran in orbit on OPS-SAT PRETTY on October 28, 2026 ([run 3](docs/opssat.md)). |
 | [`bench`](bench/src/main.rs) | Times the decision core on the host: nanoseconds per call of `decide()` for each policy and mode, and of `Health::strike()`. No dependencies. |
 | [`demo`](demo/src/main.rs) | The `quorum` program: three replica processes, a voter built on the core, fault injection, enforced resource limits, and a report of what was delivered and what it cost. Runs on Linux and macOS; release builds are fully static binaries for 64-bit and 32-bit ARM Linux and x86_64 Linux. Its only dependency is `libc`, for the system calls behind the limits. |
 
@@ -276,7 +277,8 @@ Method, results and limits: [docs.mru.space/core/bench](https://docs.mru.space/c
 Linux board over SSH, with reboots or real power cuts. No run with `board.sh`
 has been done yet; the procedure is in [docs/board.md](docs/board.md). The
 OPS-SAT package, which runs the demo without `board.sh`, has run on the
-PRETTY FlatSat and in orbit, twice ([in orbit](#in-orbit)).
+PRETTY FlatSat and in orbit, twice, and the F´ deployment once
+([in orbit](#in-orbit)).
 
 ### Footprint and limits
 
@@ -291,7 +293,8 @@ Largest resident memory of any process over all 300 bench runs per host, from
 
 The static `quorum` binaries in the v0.2.0 release packages are 642 to 675 kB.
 The 32-bit ARM (hard float) binaries of v0.3.1 and v0.4.0 are the ones that
-ran on the SEPP, on the FlatSat and in orbit.
+ran on the SEPP, on the FlatSat and in orbit. In run 3 the F´ manager,
+`MruQuorum`, used 1.7 MB resident and 11.8 MB of address space on the SEPP.
 
 The scenario tests also check the safety limits: a hung replica is dropped
 after the reply timeout, SIGTERM ends the run cleanly with no replica left, the
@@ -335,10 +338,28 @@ voter is killed without warning and resumes from its checkpoint:
 The known-answer test caught the stuck bit on the last replica on the tick
 it appeared, so the quorum halted with no wrong result. After the kill, the
 voter resumed with the retired replica still retired. The orbit run matched
-the prediction written to ESA before it. Scope, for both runs:
-three software replicas on one Linux payload processor, in user space, with
-faults from a schedule, 227 and 136 seconds in orbit with no real upset in
-the 64 MB sensor block. This tests the software policy on a flight processor. It is
+the prediction written to ESA before it.
+
+On October 28, 2026, run 3 (v0.7.0) flew the F´ components in a real F´
+deployment, 148 seconds: the manager process, `MruQuorum`, with F´'s command
+dispatcher, events, telemetry, health pings and command sequencer, and three
+`MruReplica` processes pinned to the SEPP's two cores (0, 1, 1). The faults
+of run 1 came from an F´ command sequence, the kill was a real SIGKILL of
+replica 0's process, and in segment 3 the manager was killed and restored
+from its state file:
+
+| Run 3 | Host | 1 shrink: correct / caught / wrong | 2 fixed TMR: correct, then caught to cycle | 3 restart: correct / wrong | Exit |
+|---|---|---|---|---|---|
+| 2026-10-28, TU Graz FlatSat | SEPP on the bench | 342 / 3 / 0, one cycle withheld at the kill | 239, then 348, one cycle withheld | 299 / 0, restored at cycle 303 | 0, 0, 137 and 0 |
+| 2026-10-28, 09:13 UTC, in orbit | SEPP on OPS-SAT PRETTY | 342 / 3 / 0 | 239, then 348 | 299 / 0, restored at cycle 303 | 0, 0, 137 and 0 |
+
+Each replica ran on the core it was pinned to, the retired replica stayed
+retired through the restore, and all four processes used 0.79% to 0.96% of
+wall time on the SEPP. The orbit run matched the prediction written to ESA
+before it. Scope, for all three runs: three software replicas on one Linux
+payload processor, in user space, with faults from a schedule or a command
+sequence; 227, 136 and 148 seconds in orbit, with no real upset in the 64 MB
+sensor block of runs 1 and 2 (run 3 has no sensor). This tests the software policy on a flight processor. It is
 not a hardware-redundancy test and not qualification evidence, and the 1.34×
 above comes from dusk's simulated missions, not from these runs. Numbers, logs
 and the operations note: [docs/opssat.md](docs/opssat.md) and
@@ -416,12 +437,13 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
    processes, puts each replica in a process of its own on the SEPP's two
    cores, linked through F´'s GenericHub, with a real kill. Both are built for
    OPS-SAT PRETTY's processor and ran full length in ESA's experiment
-   environment; a run on the SEPP is planned. Next:
+   environment; the second ran in orbit on October 28, 2026. Next:
    `PowerAccountant` and `ScrubScheduler`.
 2. **Measurements on representative processors**: static ARM Linux binaries are
    built and tested in CI under emulation. The 32-bit ARM binary ran on the
    SEPP, the flight processor of OPS-SAT PRETTY, on the FlatSat and in orbit
-   (v0.3.1 and v0.4.0, October 2026). Next: real boards on the bench.
+   (v0.3.1 and v0.4.0, October 2026), and the F´ deployment there too
+   (v0.7.0, October 28, 2026). Next: real boards on the bench.
 3. **Hardware-in-the-loop bench**: real boards with injected faults (bit flips,
    resets, power cuts). The scripts and the procedure are ready
    ([docs/board.md](docs/board.md)).
@@ -430,9 +452,12 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
    quorum under injected faults on the flight processor of OPS-SAT PRETTY on
    October 18, 2026, with the software's own radiation sensor logged, and the
    rest of the lifecycle on October 22, 2026: a hung replica, a stuck bit on
-   the last replica with a safe halt, and a resume after a kill. Both matched
-   the written prediction ([operations note](docs/opssat.md)). Next: run 3,
-   the F´ deployment on the SEPP, planned.
+   the last replica with a safe halt, and a resume after a kill. Run 3 flew
+   the F´ deployment on October 28, 2026, each replica a process of its own,
+   with a real kill and a restore from the manager's state file. All three
+   matched the written prediction ([operations note](docs/opssat.md)). Next:
+   at most one more run on PRETTY, a failure case chosen with ESA's
+   operations team, planned.
 5. **On Earth**: the same software on an unattended ocean node, proposed for an
    EMSO ERIC observatory test.
 
