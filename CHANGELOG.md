@@ -5,6 +5,10 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ## Unreleased
 
+### Changed
+
+- `RedundancyManager`: the `DisagreementCaught` event description says that its mode is the one the cycle was decided in, from the answers counted that cycle. In run 3 in orbit the event read "caught at cycle 240 in SELF_CHECK" while the mode change to SELF_CHECK was logged at 243: replica 0's process had been killed, so it dropped out of the decision three cycles before it was retired as lost. Not a behavior change.
+
 ### Added
 
 - Run 3 ran in orbit on October 28, 2026 (v0.7.0, version 2, the package ESA validated): the first run of the F´ components on flight hardware, `MruQuorum` with three `MruReplica` processes pinned to the SEPP's cores 0, 1, 1. Segment 1 shrink 342 correct, 3 caught, 0 wrong, replica 0's process killed at cycle 240 and retired at 242; segment 2 fixed TMR 239, then caught on every cycle; segment 3 the manager killed at 35 s, restored at cycle 303 with replica 1 retired, 299 correct, 0 wrong. 148 s, matches the prediction. On the FlatSat the same morning the manager withheld cycle 240 at the kill (MRU-RM-023), counts unchanged; in orbit no cycle was withheld. CPU on the SEPP: all four processes 0.79% to 0.96% of wall time. Result files in `opssat/results/2026-10-28-ops-sat-pretty-on-board-run3` and `2026-10-28-tu-graz-flatsat-run3`; `docs/opssat.md` has an "In orbit, October 28, 2026" section.

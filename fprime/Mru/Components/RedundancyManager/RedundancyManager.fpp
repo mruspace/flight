@@ -100,10 +100,13 @@ module Mru {
       severity activity high \
       format "Mode {} -> {} at cycle {}"
 
-    @ A disagreement was caught; nothing was delivered for the cycle (MRU-RM-005)
+    @ A disagreement was caught; nothing was delivered for the cycle (MRU-RM-005).
+    @ The mode is the one the cycle was decided in, from the answers counted that
+    @ cycle, so it can run ahead of ModeChanged: a replica that stops answering
+    @ drops out of the decision before it is retired as lost.
     event DisagreementCaught(
       cycle: U64 @< The cycle
-      mode: Mode @< The mode it was caught in
+      mode: Mode @< The mode the cycle was decided in, from the answers counted
     ) \
       severity warning low \
       format "Disagreement caught at cycle {} in {}" \
