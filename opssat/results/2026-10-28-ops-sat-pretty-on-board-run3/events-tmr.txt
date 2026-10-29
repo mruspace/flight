@@ -1,0 +1,101 @@
+replica 0: pid 124, pinned, on core 0
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+replica 1: pid 125, pinned, on core 1
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+EVENT: (16789504) (2:1793178827,37457) ACTIVITY_LO: (CdhCore.version) FrameworkVersion : Framework Version: [558b7ef]
+EVENT: (16789505) (2:1793178827,37561) ACTIVITY_LO: (CdhCore.version) ProjectVersion : Project Version: [v0.7.0]
+replica 2: pid 127, pinned, on core 1
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+EVENT: (268447744) (2:1793178827,89356) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_SequenceLoaded : Loaded sequence /home/exp/tmr.bin
+EVENT: (268447759) (2:1793178827,89502) ACTIVITY_HI: (MruQuorum.cmdSeq) CS_PortSequenceStarted : Local request for sequence /home/exp/tmr.bin started.
+EVENT: (16777217) (2:1793178827,89631) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10004000 dispatched to port 6
+EVENT: (268451840) (2:1793178827,89728) ACTIVITY_HI: (MruQuorum.manager) PolicySet : Policy set to TMR (1)
+EVENT: (16777218) (2:1793178827,89922) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10004000 completed
+EVENT: (268447752) (2:1793178827,90033) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/tmr.bin: Command 0 (opcode 268451840) complete
+EVENT: (268517381) (2:1793178827,90177) ACTIVITY_HI: (MruQuorum.injector) UpsetsSet : Upsets: rate 0.000000, common mode 0.050000, seed 1
+EVENT: (16777217) (2:1793178827,90257) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10014002 dispatched to port 5
+EVENT: (16777218) (2:1793178827,90303) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10014002 completed
+EVENT: (268447752) (2:1793178827,90399) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/tmr.bin: Command 1 (opcode 268517378) complete
+EVENT: (268517376) (2:1793178827,90518) ACTIVITY_HI: (MruQuorum.injector) FaultScheduled : CORRUPT (3) scheduled on replica 2 at cycle 60
+EVENT: (16777217) (2:1793178827,90579) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10014000 dispatched to port 5
+EVENT: (16777218) (2:1793178827,90624) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10014000 completed
+EVENT: (268447752) (2:1793178827,90716) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/tmr.bin: Command 2 (opcode 268517376) complete
+EVENT: (268517376) (2:1793178827,90831) ACTIVITY_HI: (MruQuorum.injector) FaultScheduled : STUCK (2) scheduled on replica 1 at cycle 120
+EVENT: (16777217) (2:1793178827,90966) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10014000 dispatched to port 5
+EVENT: (16777218) (2:1793178827,91015) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10014000 completed
+EVENT: (268447752) (2:1793178827,91115) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/tmr.bin: Command 3 (opcode 268517376) complete
+EVENT: (268447753) (2:1793178827,91177) ACTIVITY_HI: (MruQuorum.cmdSeq) CS_SequenceComplete : Sequence file /home/exp/tmr.bin complete
+EVENT: (268451852) (2:1793178827,199480) WARNING_LO: (MruQuorum.manager) StateNotRestored : No valid state file; starting with all slots active
+EVENT: (268517377) (2:1793178833,99788) WARNING_LO: (MruQuorum.injector) FaultApplied : CORRUPT (3) applied to replica 2 at cycle 60
+EVENT: (268517377) (2:1793178839,99725) WARNING_LO: (MruQuorum.injector) FaultApplied : STUCK (2) applied to replica 1 at cycle 120
+FAULT: replica 0 (pid 124) sent SIGKILL at the start of cycle 240: ok
+[WARNING] link0 failed to recv from port with status -8 and errno 104
+EVENT: (268550146) (2:1793178851,99920) WARNING_LO: (MruQuorum.adapter0) DataReceiveError : Data reception error status: 3
+EVENT: (268451842) (2:1793178851,199498) WARNING_LO: (MruQuorum.manager) DisagreementCaught : Disagreement caught at cycle 240 in COMPARE (1)
+EVENT: (268550145) (2:1793178851,199624) WARNING_LO: (MruQuorum.adapter0) DataSendError : Data send error status: 3
+EVENT: (268451842) (2:1793178851,299479) WARNING_LO: (MruQuorum.manager) DisagreementCaught : Disagreement caught at cycle 241 in COMPARE (1)
+EVENT: (268550145) (2:1793178851,299593) WARNING_LO: (MruQuorum.adapter0) DataSendError : Data send error status: 3
+EVENT: (268451842) (2:1793178851,399469) WARNING_LO: (MruQuorum.manager) DisagreementCaught : Disagreement caught at cycle 242 in COMPARE (1)
+EVENT: (268550145) (2:1793178851,399570) WARNING_LO: (MruQuorum.adapter0) DataSendError : Data send error status: 3
+EVENT: (268451845) (2:1793178851,399623) WARNING_HI: (MruQuorum.manager) ReplicaRetired : Replica 0 retired (LOST (2)) at cycle 242
+EVENT: (268451841) (2:1793178851,399676) ACTIVITY_HI: (MruQuorum.manager) ModeChanged : Mode VOTE (0) -> COMPARE (1) at cycle 243
+EVENT: (268451842) (2:1793178851,400281) WARNING_LO: (MruQuorum.manager) DisagreementCaught : Disagreement caught at cycle 243 in COMPARE (1)
+EVENT: (268451842) (2:1793178851,499982) WARNING_LO: (MruQuorum.manager) DisagreementCaught : Disagreement caught at cycle 244 in COMPARE (1)
+EVENT: (268451842) (2:1793178851,599982) WARNING_LO: (MruQuorum.manager) DisagreementCaught : Disagreement caught at cycle 245 in COMPARE (1)
+EVENT: (268451842) (2:1793178851,699975) WARNING_LO: (MruQuorum.manager) DisagreementCaught : Disagreement caught at cycle 246 in COMPARE (1)
+EVENT: (268451842) (2:1793178851,799978) WARNING_LO: (MruQuorum.manager) DisagreementCaught : Disagreement caught at cycle 247 in COMPARE (1)
+EVENT: (268451842) (2:1793178851,899997) WARNING_LO: (MruQuorum.manager) DisagreementCaught : Disagreement caught at cycle 248 in COMPARE (1)
+EVENT: (268451842) (2:1793178851,999977) WARNING_LO: (MruQuorum.manager) DisagreementCaught : Disagreement caught at cycle 249 in COMPARE (1)
+[WARNING] link1 failed to recv from port with status -8 and errno 0
+[WARNING] link failed to recv from port with status -8 and errno 0
+EVENT: (268554242) (2:1793178862,300094) WARNING_LO: (MruQuorum.adapter1) DataReceiveError : Data reception error status: 3
+[WARNING] link failed to recv from port with status -8 and errno 0
+[WARNING] link2 failed to recv from port with status -8 and errno 0
+EVENT: (268558338) (2:1793178862,300357) WARNING_LO: (MruQuorum.adapter2) DataReceiveError : Data reception error status: 3
+policy=tmr cycles=349 cycle_ms=100 sequence=ok
+useful=239 detected=109 wrong=0 late=0 last_useful=239 live_at_end=2 mode=compare slots=retired,active,active stopped=time-limit
+footprint: max_rss=1712KiB address_space=11808KiB cpu=0.170s wall=35.309s
+cpu: startup_user=0.010s startup_system=0.000s startup_wall=0.067s run_user=0.160s run_system=0.000s run_wall=35.000s run_share=0.46% end_cpu=0.000s
+replicas: 0=signal 9 1=exit 0 2=exit 0 cores=0,1,1 cpu=0.170s experiment_share=0.96%
+limits: memory=128MB/process max_run=35s

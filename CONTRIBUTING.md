@@ -1,7 +1,8 @@
 # Contributing to Mru Flight
 
-Thank you for your interest. Mru Flight has no qualification evidence; its demo
-has run twice in orbit as a user-space experiment, which is not qualification.
+Thank you for your interest. Mru Flight has no qualification evidence; it
+has run three times in orbit as a user-space experiment (the demo twice, the
+F´ deployment once), which is not qualification.
 Pull requests are welcome. For questions or bug reports, email
 contact@mru.space.
 

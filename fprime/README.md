@@ -25,7 +25,8 @@ the expected counts from the demo).
 
 ## The deployment: `MruOpsSat`
 
-The first F´ deployment of the components, for OPS-SAT run 3: the four
+The first F´ deployment of the components, built for OPS-SAT run 3 (run 3
+flew version 2, `MruQuorum` with `MruReplica`, on October 28, 2026): the four
 components with F´'s command, event, telemetry, health and sequencing
 services, driven by a Linux timer ([design](../docs/fprime-design-fpp.md#deployment-mruopssat),
 [package](../docs/opssat.md)). Built and tested on Linux; on macOS, build

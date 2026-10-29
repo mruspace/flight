@@ -8,10 +8,11 @@ Prototype to Bench-tested on the
 [architecture status page](https://docs.mru.space/concepts/architecture/).
 
 No run with `board.sh` has been done yet. This note is the procedure. The
-OPS-SAT package, which runs the demo without this bench, has run on the SEPP
-of ESA's OPS-SAT PRETTY, on the FlatSat on October 16 and 21, 2026, and in orbit
-on October 18 and 22, 2026 ([opssat.md](opssat.md)). Those runs had no resets
-or power cuts; run 2 killed and restarted the voter process, in user space.
+OPS-SAT packages, which run without this bench, have run on the SEPP of ESA's
+OPS-SAT PRETTY, on the FlatSat on October 16, 21 and 28, 2026, and in orbit on
+October 18, 22 and 28, 2026 ([opssat.md](opssat.md)). Those runs had no resets
+or power cuts; runs 2 and 3 killed and restarted the voter or manager
+process, in user space.
 
 ## Which board
 

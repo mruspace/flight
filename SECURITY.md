@@ -8,9 +8,9 @@ email.
 
 ## Scope
 
-Mru Flight has no qualification evidence. The demo has run twice in orbit, as a
-user-space experiment on ESA's OPS-SAT PRETTY (October 2026); that is not
-qualification. Do not use it to control anything that can cause harm.
+Mru Flight has no qualification evidence. It has run three times in orbit (the
+demo twice, the F´ deployment once), as a user-space experiment on ESA's
+OPS-SAT PRETTY (October 2026); that is not qualification. Do not use it to control anything that can cause harm.
 
 In scope:
 

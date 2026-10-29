@@ -1,0 +1,53 @@
+experiment=exp4051 package=mru-flight-fprime-processes run=3
+start_utc=2026-10-28T06:55:04Z
+uname=Linux exp-4051 4.9.0 #7 SMP Fri Nov 12 13:21:34 UTC 2021 armv7l Linux
+user=uid=1024(exp) gid=1024(exp) groups=1024(exp)
+nproc=2 loadavg=0.07 0.06 0.00 1/81 60
+--- /proc/cpuinfo ---
+processor	: 0
+model name	: ARMv7 Processor rev 0 (v7l)
+BogoMIPS	: 200.00
+Features	: half thumb fastmult vfp edsp thumbee neon vfpv3 tls vfpd32 
+CPU implementer	: 0x41
+CPU architecture: 7
+CPU variant	: 0x3
+CPU part	: 0xc09
+CPU revision	: 0
+
+processor	: 1
+model name	: ARMv7 Processor rev 0 (v7l)
+BogoMIPS	: 200.00
+Features	: half thumb fastmult vfp edsp thumbee neon vfpv3 tls vfpd32 
+CPU implementer	: 0x41
+CPU architecture: 7
+CPU variant	: 0x3
+CPU part	: 0xc09
+CPU revision	: 0
+
+Hardware	: Altera SOCFPGA
+Revision	: 0000
+Serial		: 0000000000000000
+--- /proc/meminfo (head) ---
+MemTotal:        1027320 kB
+MemFree:          873624 kB
+MemAvailable:     965352 kB
+Buffers:           25740 kB
+Cached:            96824 kB
+---
+deployment_sha256=0f27f74da23ee8b28d7832c4e8a4432fb0f389cb4e604d34c89359f90d74452a
+replica_sha256=b7368fe197ea9f3507a6c379750c22f87a7ad518791bdf9ba2740ea5c406d72e
+sequence_shrink_sha256=3a13868af57cdc85aedd4ffc445947afecfe3d738adcb7615566f79fd73f55c9
+sequence_tmr_sha256=712c460c1e895c1dc42627959c879dc80e5d499ee9aa6797765ecfc900ef5bfc
+sequence_restart_sha256=4d11c45ac9a1a898feb02d6157092d80abe4c60d64898f9a7cd16edb69767755
+settings: segments=shrink tmr restart shrink_seconds=45 tmr_seconds=35 restart_after=35 restart_seconds=30 cycle_ms=100 memory_mb=128 cores=0,1,1 kill_cycle=240
+shrink: start_utc=2026-10-28T06:55:04Z max_seconds=45
+shrink: exit=0 end_utc=2026-10-28T06:55:49Z
+tmr: start_utc=2026-10-28T06:55:49Z max_seconds=35
+tmr: exit=0 end_utc=2026-10-28T06:56:25Z
+restart-1: start_utc=2026-10-28T06:56:25Z max_seconds=45
+restart: deployment killed (SIGKILL) at 2026-10-28T06:57:00Z, as planned
+restart-1: exit=137 end_utc=2026-10-28T06:57:00Z
+restart: state file at the kill: 21 bytes
+restart: start_utc=2026-10-28T06:57:02Z max_seconds=30
+restart-2: exit=0 end_utc=2026-10-28T06:57:32Z
+end_utc=2026-10-28T06:57:32Z status=0

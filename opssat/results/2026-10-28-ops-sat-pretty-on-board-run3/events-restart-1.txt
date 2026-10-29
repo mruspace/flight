@@ -1,0 +1,75 @@
+replica 0: pid 166, pinned, on core 0
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+replica 1: pid 168, pinned, on core 1
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+replica 2: pid 172, pinned, on core 1
+EVENT: (16789504) (2:1793178862,361824) ACTIVITY_LO: (CdhCore.version) FrameworkVersion : Framework Version: [558b7ef]
+EVENT: (16789505) (2:1793178862,361941) ACTIVITY_LO: (CdhCore.version) ProjectVersion : Project Version: [v0.7.0]
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+EVENT: (268447744) (2:1793178862,413944) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_SequenceLoaded : Loaded sequence /home/exp/restart.bin
+EVENT: (16777217) (2:1793178862,414170) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10004000 dispatched to port 6
+EVENT: (268451840) (2:1793178862,414195) ACTIVITY_HI: (MruQuorum.manager) PolicySet : Policy set to SHRINK (0)
+EVENT: (268447759) (2:1793178862,414301) ACTIVITY_HI: (MruQuorum.cmdSeq) CS_PortSequenceStarted : Local request for sequence /home/exp/restart.bin started.
+EVENT: (16777218) (2:1793178862,419110) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10004000 completed
+EVENT: (268447752) (2:1793178862,419264) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/restart.bin: Command 0 (opcode 268451840) complete
+EVENT: (16777217) (2:1793178862,419420) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10004005 dispatched to port 6
+EVENT: (16777218) (2:1793178862,419479) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10004005 completed
+EVENT: (268447752) (2:1793178862,419566) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/restart.bin: Command 1 (opcode 268451845) complete
+EVENT: (268517381) (2:1793178862,419687) ACTIVITY_HI: (MruQuorum.injector) UpsetsSet : Upsets: rate 0.000000, common mode 0.050000, seed 1
+EVENT: (16777217) (2:1793178862,419806) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10014002 dispatched to port 5
+EVENT: (16777218) (2:1793178862,419855) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10014002 completed
+EVENT: (268447752) (2:1793178862,419944) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/restart.bin: Command 2 (opcode 268517378) complete
+EVENT: (268517376) (2:1793178862,420068) ACTIVITY_HI: (MruQuorum.injector) FaultScheduled : STUCK (2) scheduled on replica 1 at cycle 200
+EVENT: (16777217) (2:1793178862,420128) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10014000 dispatched to port 5
+EVENT: (16777218) (2:1793178862,420203) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10014000 completed
+EVENT: (268447752) (2:1793178862,420292) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/restart.bin: Command 3 (opcode 268517376) complete
+EVENT: (268447753) (2:1793178862,420378) ACTIVITY_HI: (MruQuorum.cmdSeq) CS_SequenceComplete : Sequence file /home/exp/restart.bin complete
+EVENT: (268451852) (2:1793178862,524089) WARNING_LO: (MruQuorum.manager) StateNotRestored : No valid state file; starting with all slots active
+EVENT: (268517377) (2:1793178882,424718) WARNING_LO: (MruQuorum.injector) FaultApplied : STUCK (2) applied to replica 1 at cycle 200
+EVENT: (268451843) (2:1793178882,624713) ACTIVITY_LO: (MruQuorum.manager) DiagnosisRequested : Known-answer test requested from replica 1 at cycle 202
+EVENT: (268451845) (2:1793178882,625063) WARNING_HI: (MruQuorum.manager) ReplicaRetired : Replica 1 retired (KNOWN_ANSWER_FAILED (0)) at cycle 202
+EVENT: (268451841) (2:1793178882,724077) ACTIVITY_HI: (MruQuorum.manager) ModeChanged : Mode VOTE (0) -> COMPARE (1) at cycle 203
+[WARNING] link failed to recv from port with status -8 and errno 0
+[WARNING] link failed to recv from port with status -8 and errno 0
+[WARNING] link failed to recv from port with status -8 and errno 0
