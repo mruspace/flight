@@ -13,6 +13,7 @@
 
 #![cfg_attr(not(test), no_std)]
 
+use quorum::sensor::{Selected, SENSORS};
 use quorum::{Health, Mode, Outcome, Policy, Reply, Verdict, REPLICAS, STRIKES};
 
 pub const QUORUM_SHRINK: u8 = 0;
@@ -30,6 +31,43 @@ pub const QUORUM_PAIR: u8 = 2;
 pub const QUORUM_DELIVER: u8 = 0;
 pub const QUORUM_DETECTED: u8 = 1;
 pub const QUORUM_OUTCOME_HALTED: u8 = 2;
+
+pub const QUORUM_SENSOR_AGREED: u8 = 0;
+pub const QUORUM_SENSOR_UNCHECKED: u8 = 1;
+pub const QUORUM_SENSOR_DISAGREE: u8 = 2;
+pub const QUORUM_SENSOR_NOTHING: u8 = 3;
+
+/// One sensor's reading: `present` false for no reading, or a sensor excluded.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct QuorumReading {
+    pub present: bool,
+    pub value: i32,
+}
+
+/// The choice for one cycle (`quorum::sensor::Selection`). `value` is
+/// meaningful only when `outcome` is AGREED or UNCHECKED.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QuorumSensorSelection {
+    pub outcome: u8,
+    pub value: i32,
+    pub outlier: [bool; SENSORS],
+}
+
+/// A sensor's outlier count after one cycle, and whether to exclude it.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct QuorumSensorRun {
+    pub run: u8,
+    pub exclude: bool,
+}
+
+const NOTHING_SELECTED: QuorumSensorSelection = QuorumSensorSelection {
+    outcome: QUORUM_SENSOR_NOTHING,
+    value: 0,
+    outlier: [false; SENSORS],
+};
 
 /// What one replica returned: `kind` is ABSENT, SINGLE or PAIR.
 #[repr(C)]
@@ -104,6 +142,24 @@ fn verdict(v: Verdict) -> QuorumVerdict {
         value,
         dissent: v.dissent,
         diagnose: v.diagnose,
+    }
+}
+
+fn reading(r: QuorumReading) -> Option<i32> {
+    r.present.then_some(r.value)
+}
+
+fn selection(s: quorum::sensor::Selection) -> QuorumSensorSelection {
+    let (outcome, value) = match s.selected {
+        Selected::Agreed(v) => (QUORUM_SENSOR_AGREED, v),
+        Selected::Unchecked(v) => (QUORUM_SENSOR_UNCHECKED, v),
+        Selected::Disagree => (QUORUM_SENSOR_DISAGREE, 0),
+        Selected::Nothing => (QUORUM_SENSOR_NOTHING, 0),
+    };
+    QuorumSensorSelection {
+        outcome,
+        value,
+        outlier: s.outlier,
     }
 }
 
@@ -204,6 +260,31 @@ pub unsafe extern "C" fn quorum_health_clear(h: *mut QuorumHealth, replica: u32)
     *h = from_core(&health);
 }
 
+/// Choose one value from `QUORUM_SENSORS` readings with tolerance `tolerance`.
+///
+/// # Safety
+/// `readings` must be null or point to `QUORUM_SENSORS` readable readings.
+#[no_mangle]
+pub unsafe extern "C" fn quorum_sensor_select(
+    readings: *const QuorumReading,
+    tolerance: u32,
+) -> QuorumSensorSelection {
+    if readings.is_null() {
+        return NOTHING_SELECTED;
+    }
+    // SAFETY: the caller guarantees SENSORS readable readings.
+    let r = unsafe { core::ptr::read(readings as *const [QuorumReading; SENSORS]) };
+    selection(quorum::sensor::select(&r.map(reading), tolerance))
+}
+
+/// One cycle of a sensor's outlier count: `run` outlier cycles in a row so
+/// far. Exclude after `limit` in a row (never when `limit` is 0).
+#[no_mangle]
+pub extern "C" fn quorum_sensor_observe(run: u8, outlier: bool, limit: u8) -> QuorumSensorRun {
+    let (run, exclude) = quorum::sensor::observe(run, outlier, limit);
+    QuorumSensorRun { run, exclude }
+}
+
 #[cfg(all(feature = "c-staticlib", not(test), not(kani)))]
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -231,6 +312,52 @@ mod tests {
         assert_eq!(
             (size_of::<QuorumHealth>(), align_of::<QuorumHealth>()),
             (96, 8)
+        );
+        assert_eq!(
+            (size_of::<QuorumReading>(), align_of::<QuorumReading>()),
+            (8, 4)
+        );
+        assert_eq!(
+            (
+                size_of::<QuorumSensorSelection>(),
+                align_of::<QuorumSensorSelection>()
+            ),
+            (12, 4)
+        );
+        assert_eq!(
+            (size_of::<QuorumSensorRun>(), align_of::<QuorumSensorRun>()),
+            (2, 1)
+        );
+    }
+
+    #[test]
+    fn sensors_through_the_interface() {
+        let r = |v| QuorumReading {
+            present: true,
+            value: v,
+        };
+        let none = QuorumReading::default();
+        let s = unsafe { quorum_sensor_select([r(100), r(5000), r(98)].as_ptr(), 10) };
+        assert_eq!(
+            (s.outcome, s.value, s.outlier),
+            (QUORUM_SENSOR_AGREED, 100, [false, true, false])
+        );
+        let s = unsafe { quorum_sensor_select([r(100), none, r(300)].as_ptr(), 10) };
+        assert_eq!(s.outcome, QUORUM_SENSOR_DISAGREE);
+        let s = unsafe { quorum_sensor_select([none, none, r(-4)].as_ptr(), 0) };
+        assert_eq!((s.outcome, s.value), (QUORUM_SENSOR_UNCHECKED, -4));
+        let s = unsafe { quorum_sensor_select(core::ptr::null(), 10) };
+        assert_eq!(s, NOTHING_SELECTED);
+        assert_eq!(
+            quorum_sensor_observe(4, true, 5),
+            QuorumSensorRun {
+                run: 5,
+                exclude: true
+            }
+        );
+        assert_eq!(
+            quorum_sensor_observe(4, false, 5),
+            QuorumSensorRun::default()
         );
     }
 
@@ -376,6 +503,39 @@ mod proofs {
             assert!(!got);
             assert!(same(&h, &before));
         }
+    }
+
+    /// `quorum_sensor_select` is the core's `select`, a reading with
+    /// `present` false read as no reading.
+    #[kani::proof]
+    #[kani::unwind(5)]
+    fn sensor_select_is_the_core() {
+        let r: [QuorumReading; SENSORS] = [
+            QuorumReading {
+                present: kani::any(),
+                value: kani::any(),
+            },
+            QuorumReading {
+                present: kani::any(),
+                value: kani::any(),
+            },
+            QuorumReading {
+                present: kani::any(),
+                value: kani::any(),
+            },
+        ];
+        let tol: u32 = kani::any();
+        let got = unsafe { quorum_sensor_select(r.as_ptr(), tol) };
+        assert_eq!(got, selection(quorum::sensor::select(&r.map(reading), tol)));
+    }
+
+    /// `quorum_sensor_observe` is the core's `observe`.
+    #[kani::proof]
+    fn sensor_observe_is_the_core() {
+        let (run, outlier, limit): (u8, bool, u8) = (kani::any(), kani::any(), kani::any());
+        let got = quorum_sensor_observe(run, outlier, limit);
+        let (r, e) = quorum::sensor::observe(run, outlier, limit);
+        assert_eq!((got.run, got.exclude), (r, e));
     }
 
     /// `quorum_health_clear` is the core's `clear`; an index above 2 changes nothing.

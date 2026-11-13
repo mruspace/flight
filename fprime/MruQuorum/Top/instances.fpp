@@ -66,4 +66,11 @@ module MruQuorum {
   @ Hub message buffers, for all three links
   instance buffers: Svc.BufferManager base id 0x1001F000
 
+  @ Test builds only: three sensors of a known quantity, with noise and
+  @ faults by command; off until SENSORS_ON
+  instance sensorSim: Mru.SensorSim base id 0x10020000
+
+  @ Chooses one value from the three sensors (MRU-SV-001)
+  instance sensorVoter: Mru.SensorVoter base id 0x10021000
+
 }

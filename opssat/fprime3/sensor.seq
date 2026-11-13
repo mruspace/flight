@@ -1,0 +1,24 @@
+; Run 4 on OPS-SAT PRETTY (exp4051), segment 4: three sensors of one
+; quantity, the case TU Graz raised: sensor discrepancies. SensorSim makes
+; three readings of a known value each cycle (a slow triangle, 200.00 to
+; 220.00 in hundredths), each with noise of up to 0.50, and scores the value
+; SensorVoter chooses against the true value. The replicas run the shrinking
+; quorum with no faults.
+;   Tolerance 200: readings within 2.00 of each other agree
+;   ExcludeAfter 5: five outlier cycles in a row exclude a sensor
+;   SENSORS_ON 50 150 1: noise 50, a value within 150 of the truth is
+;              correct (noise plus half the tolerance), seed 1
+;   cycle  60  sensor 1 spikes by +50.00 for three cycles: outvoted, masked,
+;              not excluded
+;   cycle 120  sensor 2 drifts, +40.00 over 200 cycles: outvoted once past
+;              the tolerance, then excluded
+;   cycle 260  sensor 0 freezes: with two sensors left the readings drift
+;              apart, and once they differ by more than the tolerance
+;              nothing says which is right, so nothing is delivered
+R00:00:00 MruQuorum.manager.SET_POLICY SHRINK
+R00:00:00 MruQuorum.sensorVoter.TOLERANCE_PRM_SET 200
+R00:00:00 MruQuorum.sensorVoter.EXCLUDEAFTER_PRM_SET 5
+R00:00:00 MruQuorum.sensorSim.SENSORS_ON 50 150 1
+R00:00:00 MruQuorum.sensorSim.SENSOR_FAULT SPIKE 1 60 3 5000
+R00:00:00 MruQuorum.sensorSim.SENSOR_FAULT DRIFT 2 120 200 4000
+R00:00:00 MruQuorum.sensorSim.SENSOR_FAULT STUCK 0 260 0 0

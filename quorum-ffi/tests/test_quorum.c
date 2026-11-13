@@ -46,6 +46,26 @@ int main(void) {
     assert(!quorum_health_strike(&h, 3, 1));
     assert(!quorum_health_strike(NULL, 0, 1));
 
+    assert(sizeof(quorum_reading) == 8 && _Alignof(quorum_reading) == 4);
+    assert(sizeof(quorum_sensor_selection) == 12 && _Alignof(quorum_sensor_selection) == 4);
+    assert(offsetof(quorum_sensor_selection, value) == 4);
+    assert(offsetof(quorum_sensor_selection, outlier) == 8);
+    assert(sizeof(quorum_sensor_run) == 2);
+
+    quorum_reading rd[3] = {{true, 100}, {true, 5000}, {true, 98}};
+    quorum_sensor_selection s = quorum_sensor_select(rd, 10);
+    assert(s.outcome == QUORUM_SENSOR_AGREED && s.value == 100);
+    assert(!s.outlier[0] && s.outlier[1] && !s.outlier[2]);
+    quorum_reading two[3] = {{true, 100}, {false, 0}, {true, 300}};
+    s = quorum_sensor_select(two, 10);
+    assert(s.outcome == QUORUM_SENSOR_DISAGREE);
+    s = quorum_sensor_select(NULL, 10);
+    assert(s.outcome == QUORUM_SENSOR_NOTHING);
+    quorum_sensor_run run = quorum_sensor_observe(4, true, 5);
+    assert(run.run == 5 && run.exclude);
+    run = quorum_sensor_observe(4, false, 5);
+    assert(run.run == 0 && !run.exclude);
+
     puts("quorum.h: all checks passed");
     return 0;
 }

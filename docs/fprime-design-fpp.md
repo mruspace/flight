@@ -113,6 +113,36 @@ and `resetIn[3]` from the manager. Commands `INJECT(kind, replica, cycle)` and
   demo's generator and seed, and draws nothing for known-answer requests, as
   the demo does.
 
+### SensorVoter
+
+Passive, guarded `readingsIn: SensorReadings` (cycle, three `I32` values,
+three presence flags) and `selectedOut: SensorSelected` (cycle, value,
+checked). Command `INCLUDE_SENSOR(sensor)`. Parameters `Tolerance: U32`,
+default 0, and `ExcludeAfter: U8`, default 5. Events `SensorOutlier` and
+`SensorsDisagree` (warning low, throttled at 10), `UncheckedValue` (warning
+low, throttled at 5), `SensorExcluded` (warning high), `SensorIncluded`,
+`IncludeRefused`. Telemetry `Agreed`, `Unchecked`, `Disagreed`, `Outliers`
+each cycle, `Excluded` on change.
+
+Each cycle it marks excluded sensors' readings absent and calls
+`quorum_sensor_select`. On an agreed value it calls `quorum_sensor_observe`
+for each sensor in use, so a sensor's outlier count moves only in cycles
+whose value two or more sensors agreed on; a disagreement freezes every
+count. The decision rules are in the core (`quorum/src/sensor.rs`) with
+their Kani proofs.
+
+### SensorSim
+
+Test builds only. Guarded `schedIn` from the rate group; `readingsOut` to
+the voter; `selectedIn` from it, sync, because the voter calls it inside
+`schedIn`. Commands `SENSORS_ON(noise, accuracy, seed)` and
+`SENSOR_FAULT(kind, sensor, cycle, cycles, magnitude)` with kinds SPIKE,
+DRIFT, STUCK and DROP. The true value is a triangle wave, 20,000 to 22,000
+and back every 400 cycles. Every cycle draws one noise value per sensor in
+order, so the noise does not depend on the faults. It counts correct, wrong
+and unchecked values, cycles with no value, and cycles in which a plain
+average of the readings was further than the accuracy from the truth.
+
 ## Topologies
 
 ```
@@ -188,7 +218,7 @@ topology that forgets `loadParameters()` does not test every cycle.
 |---|---|
 | Kani, `quorum` and `quorum-ffi` | 9 of 9 proofs verified |
 | C test of `quorum.h` | passes |
-| F´ unit tests | 50 (HealthRegistry 5, ReplicaHost 5, FaultInjector 9, RedundancyManager 27, RunRecorder 4), with address and undefined-behavior sanitizers |
+| F´ unit tests | 59 (HealthRegistry 5, ReplicaHost 5, FaultInjector 9, RedundancyManager 27, RunRecorder 4, SensorVoter 6, SensorSim 3), with address and undefined-behavior sanitizers |
 | MRU-SYS-001, 60 cases (5 schedules, 2 policies, 3 upset rates, 2 seeds, 4,000 cycles) | 36 identical to the demo. In the other 24, a kill that leaves one replica costs the shrinking quorum 2 correct results and adds 3 caught disagreements, as predicted. Wrong results are identical in all 60. |
 
 The expected counts come from the demo itself (`scripts/parity-cases.sh`),

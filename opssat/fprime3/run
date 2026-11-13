@@ -1,14 +1,15 @@
 #!/bin/sh
 # run: entry point for the Mru Flight experiment on OPS-SAT PRETTY [exp4051],
-# run 4: a device that stops answering, and automatic resets. The F´
+# run 4: a device that stops answering, automatic resets, and sensors that
+# disagree. The F´
 # deployment of run 3, version 2, with each replica in a process of its own,
 # spread over the processor's two cores.
 #
 # The OPS-SAT runner executes ./run as user exp in $HOME, which holds the
 # files of this package, and collects everything written under $HOME when the
-# run ends. This script runs in the foreground, three segments one after the
+# run ends. This script runs in the foreground, four segments one after the
 # other, writes all output to toGround/, and exits. It stops by itself inside
-# the five-minute window: the caps below add up to 120 seconds.
+# the five-minute window: the caps below add up to 160 seconds.
 #
 # MruQuorum is the manager process: Mru's RedundancyManager, HealthRegistry
 # and FaultInjector with F´'s command dispatcher, event manager, telemetry
@@ -26,12 +27,17 @@
 #               cap RESET_SECONDS
 #   2  shrink   the same faults, resets off, cap SHRINK_SECONDS
 #   3  tmr      the same faults under fixed TMR, no resets, cap TMR_SECONDS
+#   4  sensor   three simulated sensors of one quantity with a spike, a drift
+#               and a stuck sensor, chosen within a tolerance by SensorVoter
+#               (sensor.bin); the replicas run with no faults and no kill,
+#               cap SENSOR_SECONDS
 #
 # Settings (environment variables, defaults in brackets):
-#   SEGMENTS          segments to run, in order      [reset shrink tmr]
+#   SEGMENTS          segments to run, in order      [reset shrink tmr sensor]
 #   RESET_SECONDS     cap of segment 1               [40]
 #   SHRINK_SECONDS    cap of segment 2               [40]
 #   TMR_SECONDS       cap of segment 3               [40]
+#   SENSOR_SECONDS    cap of segment 4               [40]
 #   CYCLE_MS          cycle period in milliseconds   [100]
 #   MEMORY_MB         address-space limit, each      [128]
 #   CORES             replicas' cores                [0,1,1]
@@ -43,10 +49,11 @@ set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
 cd "$here" || exit 2
-SEGMENTS=${SEGMENTS:-"reset shrink tmr"}
+SEGMENTS=${SEGMENTS:-"reset shrink tmr sensor"}
 RESET_SECONDS=${RESET_SECONDS:-40}
 SHRINK_SECONDS=${SHRINK_SECONDS:-40}
 TMR_SECONDS=${TMR_SECONDS:-40}
+SENSOR_SECONDS=${SENSOR_SECONDS:-40}
 CYCLE_MS=${CYCLE_MS:-100}
 MEMORY_MB=${MEMORY_MB:-128}
 CORES=${CORES:-0,1,1}
@@ -69,10 +76,10 @@ now() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
     echo "---"
     echo "deployment_sha256=$(sha256sum "$DEPLOYMENT" 2>/dev/null | cut -d' ' -f1)"
     echo "replica_sha256=$(sha256sum "$REPLICA" 2>/dev/null | cut -d' ' -f1)"
-    for s in reset shrink tmr; do
+    for s in reset shrink tmr sensor; do
         echo "sequence_${s}_sha256=$(sha256sum "$here/$s.bin" 2>/dev/null | cut -d' ' -f1)"
     done
-    echo "settings: segments=$SEGMENTS reset_seconds=$RESET_SECONDS shrink_seconds=$SHRINK_SECONDS tmr_seconds=$TMR_SECONDS cycle_ms=$CYCLE_MS memory_mb=$MEMORY_MB cores=$CORES kill_cycle=$KILL_CYCLE"
+    echo "settings: segments=$SEGMENTS reset_seconds=$RESET_SECONDS shrink_seconds=$SHRINK_SECONDS tmr_seconds=$TMR_SECONDS sensor_seconds=$SENSOR_SECONDS cycle_ms=$CYCLE_MS memory_mb=$MEMORY_MB cores=$CORES kill_cycle=$KILL_CYCLE"
 } >"$info"
 
 child=
@@ -91,9 +98,10 @@ trap stop TERM INT HUP
 status=0
 for segment in $SEGMENTS; do
     case $segment in
-    reset) secs=$RESET_SECONDS ;;
-    shrink) secs=$SHRINK_SECONDS ;;
-    tmr) secs=$TMR_SECONDS ;;
+    reset) secs=$RESET_SECONDS kill="kill:2@$KILL_CYCLE" ;;
+    shrink) secs=$SHRINK_SECONDS kill="kill:2@$KILL_CYCLE" ;;
+    tmr) secs=$TMR_SECONDS kill="kill:2@$KILL_CYCLE" ;;
+    sensor) secs=$SENSOR_SECONDS kill= ;;
     *)
         echo "unknown segment $segment" >>"$info"
         status=1
@@ -102,7 +110,7 @@ for segment in $SEGMENTS; do
     esac
     echo "$segment: start_utc=$(now) max_seconds=$secs" >>"$info"
     "$DEPLOYMENT" -t "$secs" -p "$CYCLE_MS" -m "$MEMORY_MB" -R "$REPLICA" -C "$CORES" \
-        -o "$OUT_DIR/summary-$segment.txt" -s "$here/$segment.bin" -k "kill:2@$KILL_CYCLE" \
+        -o "$OUT_DIR/summary-$segment.txt" -s "$here/$segment.bin" ${kill:+-k "$kill"} \
         >"$OUT_DIR/events-$segment.txt" 2>&1 &
     child=$!
     wait "$child"

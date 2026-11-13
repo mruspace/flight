@@ -440,6 +440,7 @@ int main(int argc, char* argv[]) {
     // let the last cycle's replies and telemetry reach their queues' end
     Os::Task::delay(Fw::TimeInterval(0, 200000));
     const Mru::RunRecorder::Totals t = MruQuorum::totals();
+    const Mru::SensorSim::Totals st = MruQuorum::sensorTotals();
     // every thread is still running here: the largest the address space gets
     const unsigned long vmKiB = addressSpaceKiB();
     MruQuorum::teardownTopology(state);
@@ -485,6 +486,15 @@ int main(int argc, char* argv[]) {
         started.user, started.system, started.wall - seconds(start), runUser, runSystem, runWall, runShare, endCpu,
         replicas, cores[0], cores[1], cores[2], replicaCpu, (wall > 0.0) ? 100.0 * (cpu + replicaCpu) / wall : 0.0,
         memoryMb, maxSeconds);
+    // the sensors' line, only when the sequence turned them on (MRU-SS-004)
+    if (n > 0 && st.on && static_cast<size_t>(n) < sizeof(text)) {
+        (void)snprintf(text + n, sizeof(text) - static_cast<size_t>(n),
+                       "sensors: cycles=%llu correct=%llu wrong=%llu unchecked=%llu withheld=%llu "
+                       "average_wrong=%llu\n",
+                       static_cast<unsigned long long>(st.cycles), static_cast<unsigned long long>(st.correct),
+                       static_cast<unsigned long long>(st.wrong), static_cast<unsigned long long>(st.unchecked),
+                       static_cast<unsigned long long>(st.withheld), static_cast<unsigned long long>(st.averageWrong));
+    }
     if (n > 0) {
         fputs(text, stdout);
         if (summary != nullptr) {

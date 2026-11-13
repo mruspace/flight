@@ -71,6 +71,23 @@ module Mru {
     BUSY = 3 @< An admission is already waiting for its known answer
   }
 
+  @ Number of sensors of one quantity, as quorum::sensor::SENSORS
+  constant Sensors = 3
+
+  @ One value per sensor
+  array SensorValues = [Sensors] I32
+
+  @ One flag per sensor
+  array SensorFlags = [Sensors] bool
+
+  @ Faults SensorSim can apply to a sensor
+  enum SensorFault : U8 {
+    SPIKE = 0 @< Adds the magnitude for a number of cycles, then gone
+    DRIFT = 1 @< Adds a bias growing to the magnitude over a number of cycles, then holds it
+    STUCK = 2 @< The reading freezes at its value in the fault's first cycle
+    DROP = 3 @< No reading for a number of cycles
+  }
+
   @ Why an admission failed
   enum AdmitFailure : U8 {
     KNOWN_ANSWER_FAILED = 0 @< The known-answer result was wrong

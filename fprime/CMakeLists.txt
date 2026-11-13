@@ -31,7 +31,7 @@ add_custom_command(
     COMMAND cargo rustc -p quorum-ffi --release --quiet ${MRU_CARGO_TARGET} --features c-staticlib
             --crate-type staticlib -- -C panic=abort
     WORKING_DIRECTORY "${MRU_FLIGHT_ROOT}"
-    DEPENDS "${MRU_FLIGHT_ROOT}/quorum/src/lib.rs" "${MRU_FLIGHT_ROOT}/quorum-ffi/src/lib.rs"
+    DEPENDS "${MRU_FLIGHT_ROOT}/quorum/src/lib.rs" "${MRU_FLIGHT_ROOT}/quorum/src/sensor.rs" "${MRU_FLIGHT_ROOT}/quorum-ffi/src/lib.rs"
     COMMENT "Building the quorum core (Rust, quorum-ffi)"
 )
 add_custom_target(quorum_ffi_build DEPENDS "${QUORUM_FFI_LIB}")

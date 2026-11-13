@@ -29,6 +29,8 @@ module MruQuorum {
     instance adapter1
     instance adapter2
     instance buffers
+    instance sensorSim
+    instance sensorVoter
 
     command connections instance CdhCore.cmdDisp
     event connections instance CdhCore.events
@@ -44,6 +46,8 @@ module MruQuorum {
       # the recorder first: a real fault for a cycle lands before its requests
       rateGroupFast.RateGroupMemberOut[0] -> recorder.schedIn
       rateGroupFast.RateGroupMemberOut[1] -> manager.schedIn
+      # the sensors, after the manager; they do nothing until SENSORS_ON
+      rateGroupFast.RateGroupMemberOut[2] -> sensorSim.schedIn
 
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroupSlow] -> rateGroupSlow.CycleIn
       rateGroupSlow.RateGroupMemberOut[0] -> CdhCore.tlmSend.Run
@@ -90,6 +94,13 @@ module MruQuorum {
 
       manager.resultOut -> recorder.resultIn
       recorder.tlmGet -> CdhCore.tlmSend.TlmGet
+    }
+
+    @ Three sensors of one quantity and the voter that chooses one value
+    @ (MRU-SV-001); the simulator scores the value against the truth
+    connections Sensors {
+      sensorSim.readingsOut -> sensorVoter.readingsIn
+      sensorVoter.selectedOut -> sensorSim.selectedIn
     }
 
     @ Hub, adapter and driver per replica: F´'s hub pattern

@@ -47,6 +47,13 @@ extern "C" {
 #define QUORUM_DETECTED 1
 #define QUORUM_OUTCOME_HALTED 2
 
+/* sensors (quorum::sensor) */
+#define QUORUM_SENSORS 3
+#define QUORUM_SENSOR_AGREED 0    /* two or more readings agree within the tolerance */
+#define QUORUM_SENSOR_UNCHECKED 1 /* the only reading, not cross-checked */
+#define QUORUM_SENSOR_DISAGREE 2  /* readings disagree; nothing delivered */
+#define QUORUM_SENSOR_NOTHING 3   /* no reading */
+
 /* What one replica returned. */
 typedef struct {
     uint8_t kind;    /* ABSENT, SINGLE or PAIR */
@@ -69,6 +76,25 @@ typedef struct {
     uint64_t count[QUORUM_REPLICAS];
 } quorum_health;
 
+/* One sensor's reading; present is false for no reading or a sensor excluded. */
+typedef struct {
+    bool present;
+    int32_t value;
+} quorum_reading;
+
+/* The choice for one cycle. */
+typedef struct {
+    uint8_t outcome;                  /* AGREED, UNCHECKED, DISAGREE or NOTHING */
+    int32_t value;                    /* meaningful only for AGREED and UNCHECKED */
+    bool outlier[QUORUM_SENSORS];     /* readings beyond the tolerance (three readings, AGREED) */
+} quorum_sensor_selection;
+
+/* A sensor's outlier count after one cycle. */
+typedef struct {
+    uint8_t run;  /* outlier cycles in a row */
+    bool exclude; /* the count reached the limit: exclude the sensor */
+} quorum_sensor_run;
+
 /* The mode a policy runs in with `alive` live replicas. */
 uint8_t quorum_mode(uint8_t policy, uint32_t alive);
 
@@ -83,6 +109,13 @@ bool quorum_health_strike(quorum_health *health, uint32_t replica, uint64_t cycl
 
 /* Forget `replica`'s strikes. */
 void quorum_health_clear(quorum_health *health, uint32_t replica);
+
+/* Choose one value from QUORUM_SENSORS readings within `tolerance`. */
+quorum_sensor_selection quorum_sensor_select(const quorum_reading *readings, uint32_t tolerance);
+
+/* One cycle of a sensor's outlier count; exclude after `limit` in a row (never when 0).
+   Call it only in cycles with an AGREED value. */
+quorum_sensor_run quorum_sensor_observe(uint8_t run, bool outlier, uint8_t limit);
 
 #ifdef __cplusplus
 }

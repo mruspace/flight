@@ -65,31 +65,42 @@ test-only) work today.
 
 | Crate | What it is |
 |---|---|
-| [`quorum`](quorum/src/lib.rs) | The decision core: vote, compare, self-check, and the health record that decides when a replica must be diagnosed. `no_std`, no allocation, no dependencies. Unit-tested, checked with [Kani](https://github.com/model-checking/kani), and built in CI for a bare-metal ARM Cortex-M target. |
-| [`quorum-ffi`](quorum-ffi/src/lib.rs) | The C interface to the core ([`quorum.h`](quorum-ffi/include/quorum.h)), as a `no_std` static library. Kani proves that its decide, mode, strike and clear functions give the core's answer. Used by the F´ components, and usable from any C or C++ framework. |
-| [`fprime`](fprime) | F´ v4.4.1 components: `RedundancyManager`, `HealthRegistry`, `ReplicaHost`, and the test-only `FaultInjector` and `RunRecorder`, with spares, standby, bounded automatic resets of a replica that falls silent, and state that survives resets. 50 unit tests, and a system test against the demo on the bench schedules: wrong results match in all 60 cases, and correct results match exactly in 36 ([requirements](docs/fprime-requirements.md), [design and results](docs/fprime-design-fpp.md), [fault model](docs/fault-model.md)). `MruOpsSat`, the first F´ deployment: the components with F´'s command, event, telemetry, health and sequencing services, driven by a Linux timer, built as a static 32-bit ARM binary for OPS-SAT PRETTY's processor. `MruQuorum` with three `MruReplica` processes, the second, puts each replica in a process of its own; it ran in orbit on OPS-SAT PRETTY on October 28, 2026 ([run 3](docs/opssat.md)). |
+| [`quorum`](quorum/src/lib.rs) | The decision core: vote, compare, self-check, and the health record that decides when a replica must be diagnosed; and sensor selection, which chooses one value from readings that differ slightly, within a tolerance. `no_std`, no allocation, no dependencies. Unit-tested, checked with [Kani](https://github.com/model-checking/kani), and built in CI for a bare-metal ARM Cortex-M target. |
+| [`quorum-ffi`](quorum-ffi/src/lib.rs) | The C interface to the core ([`quorum.h`](quorum-ffi/include/quorum.h)), as a `no_std` static library. Kani proves that its decide, mode, strike, clear and sensor functions give the core's answer. Used by the F´ components, and usable from any C or C++ framework. |
+| [`fprime`](fprime) | F´ v4.4.1 components: `RedundancyManager`, `HealthRegistry`, `ReplicaHost`, `SensorVoter`, and the test-only `FaultInjector`, `RunRecorder` and `SensorSim`, with spares, standby, bounded automatic resets of a replica that falls silent, sensor selection within a tolerance, and state that survives resets. 59 unit tests, and a system test against the demo on the bench schedules: wrong results match in all 60 cases, and correct results match exactly in 36 ([requirements](docs/fprime-requirements.md), [design and results](docs/fprime-design-fpp.md), [fault model](docs/fault-model.md)). `MruOpsSat`, the first F´ deployment: the components with F´'s command, event, telemetry, health and sequencing services, driven by a Linux timer, built as a static 32-bit ARM binary for OPS-SAT PRETTY's processor. `MruQuorum` with three `MruReplica` processes, the second, puts each replica in a process of its own; it ran in orbit on OPS-SAT PRETTY on October 28, 2026 ([run 3](docs/opssat.md)). |
 | [`bench`](bench/src/main.rs) | Times the decision core on the host: nanoseconds per call of `decide()` for each policy and mode, and of `Health::strike()`. No dependencies. |
 | [`demo`](demo/src/main.rs) | The `quorum` program: three replica processes, a voter built on the core, fault injection, enforced resource limits, and a report of what was delivered and what it cost. Runs on Linux and macOS; release builds are fully static binaries for 64-bit and 32-bit ARM Linux and x86_64 Linux. Its only dependency is `libc`, for the system calls behind the limits. |
 
 ### Proved, per decision
 
 Kani checks these four properties of `decide()` for every set of three replies
-(each reply absent, one value or two values, any `u64` values). CI runs all 9
-proofs (4 here, 5 for the C interface) on every change. Unit tests also cover
+(each reply absent, one value or two values, any `u64` values). CI runs all 16
+proofs (4 here, 5 for sensor selection below, 7 for the C interface) on every
+change. Unit tests also cover
 every combination of a small value domain.
 
 - **Same outcome as fixed TMR with two or more replicas.** Given the same
   replies, `decide()` gives the same outcome under both policies
-  ([`identical_while_tmr_can_run`](quorum/src/lib.rs#L331)). It compares the
+  ([`identical_while_tmr_can_run`](quorum/src/lib.rs#L334)). It compares the
   outcome only: with two replicas, the shrinking quorum also sets `diagnose`,
   so it can retire a stuck replica where fixed TMR stays in disagreement.
 - **Fixed TMR stops below two replicas**
-  ([`tmr_stops_below_two`](quorum/src/lib.rs#L343)). **The shrinking quorum
+  ([`tmr_stops_below_two`](quorum/src/lib.rs#L346)). **The shrinking quorum
   halts only when no replica is left**
-  ([`shrink_halts_only_with_nothing_left`](quorum/src/lib.rs#L352)).
+  ([`shrink_halts_only_with_nothing_left`](quorum/src/lib.rs#L355)).
 - **Only agreed results are delivered.** A delivered value came from at least
   two agreeing replicas, or from both runs of the last replica's self-check
-  ([`delivers_only_agreed_values`](quorum/src/lib.rs#L362)).
+  ([`delivers_only_agreed_values`](quorum/src/lib.rs#L365)).
+
+For sensor readings that differ slightly
+([`quorum/src/sensor.rs`](quorum/src/sensor.rs)), Kani checks, for every set
+of three readings (each absent or any `i32`) and every tolerance: an agreed
+value has at least two readings within the tolerance of it and lies between
+the smallest and largest reading; an outlier is never the value chosen;
+nothing is delivered unchecked while two or more readings are in; the median
+is a median, ties included; and, for limits of 1 to 6 over every sequence
+of six cycles, a sensor is excluded exactly when its last `limit` cycles
+were all outliers, so a spike shorter than that never excludes it.
 
 Not covered by the proofs: `Health` (unit tests only), diagnosis and the
 known-answer test (they live in the demo and the F´ components), timing, and
@@ -390,8 +401,16 @@ deliver it.
 
 Every replica in the demo computes from the same input, because the input is
 derived from the tick. Real sensor inputs differ between replicas unless an
-agreement step makes them equal first. Mru does not provide that step yet, and
-neither dusk nor the bench models it.
+agreement step makes them equal first.
+
+For readings of one quantity by up to three sensors, `quorum::sensor`
+chooses one value within a tolerance (the median of three, the midpoint of
+two), and the F´ component `SensorVoter` excludes a sensor that keeps
+disagreeing. With two readings left that disagree, nothing is delivered,
+since nothing says which is right. It has run in run 4's package on the
+ground, not in orbit ([fault model](docs/fault-model.md)). A step that makes
+every replica's input equal before it computes is not built, and neither
+dusk nor the bench models it.
 
 ## Limits and open questions
 
