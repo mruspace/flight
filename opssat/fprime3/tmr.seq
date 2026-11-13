@@ -1,0 +1,10 @@
+; Run 4 on OPS-SAT PRETTY (exp4051), segment 3: fixed TMR on the same
+; faults, no resets:
+;   cycle  60  replica 1 hangs: lost; fixed TMR compares replicas 0 and 2
+;   cycle 150  replica 2's process is killed with SIGKILL: lost; one replica
+;              left, and fixed TMR stops
+;   cycle 300  replica 1 hangs again (already out: no effect)
+R00:00:00 MruQuorum.manager.SET_POLICY TMR
+R00:00:00 MruQuorum.injector.SET_UPSETS 0.0 0.05 1
+R00:00:00 MruQuorum.injector.INJECT HANG 1 60
+R00:00:00 MruQuorum.injector.INJECT HANG 1 300

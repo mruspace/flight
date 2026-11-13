@@ -82,6 +82,10 @@ RedundancyManager ::RedundancyManager(const char* const compName)
       m_katCycle(),
       m_katGot(),
       m_katPassed(),
+      m_resets(),
+      m_resetCycle(),
+      m_resetAdmit(),
+      m_resetTotal(0),
       m_lastMode(Mode::VOTE),
       m_halted(false),
       m_delivered(0),
@@ -103,6 +107,9 @@ RedundancyManager ::RedundancyManager(const char* const compName)
         this->m_katCycle[i] = 0;
         this->m_katGot[i] = false;
         this->m_katPassed[i] = false;
+        this->m_resets[i] = 0;
+        this->m_resetCycle[i] = 0;
+        this->m_resetAdmit[i] = false;
     }
 }
 
@@ -169,6 +176,8 @@ void RedundancyManager ::replyIn_handler(FwIndexType portNum,
                 break;
             case KatPurpose::ADMISSION:
                 this->m_katPurpose[i] = KatPurpose::NONE;
+                // a wrong answer is not silence: no reset (MRU-RM-024)
+                this->m_resetAdmit[i] = false;
                 if (passed) {
                     this->m_slots[i] = SlotState::ACTIVE;
                     this->m_missed[i] = 0;
@@ -254,10 +263,7 @@ void RedundancyManager ::STANDBY_REPLICA_cmdHandler(FwOpcodeType opCode, U32 cmd
 void RedundancyManager ::ADMIT_REPLICA_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, U8 slot) {
     RefuseReason reason = RefuseReason::NO_SUCH_SLOT;
     bool refused = true;
-    bool busy = false;
-    for (FwIndexType i = 0; i < Replicas; i++) {
-        busy = busy || (this->m_katPurpose[i] == KatPurpose::ADMISSION);
-    }
+    const bool busy = this->admissionBusy();
     if (slot >= Replicas) {
         reason = RefuseReason::NO_SUCH_SLOT;
     } else if (this->m_slots[slot] == SlotState::ACTIVE) {
@@ -272,9 +278,10 @@ void RedundancyManager ::ADMIT_REPLICA_cmdHandler(FwOpcodeType opCode, U32 cmdSe
         this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::EXECUTION_ERROR);
         return;
     }
-    this->enableOut_out(slot, true);
-    this->log_ACTIVITY_HI_AdmitRequested(slot, this->m_cycle);
-    this->requestKnownAnswer(slot, KatPurpose::ADMISSION);
+    // the command replaces an admission a reset left pending
+    this->m_resetCycle[slot] = 0;
+    this->m_resetAdmit[slot] = false;
+    this->startAdmission(slot);
     this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
@@ -331,6 +338,11 @@ void RedundancyManager ::finishCycle(bool behind) {
             this->m_katPurpose[i] = KatPurpose::NONE;
             this->enableOut_out(i, false);
             this->log_WARNING_LO_AdmitFailed(static_cast<U8>(i), AdmitFailure::KNOWN_ANSWER_MISSING, this->m_cycle);
+            // still silent after a reset: the next reset, or out (MRU-RM-024)
+            if (this->m_resetAdmit[i]) {
+                this->m_resetAdmit[i] = false;
+                this->resetSilent(i);
+            }
         }
     }
 }
@@ -358,6 +370,7 @@ void RedundancyManager ::startCycle() {
         this->m_got[i] = false;
         this->m_reply[i] = quorum_reply{QUORUM_ABSENT, 0, 0};
     }
+    this->admitAfterReset();
 
     const U8 mode = quorum_mode(static_cast<U8>(this->m_policy.e), this->activeCount());
     if (mode != static_cast<U8>(this->m_lastMode.e)) {
@@ -507,6 +520,66 @@ void RedundancyManager ::retire(FwIndexType slot, RetireReason reason) {
     this->enableOut_out(slot, false);
     this->log_WARNING_HI_ReplicaRetired(static_cast<U8>(slot), reason, this->m_cycle);
     this->saveState();
+    // silence is what a reset can cure; a wrong answer is not (MRU-RM-024)
+    if (reason == RetireReason::LOST || reason == RetireReason::KNOWN_ANSWER_MISSING ||
+        reason == RetireReason::PERIODIC_TEST_MISSING) {
+        this->resetSilent(slot);
+    }
+}
+
+void RedundancyManager ::startAdmission(FwIndexType slot) {
+    this->enableOut_out(slot, true);
+    this->log_ACTIVITY_HI_AdmitRequested(static_cast<U8>(slot), this->m_cycle);
+    this->requestKnownAnswer(slot, KatPurpose::ADMISSION);
+}
+
+bool RedundancyManager ::admissionBusy() const {
+    bool busy = false;
+    for (FwIndexType i = 0; i < Replicas; i++) {
+        busy = busy || (this->m_katPurpose[i] == KatPurpose::ADMISSION);
+    }
+    return busy;
+}
+
+void RedundancyManager ::resetSilent(FwIndexType slot) {
+    Fw::ParamValid valid;
+    U8 limit = this->paramGet_ResetLimit(valid);
+    if (valid != Fw::ParamValid::VALID && valid != Fw::ParamValid::DEFAULT) {
+        limit = 0;  // not loaded: the model's default, off
+    }
+    if (limit == 0) {
+        return;
+    }
+    if (this->m_resets[slot] >= limit) {
+        this->log_WARNING_HI_ResetsExhausted(static_cast<U8>(slot), this->m_cycle, this->m_resets[slot]);
+        return;
+    }
+    this->m_resets[slot]++;
+    this->m_resetTotal++;
+    this->log_ACTIVITY_HI_ReplicaReset(static_cast<U8>(slot), this->m_resets[slot], limit, this->m_cycle);
+    if (this->isConnected_resetOut_OutputPort(slot)) {
+        this->resetOut_out(slot, this->m_cycle);
+    }
+    // the unit gets the rest of this cycle to come back up
+    this->m_resetCycle[slot] = this->m_cycle;
+}
+
+void RedundancyManager ::admitAfterReset() {
+    for (FwIndexType i = 0; i < Replicas; i++) {
+        if (this->m_resetCycle[i] == 0 || this->m_resetCycle[i] >= this->m_cycle) {
+            continue;
+        }
+        if (this->m_slots[i] == SlotState::ACTIVE) {
+            this->m_resetCycle[i] = 0;  // admitted by command meanwhile
+            continue;
+        }
+        if (this->admissionBusy()) {
+            return;  // one admission at a time; the rest wait a cycle
+        }
+        this->m_resetCycle[i] = 0;
+        this->m_resetAdmit[i] = true;
+        this->startAdmission(i);
+    }
 }
 
 U32 RedundancyManager ::activeCount() const {
@@ -526,6 +599,7 @@ void RedundancyManager ::report() {
     this->tlmWrite_Retired(this->m_retired);
     this->tlmWrite_Slots(SlotStates(this->m_slots));
     this->tlmWrite_Late(this->m_late);
+    this->tlmWrite_Resets(this->m_resetTotal);
 }
 
 // ----------------------------------------------------------------------

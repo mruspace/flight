@@ -79,6 +79,11 @@ module MruQuorum {
       injector.replyOut[0] -> manager.replyIn[0]
       injector.replyOut[1] -> manager.replyIn[1]
       injector.replyOut[2] -> manager.replyIn[2]
+      # a reset reaches the injector, which ends a hang (MRU-RM-024, MRU-FI-004);
+      # in a flight build it would reach the platform's reset line
+      manager.resetOut[0] -> injector.resetIn[0]
+      manager.resetOut[1] -> injector.resetIn[1]
+      manager.resetOut[2] -> injector.resetIn[2]
 
       manager.healthStrike -> registry.strikeIn
       manager.healthClear -> registry.clearIn

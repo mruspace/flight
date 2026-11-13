@@ -132,6 +132,25 @@ void FaultInjector ::replyIn_handler(FwIndexType portNum,
     this->replyOut_out(portNum, cycle, kind, first, second);
 }
 
+void FaultInjector ::resetIn_handler(FwIndexType portNum, U64 cycle) {
+    // a reset ends a hang that has started; a hang scheduled for later still
+    // comes. A killed unit stays dead and a stuck one stays stuck: a reset
+    // does not repair hardware (MRU-FI-004)
+    const FwIndexType i = portNum;
+    bool ended = false;
+    for (FwSizeType n = 0; n < MAX_FAULTS; n++) {
+        Fault& f = this->m_faults[n];
+        if (f.used && f.kind.e == FaultKind::HANG && f.replica == i && f.cycle <= cycle) {
+            f.used = false;
+            ended = true;
+        }
+    }
+    if (ended) {
+        this->m_hangDrawn[i] = false;
+    }
+    this->log_ACTIVITY_HI_ResetApplied(static_cast<U8>(i), cycle, ended);
+}
+
 void FaultInjector ::INJECT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, const Mru::FaultKind& kind, U8 replica, U64 cycle) {
     if (replica < Replicas) {
         for (FwSizeType i = 0; i < MAX_FAULTS; i++) {

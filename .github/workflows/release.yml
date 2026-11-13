@@ -80,6 +80,15 @@ jobs:
           cp opssat/fprime2/dist/* "pkg/$name/"
           cp opssat/fprime2/run opssat/fprime2/shrink.seq opssat/fprime2/tmr.seq opssat/fprime2/restart.seq LICENSE "pkg/$name/"
           tar -C pkg -czf "dist/$name.tar.gz" "$name"
+      - name: Build run 4 (automatic resets) and compile its sequences
+        run: ./opssat/fprime3/build.sh
+      - name: Package run 4
+        run: |
+          name=mru-fprime-resets-${{ github.ref_name }}-armv7-linux-static
+          mkdir -p "pkg/$name"
+          cp opssat/fprime3/dist/* "pkg/$name/"
+          cp opssat/fprime3/run opssat/fprime3/reset.seq opssat/fprime3/shrink.seq opssat/fprime3/tmr.seq LICENSE "pkg/$name/"
+          tar -C pkg -czf "dist/$name.tar.gz" "$name"
       - uses: actions/upload-artifact@v4
         with:
           name: fprime-armv7-linux-static

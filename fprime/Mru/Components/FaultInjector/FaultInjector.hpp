@@ -40,6 +40,8 @@ class FaultInjector final : public FaultInjectorComponentBase {
                          U64 first,
                          U64 second) override;
 
+    void resetIn_handler(FwIndexType portNum, U64 cycle) override;
+
     void INJECT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, const Mru::FaultKind& kind, U8 replica, U64 cycle) override;
     void CLEAR_FAULTS_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, U8 replica) override;
     void SET_UPSETS_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, F64 rate, F64 commonMode, U64 seed) override;

@@ -1,0 +1,19 @@
+; Run 4 on OPS-SAT PRETTY (exp4051), segment 1: the shrinking quorum with
+; automatic resets (MRU-RM-024), each replica in a process of its own. The
+; scenario TU Graz suggested: a device on the bus stops answering, and only
+; a reset brings it back.
+;   cycle  60  replica 1 stops answering (a hang, FaultInjector): lost after
+;              three silent cycles; Mru resets it, tests it with a known
+;              answer, and takes it back
+;   cycle 150  replica 2's process is killed with SIGKILL at the start of the
+;              cycle (by the manager process, `-k kill:2@150` in run): a real
+;              dead unit. Lost; every reset fails its known-answer test; after
+;              the third, Mru keeps it out
+;   cycle 300  replica 1 hangs again: lost, reset (its second), back
+; ResetLimit 3: at most three resets per replica in the run.
+; SET_UPSETS sets no random upsets and seed 1, the demo's seed.
+R00:00:00 MruQuorum.manager.SET_POLICY SHRINK
+R00:00:00 MruQuorum.manager.RESETLIMIT_PRM_SET 3
+R00:00:00 MruQuorum.injector.SET_UPSETS 0.0 0.05 1
+R00:00:00 MruQuorum.injector.INJECT HANG 1 60
+R00:00:00 MruQuorum.injector.INJECT HANG 1 300

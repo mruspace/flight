@@ -40,10 +40,19 @@ MRU_TEST(Nominal, SelfCheck, selfCheckEveryOtherCycleWithPeriodicTest,
          "MRU-RM-015")
 MRU_TEST(OffNominal, PeriodicTestFailure, periodicTestFailureWithholdsTheCycle,
          "A failed periodic test retires the last replica and withholds the cycle", "MRU-RM-008", "MRU-RM-012")
-MRU_TEST(OffNominal, SilentReplicaIsLost, silentReplicaIsLost, "Three missed cycles in a row: lost",
-         "MRU-RM-010", "MRU-RM-011")
+MRU_TEST(OffNominal, SilentReplicaIsLost, silentReplicaIsLost,
+         "Three missed cycles in a row: lost; no reset while ResetLimit is 0", "MRU-RM-010", "MRU-RM-011",
+         "MRU-RM-024")
 MRU_TEST(OffNominal, TmrHaltsOnOne, tmrHaltsOnOne, "Fixed TMR halts on one replica, with one event",
          "MRU-RM-012", "MRU-RM-019")
+MRU_TEST(OffNominal, SilentReplicaIsReset, silentReplicaIsResetAndAdmitted,
+         "A silent replica is reset, tested and admitted", "MRU-RM-024", "MRU-RM-020", "MRU-RM-010")
+MRU_TEST(OffNominal, SilentAfterResetsIsKeptOut, silentAfterResetsIsKeptOut,
+         "Still silent after every reset allowed: kept out, no more resets", "MRU-RM-024", "MRU-RM-020")
+MRU_TEST(OffNominal, WrongAnswerIsNotReset, wrongAnswerIsNotReset, "A replica retired for a wrong answer is not reset",
+         "MRU-RM-024", "MRU-RM-009")
+MRU_TEST(OffNominal, LastReplicaComesBack, lastReplicaComesBack,
+         "The last replica, lost and reset, brings the quorum back from Halted", "MRU-RM-024", "MRU-RM-012")
 MRU_TEST(Nominal, SetPolicy, setPolicy, "SET_POLICY, and TMR keeps no health record", "MRU-RM-013")
 MRU_TEST(Nominal, Standby, standby, "STANDBY_REPLICA and its refusals", "MRU-RM-018", "MRU-RM-019")
 MRU_TEST(Nominal, Admit, admit, "ADMIT_REPLICA: pass, fail, no answer, busy", "MRU-RM-020")

@@ -47,19 +47,32 @@ The full models: [RedundancyManager.fpp](../fprime/Mru/Components/RedundancyMana
 | Output | `requestOut[3]: ReplicaRequest` | Cycle, kind (`COMPUTE`, `COMPUTE_TWICE`, `KNOWN_ANSWER`), upset (always none from the manager) |
 | Input | `replyIn[3]: ReplicaReply` (async) | Cycle, kind, first, second |
 | Output | `enableOut[3]: ReplicaEnable` | Disables a retired or standby replica, enables one being admitted |
+| Output | `resetOut[3]: ReplicaReset` | Cycle. Resets the unit of a replica that fell silent (MRU-RM-024); FaultInjector in test builds, the platform's reset line in flight |
 | Output | `resultOut: Result` | Cycle and delivered value |
 | Output | `healthStrike`, `healthClear` | To HealthRegistry |
 | Ping | `pingIn` / `pingOut` | F´ `Svc.Health` |
 | Commands | `SET_POLICY(policy)`, `STANDBY_REPLICA(slot)`, `ADMIT_REPLICA(slot)` (all async) | |
-| Parameters | `KatPeriod: U32`, default 64; `StateSavePeriod: U32`, default 1000 | |
-| Events | `PolicySet`, `ModeChanged`, `ReplicaStandby`, `AdmitRequested`, `ReplicaAdmitted`, `StateRestored` (activity high); `DiagnosisRequested`, `ReplicaCleared` (activity low); `DisagreementCaught` (warning low, throttled at 10), `AdmitFailed`, `SlotCommandRefused`, `StateNotRestored` (warning low); `ReplicaRetired`, `Halted`, `StateSaveFailed` (warning high, the last throttled at 5) | |
-| Telemetry | `CurrentPolicy`, `CurrentMode`, `LiveReplicas`, `Retired`, `Slots` on change; `Delivered`, `Caught` each cycle | |
+| Parameters | `KatPeriod: U32`, default 64; `StateSavePeriod: U32`, default 1000; `ResetLimit: U8`, default 0 (off) | |
+| Events | `PolicySet`, `ModeChanged`, `ReplicaStandby`, `AdmitRequested`, `ReplicaAdmitted`, `ReplicaReset`, `StateRestored` (activity high); `DiagnosisRequested`, `ReplicaCleared` (activity low); `DisagreementCaught` (warning low, throttled at 10), `AdmitFailed`, `SlotCommandRefused`, `StateNotRestored` (warning low); `ReplicaRetired`, `ResetsExhausted`, `Halted`, `StateSaveFailed` (warning high, the last throttled at 5) | |
+| Telemetry | `CurrentPolicy`, `CurrentMode`, `LiveReplicas`, `Retired`, `Slots`, `Resets` on change; `Delivered`, `Caught` each cycle | |
 
 **Slots.** Each slot is ACTIVE, STANDBY or RETIRED. Only ACTIVE slots get
 requests. `STANDBY_REPLICA` disables an ACTIVE slot, unless the policy could
 not run on the slots left. `ADMIT_REPLICA` enables a STANDBY or RETIRED slot
 and requests a known-answer test; the slot becomes ACTIVE only if the right
 answer arrives by the next cycle. One admission runs at a time.
+
+**Resets (MRU-RM-024).** A replica can fall silent for a reason a reset
+cures: a device on a bus that stops answering until it is reset. When a
+replica is retired for silence and `ResetLimit` allows it, the manager sends
+a reset on `resetOut` and starts an admission at the next cycle, so the unit
+gets the rest of the cycle to come back up. The admission is the same as
+`ADMIT_REPLICA`'s: the slot becomes ACTIVE only on the right known answer. A
+unit still silent gets the next reset; after `ResetLimit` resets the manager
+emits `ResetsExhausted` and the slot stays RETIRED, so a dead unit cannot
+cause a reset loop. A wrong answer is not silence: that replica is never
+reset. Admissions after resets queue behind any admission in progress. The
+counts are not saved, as strikes are not.
 
 **State file.** The manager saves the policy, the slot states and the cycle
 counter when any of them changes, and every `StateSavePeriod` cycles. It
@@ -84,13 +97,16 @@ computation, so an injected fault travels through the real calculation.
 
 ### FaultInjector
 
-Guarded `requestIn[3]` → `requestOut[3]` and `replyIn[3]` → `replyOut[3]`.
-Commands `INJECT(kind, replica, cycle)` and `SET_UPSETS(rate, commonMode,
-seed)`. Events `FaultScheduled`, `FaultApplied`, `FaultRefused`,
-`UpsetsSet`.
+Guarded `requestIn[3]` → `requestOut[3]` and `replyIn[3]` → `replyOut[3]`,
+and `resetIn[3]` from the manager. Commands `INJECT(kind, replica, cycle)` and
+`SET_UPSETS(rate, commonMode, seed)`. Events `FaultScheduled`, `FaultApplied`,
+`FaultRefused`, `UpsetsSet`, `ResetApplied`.
 
 - **Kill and hang**: it drops the replica's requests from that cycle.
 - **Stuck**: it replaces the replica's replies with a fixed wrong value.
+- **Reset** (MRU-FI-004): it ends a hang that has started; a hang scheduled
+  for later still comes. A kill or a stuck value stays: a reset does not
+  repair a dead or damaged unit.
 - **Corrupt and random upsets**: it sets the request's upset.
 - **Same upsets as the demo**: the manager sends requests on its own thread,
   replica 0, then 1, then 2. The injector draws in that order with the
@@ -172,7 +188,7 @@ topology that forgets `loadParameters()` does not test every cycle.
 |---|---|
 | Kani, `quorum` and `quorum-ffi` | 9 of 9 proofs verified |
 | C test of `quorum.h` | passes |
-| F´ unit tests | 45 (HealthRegistry 5, ReplicaHost 5, FaultInjector 8, RedundancyManager 23, RunRecorder 4), with address and undefined-behavior sanitizers |
+| F´ unit tests | 50 (HealthRegistry 5, ReplicaHost 5, FaultInjector 9, RedundancyManager 27, RunRecorder 4), with address and undefined-behavior sanitizers |
 | MRU-SYS-001, 60 cases (5 schedules, 2 policies, 3 upset rates, 2 seeds, 4,000 cycles) | 36 identical to the demo. In the other 24, a kill that leaves one replica costs the shrinking quorum 2 correct results and adds 3 caught disagreements, as predicted. Wrong results are identical in all 60. |
 
 The expected counts come from the demo itself (`scripts/parity-cases.sh`),
