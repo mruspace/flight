@@ -1,0 +1,6 @@
+CFE_APP, mru, MRU_AppMain, MRU, 50, 32768, 0x0, 0;
+!
+! Mru's only application, linked statically into core-cpu1 (STATIC_APPLIST).
+! Fields: type, file (a static module: no file is loaded), entry point, cFE
+! name, priority, stack size, load address (unused), exception action (0:
+! restart the application).

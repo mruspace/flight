@@ -1,6 +1,7 @@
 #!/bin/sh
 # package.sh: build the run 4 experiment package for OPS-SAT PRETTY [exp4051]:
-# a device that stops answering, automatic resets, and sensors that disagree.
+# a device that stops answering, automatic resets, sensors that disagree,
+# and the same decision core as a NASA cFS application.
 #
 # Output: exp4051-mru-flight-fprime-resets-VERSION.tar.gz in the current folder, with
 # all paths relative and all files owned by user and group "exp", as the
@@ -14,7 +15,8 @@
 # same release asset); README.txt (for the operators) and LICENSE.
 #
 #   VERSION=v0.8.0 ./package.sh     uses that release (there is no default yet)
-#   DIST=opssat/fprime3/dist ./package.sh   uses a local build (build.sh)
+#   DIST=opssat/run4/dist CFS_DIST=cfs/dist ./package.sh
+#                                   uses local builds (build.sh, cfs/build.sh)
 set -eu
 
 # macOS tar stores extended attributes as extra "._NAME" entries; both
@@ -36,7 +38,10 @@ files="MruQuorum MruReplica reset.bin shrink.bin tmr.bin sensor.bin"
 
 if [ -n "${DIST:-}" ]; then
     for f in $files; do cp "$DIST/$f" "$work/$f"; done
-    source="local build in $DIST"
+    mkdir -p "$work/cfs/cf"
+    cp "${CFS_DIST:?set CFS_DIST with DIST}/core-cpu1" "$work/cfs/core-cpu1"
+    cp "$CFS_DIST/cf/cfe_es_startup.scr" "$work/cfs/cf/cfe_es_startup.scr"
+    source="local builds in $DIST and $CFS_DIST"
 else
     name="mru-fprime-resets-$VERSION-$PLATFORM"
     asset="$name.tar.gz"
@@ -46,12 +51,18 @@ else
     (cd "$work" && grep " $asset\$" SHA256SUMS | (sha256sum -c - 2>/dev/null || shasum -a 256 -c -))
     tar -xzf "$work/$asset" -C "$work"
     for f in $files; do mv "$work/$name/$f" "$work/$f"; done
+    mv "$work/$name/cfs" "$work/cfs"
     source="release $VERSION, $asset"
 fi
 
 stage="$work/stage"
 mkdir -p "$stage"
 for f in $files; do cp "$work/$f" "$stage/$f"; done
+mkdir -p "$stage/cfs/cf"
+cp "$work/cfs/core-cpu1" "$stage/cfs/core-cpu1"
+cp "$work/cfs/cf/cfe_es_startup.scr" "$stage/cfs/cf/cfe_es_startup.scr"
+chmod 755 "$stage/cfs" "$stage/cfs/cf" "$stage/cfs/core-cpu1"
+chmod 644 "$stage/cfs/cf/cfe_es_startup.scr"
 cp "$here/run" "$stage/run"
 cp "$here/../../LICENSE" "$stage/LICENSE"
 chmod 755 "$stage/run" "$stage/MruQuorum" "$stage/MruReplica"
@@ -59,19 +70,23 @@ chmod 644 "$stage/reset.bin" "$stage/shrink.bin" "$stage/tmr.bin" "$stage/sensor
 sha() { (sha256sum "$1" 2>/dev/null || shasum -a 256 "$1") | cut -d' ' -f1; }
 sum=$(sha "$stage/MruQuorum")
 sumReplica=$(sha "$stage/MruReplica")
+sumCfs=$(sha "$stage/cfs/core-cpu1")
 cat >"$stage/README.txt" <<TXT
 Mru Flight on OPS-SAT PRETTY, experiment exp4051, run 4: a device that stops
 answering, automatic resets, and sensors that disagree
 Binaries: $source
 MruQuorum sha256: $sum
 MruReplica sha256: $sumReplica
+cfs/core-cpu1 sha256: $sumCfs
 
 What it is: the F´ deployment of run 3 (NASA JPL's flight software framework),
 in four processes, with two new behaviors. When a replica stops answering,
 Mru resets it, tests it with a known answer, and takes it back only if the
 test passes; it resets each replica at most three times in a run, then keeps
 it out. And SensorVoter chooses one value from three sensors of the same
-quantity within a tolerance, and excludes a sensor that keeps disagreeing. MruQuorum, the manager process, runs RedundancyManager,
+quantity within a tolerance, and excludes a sensor that keeps disagreeing.
+Segment 5 runs the same decision core as an application of NASA's core
+Flight System (cFS v7.0.1: cFE, OSAL and PSP), cfs/core-cpu1. MruQuorum, the manager process, runs RedundancyManager,
 HealthRegistry and FaultInjector with F´'s own command dispatcher, event
 manager, telemetry database, health pings and command sequencer, driven by a
 Linux timer every 100 ms. It starts three MruReplica processes, one
@@ -96,14 +111,25 @@ other, then it exits:
               value within a tolerance; a spike on sensor 1 at cycle 60, a
               drift on sensor 2 from cycle 120, sensor 0 frozen from cycle
               260. The replicas run with no faults and no kill. Cap 40 s.
+  5  cfs      cfs/core-cpu1: Mru as a cFS application, one static binary, three
+              replicas as cFE child tasks, the faults of run 1 (a flip at cycle
+              60, a stuck replica at 120, a hung one at 240), 40 s of cycles.
+              It ends itself with a power-on reset, which deletes cFE's shared
+              memory. It writes a working folder (cfs-work/, with a 512 KB
+              EEPROM.DAT and three empty key files) and a folder in /dev/shm
+              (osal:RAM); run deletes both, and any shared memory segment
+              that appeared during the segment and is still there. It opens
+              no socket; run records the count.
 
 How to run: ./run (foreground, as user exp, in this folder). It stops by
-itself: the caps add up to 160 s, under five minutes in total. Stop early
+itself: the caps add up to 200 s, under five minutes in total. Stop early
 with SIGTERM: the running manager stops its timer, writes its summary, and
 its replica processes end.
 
 What it touches: user space only, no network, no device files, no reboots.
-At most four processes at a time. Memory limit 128 MB of address space per
+At most four processes at a time. Segment 5 uses System V shared memory and
+POSIX message queues (within the kernel's limits for a normal user) and
+removes what it created. Memory limit 128 MB of address space per
 process (RLIMIT_AS), set by each process itself. Each replica process pins
 itself to one core (sched_setaffinity on itself). Storage: about 2.5 MB for
 the package, a few tens of kilobytes of output.
@@ -111,7 +137,9 @@ the package, a few tens of kilobytes of output.
 Output, all in toGround/: run-info.txt (start, end, exit codes, checksums);
 for each segment summary-NAME.txt (counts, footprint, the CPU time by phase,
 how each replica process ended and the experiment's CPU share; for segment
-4 also the sensors' counts) and events-NAME.txt (F´ events as text lines,
+4 also the sensors' counts) and events-NAME.txt; for segment 5
+summary-cfs.txt, events-cfs.txt (cFE's console, with the app's events) and
+cfs-mru.cfg (its fault schedule) (F´ events as text lines,
 the core of each replica process, the real fault).
 
 Source and documentation: https://github.com/mruspace/flight (docs/opssat.md,
@@ -121,7 +149,7 @@ TXT
 chmod 644 "$stage/README.txt"
 
 out="$PWD/exp4051-mru-flight-fprime-resets-$VERSION.tar.gz"
-entries="run MruQuorum MruReplica reset.bin shrink.bin tmr.bin sensor.bin README.txt LICENSE"
+entries="run MruQuorum MruReplica reset.bin shrink.bin tmr.bin sensor.bin cfs README.txt LICENSE"
 if tar --version 2>/dev/null | grep -q bsdtar; then
     # shellcheck disable=SC2086
     tar -C "$stage" --no-mac-metadata --uname exp --gname exp --uid 1024 --gid 1024 -czf "$out" $entries
@@ -132,10 +160,11 @@ fi
 echo "wrote $out"
 
 # List and check the archive with Python's tarfile, which hides nothing:
-# exactly the nine files, no "._" entries, every entry owned by exp.
+# exactly these entries, no "._" entries, every entry owned by exp.
 python3 -I - "$out" <<'PY'
 import sys, tarfile
-want = ["run", "MruQuorum", "MruReplica", "reset.bin", "shrink.bin", "tmr.bin", "sensor.bin", "README.txt", "LICENSE"]
+want = ["run", "MruQuorum", "MruReplica", "reset.bin", "shrink.bin", "tmr.bin", "sensor.bin", "cfs", "cfs/cf",
+        "cfs/cf/cfe_es_startup.scr", "cfs/core-cpu1", "README.txt", "LICENSE"]
 with tarfile.open(sys.argv[1]) as t:
     members = t.getmembers()
 for m in members:

@@ -74,8 +74,19 @@ jobs:
         run: ./scripts/fprime-deployment.sh
       - name: Deployment end to end, version 2 (replicas as processes, a real kill)
         run: VERSION=2 ./scripts/fprime-deployment.sh
-      - name: Run 4 package end to end (resets of a silent replica; sensors that disagree)
-        run: ./scripts/fprime-run4.sh
+      - name: Build Mru's cFS mission natively (cFE, OSAL, PSP of cFS v7.0.1 and the Mru app)
+        run: |
+          cargo rustc -p quorum-ffi --release --quiet --features c-staticlib --crate-type staticlib -- -C panic=abort
+          cd cfs
+          export MRU_QUORUM_LIB=$PWD/../target/release/libquorum_ffi.a MISSIONCONFIG=mru SIMULATION=native
+          make O=build-native BUILDTYPE=release prep >/dev/null
+          make O=build-native -j4 >/dev/null
+          make O=build-native install >/dev/null
+      - name: Run 4 package end to end (resets of a silent replica; sensors that disagree; cFS)
+        env:
+          MRU_CFS: cfs/build-native/exe/cpu1/core-cpu1
+          MRU_CFS_STARTUP: cfs/build-native/exe/cpu1/cf/cfe_es_startup.scr
+        run: ./scripts/opssat-run4.sh
       - name: Unit tests and parity with the demo (MRU-SYS-001)
         working-directory: fprime
         run: fprime-util generate --ut && fprime-util check --all -j4

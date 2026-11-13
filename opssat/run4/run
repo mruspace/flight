@@ -1,0 +1,219 @@
+#!/bin/sh
+# run: entry point for the Mru Flight experiment on OPS-SAT PRETTY [exp4051],
+# run 4: a device that stops answering, automatic resets, sensors that
+# disagree, and the same decision core as a NASA cFS application. The F´
+# deployment of run 3, version 2, with each replica in a process of its own,
+# spread over the processor's two cores.
+#
+# The OPS-SAT runner executes ./run as user exp in $HOME, which holds the
+# files of this package, and collects everything written under $HOME when the
+# run ends. This script runs in the foreground, five segments one after the
+# other, writes all output to toGround/, and exits. It stops by itself inside
+# the five-minute window: the caps below add up to 200 seconds.
+#
+# MruQuorum is the manager process: Mru's RedundancyManager, HealthRegistry
+# and FaultInjector with F´'s command dispatcher, event manager, telemetry
+# database, health pings and command sequencer, driven by a Linux timer every
+# CYCLE_MS. It starts three MruReplica processes, one ReplicaHost each,
+# linked through F´'s GenericHub over Unix socket pairs (no network), pinned
+# to the cores in CORES. The hangs are commanded by F´ command sequences
+# (reset.bin, shrink.bin, tmr.bin) and applied by FaultInjector; a reset
+# from the manager ends a hang in FaultInjector, as a platform reset would
+# end it in a device. The dead unit is real: the manager sends SIGKILL to
+# replica 2's process at the start of cycle KILL_CYCLE, and no reset brings
+# a killed process back.
+#
+#   1  reset    the shrinking quorum with automatic resets (ResetLimit 3),
+#               cap RESET_SECONDS
+#   2  shrink   the same faults, resets off, cap SHRINK_SECONDS
+#   3  tmr      the same faults under fixed TMR, no resets, cap TMR_SECONDS
+#   4  sensor   three simulated sensors of one quantity with a spike, a drift
+#               and a stuck sensor, chosen within a tolerance by SensorVoter
+#               (sensor.bin); the replicas run with no faults and no kill,
+#               cap SENSOR_SECONDS
+#   5  cfs      the same decision core as an application of NASA's core
+#               Flight System (cFE, OSAL and PSP of cFS v7.0.1): cfs/core-cpu1,
+#               static, with three replicas as cFE child tasks and the faults
+#               of run 1 (a flip at cycle 60, a stuck replica at 120, a hung
+#               one at 240). It ends itself after CFS_SECONDS of cycles with a
+#               power-on reset, which deletes cFE's shared memory; this script
+#               then deletes its working files, its RAM disk folder in
+#               /dev/shm and any shared memory segment that appeared during
+#               the segment and is still there. No network: nothing in it
+#               opens a socket, and the script records the count.
+#
+# Settings (environment variables, defaults in brackets):
+#   SEGMENTS          segments to run, in order      [reset shrink tmr sensor cfs]
+#   RESET_SECONDS     cap of segment 1               [40]
+#   SHRINK_SECONDS    cap of segment 2               [40]
+#   TMR_SECONDS       cap of segment 3               [40]
+#   SENSOR_SECONDS    cap of segment 4               [40]
+#   CFS_SECONDS       cycles of segment 5, in seconds [40]
+#   CYCLE_MS          cycle period in milliseconds   [100]
+#   MEMORY_MB         address-space limit, each      [128]
+#   CORES             replicas' cores                [0,1,1]
+#   KILL_CYCLE        cycle of the real kill         [150]
+#   DEPLOYMENT        the manager binary             [./MruQuorum]
+#   REPLICA           the replica binary             [./MruReplica]
+#   OUT_DIR           output folder                  [./toGround]
+set -u
+
+here=$(cd "$(dirname "$0")" && pwd)
+cd "$here" || exit 2
+SEGMENTS=${SEGMENTS:-"reset shrink tmr sensor cfs"}
+RESET_SECONDS=${RESET_SECONDS:-40}
+SHRINK_SECONDS=${SHRINK_SECONDS:-40}
+TMR_SECONDS=${TMR_SECONDS:-40}
+SENSOR_SECONDS=${SENSOR_SECONDS:-40}
+CFS_SECONDS=${CFS_SECONDS:-40}
+CYCLE_MS=${CYCLE_MS:-100}
+MEMORY_MB=${MEMORY_MB:-128}
+CORES=${CORES:-0,1,1}
+KILL_CYCLE=${KILL_CYCLE:-150}
+DEPLOYMENT=${DEPLOYMENT:-$here/MruQuorum}
+REPLICA=${REPLICA:-$here/MruReplica}
+OUT_DIR=${OUT_DIR:-$here/toGround}
+
+mkdir -p "$OUT_DIR" || exit 2
+info=$OUT_DIR/run-info.txt
+now() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
+{
+    echo "experiment=exp4051 package=mru-flight-fprime-resets run=4"
+    echo "start_utc=$(now)"
+    echo "uname=$(uname -a 2>/dev/null)"
+    echo "user=$(id 2>/dev/null)"
+    echo "nproc=$(nproc 2>/dev/null) loadavg=$(cat /proc/loadavg 2>/dev/null)"
+    echo "--- /proc/cpuinfo ---"; cat /proc/cpuinfo 2>/dev/null
+    echo "--- /proc/meminfo (head) ---"; head -5 /proc/meminfo 2>/dev/null
+    echo "---"
+    echo "deployment_sha256=$(sha256sum "$DEPLOYMENT" 2>/dev/null | cut -d' ' -f1)"
+    echo "replica_sha256=$(sha256sum "$REPLICA" 2>/dev/null | cut -d' ' -f1)"
+    for s in reset shrink tmr sensor; do
+        echo "sequence_${s}_sha256=$(sha256sum "$here/$s.bin" 2>/dev/null | cut -d' ' -f1)"
+    done
+    echo "cfs_sha256=$(sha256sum "$here/cfs/core-cpu1" 2>/dev/null | cut -d' ' -f1)"
+    echo "settings: segments=$SEGMENTS reset_seconds=$RESET_SECONDS shrink_seconds=$SHRINK_SECONDS tmr_seconds=$TMR_SECONDS sensor_seconds=$SENSOR_SECONDS cfs_seconds=$CFS_SECONDS cycle_ms=$CYCLE_MS memory_mb=$MEMORY_MB cores=$CORES kill_cycle=$KILL_CYCLE"
+} >"$info"
+
+child=
+incfs=
+work=$here/cfs-work
+shm_before=
+
+# Shared memory segment IDs now owned by this user
+shm_ids() { ipcs -m 2>/dev/null | awk -v u="$(id -un 2>/dev/null)" '$3 == u { print $2 }' | sort; }
+
+# Remove what the cFS segment leaves: its working folder (EEPROM.DAT and the
+# key files of the PSP), its RAM disk folder, and only the shared memory
+# segments that appeared during the segment
+cfs_cleanup() {
+    rm -rf "$work"
+    [ -d "/dev/shm/osal:RAM" ] && rm -rf "/dev/shm/osal:RAM" 2>/dev/null
+    left=0
+    for id in $(shm_ids); do
+        if ! printf '%s\n' "$shm_before" | grep -qx "$id"; then
+            ipcrm -m "$id" 2>/dev/null && left=$((left + 1))
+        fi
+    done
+    echo "cfs: cleanup: working folder removed, /dev/shm/osal:RAM $([ -d /dev/shm/osal:RAM ] && echo kept || echo absent), $left shared memory segments removed by the script" >>"$info"
+}
+
+stop() {
+    # Forward a stop request to the running deployment; it stops its timer,
+    # writes its summary and exits. cFS stops on SIGINT.
+    if [ -n "$child" ]; then
+        if [ -n "$incfs" ]; then kill -INT "$child" 2>/dev/null; else kill -TERM "$child" 2>/dev/null; fi
+        wait "$child"
+    fi
+    [ -n "$incfs" ] && cfs_cleanup
+    echo "stopped_by_signal_utc=$(now)" >>"$info"
+    exit 0
+}
+trap stop TERM INT HUP
+
+status=0
+for segment in $SEGMENTS; do
+    case $segment in
+    reset) secs=$RESET_SECONDS kill="kill:2@$KILL_CYCLE" ;;
+    shrink) secs=$SHRINK_SECONDS kill="kill:2@$KILL_CYCLE" ;;
+    tmr) secs=$TMR_SECONDS kill="kill:2@$KILL_CYCLE" ;;
+    sensor) secs=$SENSOR_SECONDS kill= ;;
+    cfs)
+        # OSAL caps message queue depths at the kernel's limit for a normal
+        # user only; as root in a container without CAP_SYS_RESOURCE, cFE
+        # cannot create its pipes. On PRETTY the runner is user exp.
+        echo "cfs: start_utc=$(now) cycles_seconds=$CFS_SECONDS uid=$(id -u)" >>"$info"
+        rm -rf "$work"
+        if ! mkdir -p "$work/cf" || ! cp "$here/cfs/cf/cfe_es_startup.scr" "$work/cf/"; then
+            echo "cfs: could not prepare $work" >>"$info"
+            status=1
+            continue
+        fi
+        # the schedule: the faults of run 1, as in segments 1 to 3 of run 3
+        printf '# run 4, segment 5\ncycles %s\ncycle_ms %s\ncorrupt 2 60\nstuck 1 120\nhang 0 240\n' \
+            "$((CFS_SECONDS * 1000 / CYCLE_MS))" "$CYCLE_MS" >"$work/cf/mru.cfg"
+        cp "$work/cf/mru.cfg" "$OUT_DIR/cfs-mru.cfg"
+        shm_before=$(shm_ids)
+        start_s=$(date +%s)
+        # the same 128 MB address-space limit as the F´ processes; one malloc
+        # arena, so threads reserve no extra arenas
+        (cd "$work" && ulimit -v $((MEMORY_MB * 1024)) && MALLOC_ARENA_MAX=1 exec "$here/cfs/core-cpu1") \
+            >"$OUT_DIR/events-cfs.txt" 2>&1 &
+        child=$!
+        incfs=1
+        waited=0
+        sample=
+        cpu=
+        while kill -0 "$child" 2>/dev/null && [ "$waited" -lt $((CFS_SECONDS + 20)) ]; do
+            sleep 1
+            waited=$((waited + 1))
+            if [ "$waited" -eq 5 ]; then
+                sample="sockets=$(ls -l /proc/$child/fd 2>/dev/null | grep -c socket) threads=$(ls /proc/$child/task 2>/dev/null | wc -l | tr -d ' ') $(grep -E '^Vm(Peak|RSS):' /proc/$child/status 2>/dev/null | tr -s ' \t' ' ' | tr '\n' ' ')"
+            fi
+            # CPU so far, in clock ticks (user + system, /proc/PID/stat
+            # fields 14 and 15), and when: the share is worked out on the ground
+            ticks=$(awk '{ print $14 + $15 }' "/proc/$child/stat" 2>/dev/null) && cpu="cpu_ticks=$ticks at ${waited}s"
+        done
+        if kill -0 "$child" 2>/dev/null; then
+            # the app ends itself; if it has not by now, stop it
+            kill -INT "$child" 2>/dev/null
+            sleep 3
+            kill -KILL "$child" 2>/dev/null
+            echo "cfs: stopped by this script at the cap" >>"$info"
+            status=1
+        fi
+        wait "$child"
+        rc=$?
+        child=
+        incfs=
+        wall=$(($(date +%s) - start_s))
+        {
+            grep '^MRU SUMMARY:' "$OUT_DIR/events-cfs.txt" | sed 's/^MRU SUMMARY: //'
+            echo "process: exit=$rc wall=${wall}s at 5 s: $sample"
+            echo "cpu: $cpu clk_tck=$(getconf CLK_TCK 2>/dev/null || echo unknown)"
+            echo "limits: memory=${MEMORY_MB}MB address space, MALLOC_ARENA_MAX=1"
+        } >"$OUT_DIR/summary-cfs.txt"
+        echo "cfs: exit=$rc end_utc=$(now)" >>"$info"
+        [ "$rc" -eq 0 ] || status=1
+        cfs_cleanup
+        continue
+        ;;
+    *)
+        echo "unknown segment $segment" >>"$info"
+        status=1
+        continue
+        ;;
+    esac
+    echo "$segment: start_utc=$(now) max_seconds=$secs" >>"$info"
+    "$DEPLOYMENT" -t "$secs" -p "$CYCLE_MS" -m "$MEMORY_MB" -R "$REPLICA" -C "$CORES" \
+        -o "$OUT_DIR/summary-$segment.txt" -s "$here/$segment.bin" ${kill:+-k "$kill"} \
+        >"$OUT_DIR/events-$segment.txt" 2>&1 &
+    child=$!
+    wait "$child"
+    rc=$?
+    child=
+    echo "$segment: exit=$rc end_utc=$(now)" >>"$info"
+    [ "$rc" -eq 0 ] || status=1
+done
+echo "end_utc=$(now) status=$status" >>"$info"
+exit "$status"
