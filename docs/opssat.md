@@ -28,7 +28,8 @@ deployment of the same decision core, with F´'s command, event and
 telemetry interfaces ([run 3](#run-3-v070-the-f-deployment-flown-october-28-2026)).
 [fault-model.md](fault-model.md) maps each simulated fault to the failure it
 stands for on a real system, and describes run 4 (built, not flown): a
-replica that stops answering, reset and taken back.
+replica that stops answering, reset and taken back; sensors that disagree;
+and the same decision core as a cFS application ([cfs](../cfs/README.md)).
 
 ## What runs
 

@@ -64,6 +64,15 @@ disagreed from cycle 279. The spike was masked and sensor 1 kept; sensor 2
 was excluded at cycle 137. A plain average of the same readings was wrong in
 261 of the 399 cycles.
 
+Segment 5 runs the same decision core as an application of NASA's core
+Flight System (cFS v7.0.1), with the faults of run 1: a flip at cycle 60, a
+stuck replica at 120, a hung one at 240 ([`cfs`](../cfs)).
+
+On November 13, 2026, the whole package ran at full length in ESA's OPS-SAT
+PRETTY environment image (32-bit ARM, emulated on a laptop), as user `exp`:
+205 seconds, five segments, each exit 0, 0 wrong results in every segment,
+and nothing left behind by the cFS segment.
+
 Package and scripts: [`opssat/fprime3`](../opssat/fprime3). The CI check is
 [`scripts/fprime-run4.sh`](../scripts/fprime-run4.sh).
 

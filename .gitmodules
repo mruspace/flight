@@ -1,3 +1,15 @@
 [submodule "fprime/lib/fprime"]
 	path = fprime/lib/fprime
 	url = https://github.com/nasa/fprime.git
+[submodule "cfs/cfe"]
+	path = cfs/cfe
+	url = https://github.com/nasa/cFE.git
+[submodule "cfs/osal"]
+	path = cfs/osal
+	url = https://github.com/nasa/osal.git
+[submodule "cfs/psp"]
+	path = cfs/psp
+	url = https://github.com/nasa/PSP.git
+[submodule "cfs/tools/elf2cfetbl"]
+	path = cfs/tools/elf2cfetbl
+	url = https://github.com/nasa/elf2cfetbl.git

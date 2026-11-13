@@ -20,3 +20,6 @@ opssat/fprime2/toGround/
 opssat/fprime3/dist/
 opssat/fprime3/dist-native/
 opssat/fprime3/toGround/
+cfs/dist/
+cfs/dist-native/
+cfs/build-native/
