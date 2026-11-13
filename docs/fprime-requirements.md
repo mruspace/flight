@@ -4,7 +4,8 @@ Status: **approved on October 11, 2026**, with decisions D1 to D7 as
 recommended. After a comparison with the whitepaper, three additions were
 approved the same day: spares and standby (MRU-RM-018 to 021), reset
 survival (MRU-RM-022, which replaces D8), and Kani proofs on the C interface
-(MRU-FFI-005). MRU-SYS-001 was changed as the
+(MRU-FFI-005). MRU-RM-024 and MRU-FI-004 (automatic resets, for OPS-SAT
+run 4) were added on November 13, 2026. MRU-SYS-001 was changed as the
 [design](fprime-design-fpp.md#change-to-mru-sys-001) proposed. F´'s
 development process
 ([nasa/fprime](https://github.com/nasa/fprime/blob/devel/docs/user-manual/overview/development-practice.md))
@@ -69,6 +70,7 @@ Each has a recommended answer. The requirements below assume it.
 | MRU-RM-021 | The component shall report the state of each slot as telemetry. | Unit test |
 | MRU-RM-022 | The component shall save the slot states, the policy and the cycle counter to a state file when any of them changes, and every `StateSavePeriod` cycles (a parameter, default 1000; 0 saves on change only). It shall replace the file atomically. At start, it shall restore them from a valid file and emit an event, or start with all slots ACTIVE and emit a warning. Strikes are not saved. | Unit test |
 | MRU-RM-023 | A cycle closes late when other messages still wait in the component's queue as it closes (the component fell behind), or when every one of two or more expected answers is missing (the processor they share fell behind). In a cycle that closes late, a missing answer shall not count against a replica: no miss, and no known-answer test or admission failed for a missing answer. If an expected answer is missing, the cycle shall be withheld: nothing delivered, no strike, counted as telemetry, with a throttled warning event. A reply that arrives after its cycle closed shall clear that replica's count of misses. Added on 2026-10-22. | Unit test; a load test of the deployment, run by hand on 2026-10-22 (no halt under CPU starvation) |
+| MRU-RM-024 | When a replica is retired for silence (lost, or its known answer missing) and the `ResetLimit` parameter allows it (default 0: off), the component shall send a reset on the slot's `resetOut` port and start an admission (MRU-RM-020) at the next cycle. An admission whose answer is missing shall lead to the next reset. A slot shall get at most `ResetLimit` resets; after the last, the component shall emit an event and keep the slot RETIRED. A replica retired for a wrong answer shall not be reset. Reset counts are not saved in the state file. | Unit test |
 
 ## `HealthRegistry` (passive)
 
@@ -94,6 +96,7 @@ Each has a recommended answer. The requirements below assume it.
 | MRU-FI-001 | Commands shall inject, on a chosen replica and cycle: kill, hang, stuck and corrupt, as the demo's `--fault` option does. | Unit test |
 | MRU-FI-002 | A command shall set a random upset rate and seed, as the demo's `--upset-rate` and `--seed` do. | Unit test |
 | MRU-FI-003 | The component shall not be part of a flight build. | Inspection of the build |
+| MRU-FI-004 | A reset on a replica's `resetIn` port shall end a hang that has started on that replica; a hang scheduled for a later cycle shall still come. A kill or a stuck value shall stay. | Unit test |
 
 ## `RunRecorder` (passive, experiment builds only)
 
@@ -137,7 +140,7 @@ Compared with Layer 1 in the whitepaper (§8):
 | Shrinking quorum: vote, compare, self-check | Built (core and components) |
 | Dual redundancy **with checkpointing**: on a caught disagreement with two replicas, roll back and recompute the cycle | Not built. A retry rule belongs in the core, with its own Kani proofs. Today the cycle is lost. |
 | Health registry scoring error rate, response time and gate use; gradual deprioritization; donors | Strikes only. Response time is measurable from reply arrival and comes next. Gate use needs FPGA hardware. |
-| Spares from salvaged hardware; deprioritized nodes | Slots can be admitted and put on standby (MRU-RM-018 to 020). Choosing when is for the hardware inventory and the power accountant, not built. |
+| Spares from salvaged hardware; deprioritized nodes | Slots can be admitted and put on standby (MRU-RM-018 to 020). A replica that falls silent can be reset and admitted again, a bounded number of times (MRU-RM-024). Choosing when to bring in a spare is for the hardware inventory and the power accountant, not built. |
 | Power accountant | Not built. STANDBY_REPLICA is the hook it will use. |
 | Memory scrubbing by tier | Not built (`ScrubScheduler`). |
 | Duty cycling and hibernation | The components count in cycles, not time, so gaps between wakes do not break the strike window or the lost rule. State survives resets (MRU-RM-022). The scheduler is not built. |

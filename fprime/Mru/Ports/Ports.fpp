@@ -20,6 +20,12 @@ module Mru {
     enabled: bool @< True to answer requests
   )
 
+  @ Reset a replica's unit, as a platform resets a device that stopped
+  @ answering (MRU-RM-024). FaultInjector applies it in test builds (MRU-FI-004)
+  port ReplicaReset(
+    cycle: U64 @< The cycle of the reset
+  )
+
   @ A delivered result
   port Result(
     cycle: U64 @< The cycle it belongs to

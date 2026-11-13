@@ -23,7 +23,8 @@ RedundancyManagerTester ::RedundancyManagerTester(const char* statePath, bool fr
       m_statePath(statePath),
       m_strikeAnswer(false),
       m_enabled(),
-      m_requestPort() {
+      m_requestPort(),
+      m_resetPort(-1) {
     for (FwIndexType i = 0; i < Replicas; i++) {
         this->m_enabled[i] = -1;
     }
@@ -66,6 +67,11 @@ void RedundancyManagerTester ::from_requestOut_handler(FwIndexType portNum,
         this->m_requestPort[n] = portNum;
     }
     RedundancyManagerGTestBase::from_requestOut_handler(portNum, cycle, kind, upset);
+}
+
+void RedundancyManagerTester ::from_resetOut_handler(FwIndexType portNum, U64 cycle) {
+    this->m_resetPort = static_cast<I32>(portNum);
+    RedundancyManagerGTestBase::from_resetOut_handler(portNum, cycle);
 }
 
 // ----------------------------------------------------------------------
@@ -142,6 +148,19 @@ FwSizeType RedundancyManagerTester ::requestCount(RequestKind::T kind) const {
 void RedundancyManagerTester ::downToOne() {
     this->standbyCmd(1);
     this->standbyCmd(2);
+}
+
+void RedundancyManagerTester ::resetLimit(U8 limit) {
+    this->paramSet_ResetLimit(limit, Fw::ParamValid::VALID);
+    this->component.loadParameters();
+}
+
+void RedundancyManagerTester ::twoAnswer(U64 from, U64 to) {
+    for (U64 c = from; c <= to; c++) {
+        this->cycle();
+        this->reply(0, c, RequestKind::COMPUTE, GOOD);
+        this->reply(1, c, RequestKind::COMPUTE, GOOD);
+    }
 }
 
 // ----------------------------------------------------------------------
@@ -318,6 +337,110 @@ void RedundancyManagerTester ::silentReplicaIsLost() {
     ASSERT_EVENTS_ReplicaRetired(0, 2, RetireReason::LOST, 3);
     ASSERT_EQ(this->m_enabled[2], 0);
     ASSERT_EQ(this->requestCount(RequestKind::COMPUTE), 2);
+    // automatic resets are off by default (MRU-RM-024)
+    ASSERT_EVENTS_ReplicaReset_SIZE(0);
+    ASSERT_from_resetOut_SIZE(0);
+    this->cycle();
+    ASSERT_EVENTS_AdmitRequested_SIZE(0);
+}
+
+void RedundancyManagerTester ::silentReplicaIsResetAndAdmitted() {
+    this->resetLimit(2);
+    this->twoAnswer(1, 3);
+    // cycle 3 closes: replica 2 is lost and its unit reset; the admission
+    // starts with cycle 4
+    this->cycle();
+    ASSERT_EVENTS_ReplicaRetired(0, 2, RetireReason::LOST, 3);
+    ASSERT_EVENTS_ReplicaReset_SIZE(1);
+    ASSERT_EVENTS_ReplicaReset(0, 2, 1, 2, 3);
+    ASSERT_from_resetOut_SIZE(1);
+    ASSERT_from_resetOut(0, 3);
+    ASSERT_EQ(this->m_resetPort, 2);
+    ASSERT_EVENTS_AdmitRequested(0, 2, 4);
+    ASSERT_EQ(this->m_enabled[2], 1);
+    ASSERT_EQ(this->requested(2, RequestKind::KNOWN_ANSWER), 4);
+    ASSERT_TLM_Resets(0, 1);
+    // the reset unit gives the known answer: admitted, with no strikes
+    this->reply(2, 4, RequestKind::KNOWN_ANSWER, KNOWN_ANSWER);
+    ASSERT_EVENTS_ReplicaAdmitted(0, 2, 4);
+    ASSERT_from_healthClear(0, 2);
+    this->reply(0, 4, RequestKind::COMPUTE, GOOD);
+    this->reply(1, 4, RequestKind::COMPUTE, GOOD);
+    this->cycle();
+    ASSERT_EQ(this->requested(2, RequestKind::COMPUTE), 5);
+    ASSERT_TLM_LiveReplicas(0, 3);
+    ASSERT_EVENTS_ModeChanged(0, Mode::COMPARE, Mode::VOTE, 5);
+}
+
+void RedundancyManagerTester ::silentAfterResetsIsKeptOut() {
+    this->resetLimit(2);
+    this->twoAnswer(1, 3);
+    this->cycle();  // 4: lost at 3, first reset, admission asked at 4
+    ASSERT_EVENTS_ReplicaReset(0, 2, 1, 2, 3);
+    ASSERT_EVENTS_AdmitRequested(0, 2, 4);
+    this->reply(0, 4, RequestKind::COMPUTE, GOOD);
+    this->reply(1, 4, RequestKind::COMPUTE, GOOD);
+    this->cycle();  // 5: the known answer had this cycle too
+    ASSERT_EVENTS_AdmitFailed_SIZE(0);
+    this->reply(0, 5, RequestKind::COMPUTE, GOOD);
+    this->reply(1, 5, RequestKind::COMPUTE, GOOD);
+    // cycle 5 closes with no known answer: the admission fails, a second reset
+    this->cycle();
+    ASSERT_EVENTS_AdmitFailed(0, 2, AdmitFailure::KNOWN_ANSWER_MISSING, 5);
+    ASSERT_EVENTS_ReplicaReset(0, 2, 2, 2, 5);
+    ASSERT_EVENTS_AdmitRequested(0, 2, 6);
+    this->reply(0, 6, RequestKind::COMPUTE, GOOD);
+    this->reply(1, 6, RequestKind::COMPUTE, GOOD);
+    this->twoAnswer(7, 7);
+    // still silent after the last reset allowed: kept out
+    this->cycle();
+    ASSERT_EVENTS_AdmitFailed(0, 2, AdmitFailure::KNOWN_ANSWER_MISSING, 7);
+    ASSERT_EVENTS_ReplicaReset_SIZE(0);
+    ASSERT_EVENTS_ResetsExhausted_SIZE(1);
+    ASSERT_EVENTS_ResetsExhausted(0, 2, 7, 2);
+    ASSERT_EQ(this->m_enabled[2], 0);
+    this->reply(0, 8, RequestKind::COMPUTE, GOOD);
+    this->reply(1, 8, RequestKind::COMPUTE, GOOD);
+    this->cycle();
+    ASSERT_EVENTS_AdmitRequested_SIZE(0);
+    ASSERT_from_resetOut_SIZE(0);
+    ASSERT_TLM_LiveReplicas_SIZE(0);  // unchanged: still two
+}
+
+void RedundancyManagerTester ::wrongAnswerIsNotReset() {
+    this->resetLimit(2);
+    this->m_strikeAnswer = true;
+    this->cycle();
+    this->replyAll(1, GOOD, BAD, GOOD);
+    this->reply(1, 1, RequestKind::KNOWN_ANSWER, BAD);
+    ASSERT_EVENTS_ReplicaRetired(0, 1, RetireReason::KNOWN_ANSWER_FAILED, 1);
+    ASSERT_EVENTS_ReplicaReset_SIZE(0);
+    ASSERT_from_resetOut_SIZE(0);
+    this->cycle();
+    ASSERT_EVENTS_AdmitRequested_SIZE(0);
+}
+
+void RedundancyManagerTester ::lastReplicaComesBack() {
+    this->resetLimit(1);
+    this->downToOne();
+    // self-check asks on even cycles; three silent ones lose the last replica
+    for (U64 c = 1; c <= 6; c++) {
+        this->cycle();
+    }
+    this->cycle();  // 7: cycle 6 closes
+    ASSERT_EVENTS_ReplicaRetired(0, 0, RetireReason::LOST, 6);
+    ASSERT_EVENTS_ReplicaReset(0, 0, 1, 1, 6);
+    ASSERT_EVENTS_AdmitRequested(0, 0, 7);
+    ASSERT_EVENTS_Halted(0, 7);
+    ASSERT_EQ(this->requested(0, RequestKind::KNOWN_ANSWER), 7);
+    // back after the reset: the quorum leaves Halted
+    this->reply(0, 7, RequestKind::KNOWN_ANSWER, KNOWN_ANSWER);
+    ASSERT_EVENTS_ReplicaAdmitted(0, 0, 7);
+    this->cycle();
+    ASSERT_EVENTS_ModeChanged(0, Mode::HALTED, Mode::SELF_CHECK, 8);
+    ASSERT_EQ(this->requested(0, RequestKind::COMPUTE_TWICE), 8);
+    this->reply(0, 8, RequestKind::COMPUTE_TWICE, GOOD, GOOD);
+    ASSERT_from_resultOut(0, 8, GOOD);
 }
 
 void RedundancyManagerTester ::lateAnswersAreNotSilence() {

@@ -44,6 +44,14 @@ class RedundancyManagerTester final : public RedundancyManagerGTestBase {
     //! A replica that answers after its cycle closed is alive, never lost (MRU-RM-023)
     void lateReplicaStaysAlive();
     void tmrHaltsOnOne();
+    //! A silent replica is reset and admitted after its known-answer test (MRU-RM-024)
+    void silentReplicaIsResetAndAdmitted();
+    //! Still silent after every reset allowed: kept out, no more resets (MRU-RM-024)
+    void silentAfterResetsIsKeptOut();
+    //! A replica retired for a wrong answer is not reset (MRU-RM-024)
+    void wrongAnswerIsNotReset();
+    //! The last replica, lost and reset, brings the quorum back from Halted (MRU-RM-024, 012)
+    void lastReplicaComesBack();
     void setPolicy();
     void standby();
     void admit();
@@ -72,6 +80,7 @@ class RedundancyManagerTester final : public RedundancyManagerGTestBase {
                                  U64 cycle,
                                  const Mru::RequestKind& kind,
                                  const Mru::Upset& upset) override;
+    void from_resetOut_handler(FwIndexType portNum, U64 cycle) override;
 
     // ----------------------------------------------------------------------
     // Helpers
@@ -103,11 +112,18 @@ class RedundancyManagerTester final : public RedundancyManagerGTestBase {
     //! Put slots 1 and 2 on standby (shrinking quorum, one replica left)
     void downToOne();
 
+    //! Set ResetLimit and load it
+    void resetLimit(U8 limit);
+
+    //! Cycles `from` to `to`, replicas 0 and 1 answering, replica 2 silent
+    void twoAnswer(U64 from, U64 to);
+
     RedundancyManager component;
     const char* m_statePath;
     bool m_strikeAnswer;
     I32 m_enabled[Replicas];  //!< last enable value sent per replica: -1 none, 0 or 1
     FwIndexType m_requestPort[MAX_HISTORY_SIZE];
+    I32 m_resetPort;  //!< port of the last reset sent, or -1
 };
 
 }  // namespace Mru

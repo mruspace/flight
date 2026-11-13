@@ -40,6 +40,9 @@ class FaultInjectorTester final : public FaultInjectorGTestBase {
     //! Clearing a replica's faults models new hardware
     void clearFaults();
 
+    //! A reset ends a hang that has started; a kill or a stuck value stays (MRU-FI-004)
+    void resetEndsHang();
+
     //! Commands with bad arguments are refused
     void refusals();
 

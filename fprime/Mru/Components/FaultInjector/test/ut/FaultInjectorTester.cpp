@@ -166,6 +166,43 @@ void FaultInjectorTester ::clearFaults() {
     ASSERT_from_requestOut_SIZE(1);
 }
 
+void FaultInjectorTester ::resetEndsHang() {
+    this->inject(FaultKind::HANG, 0, 3);
+    this->inject(FaultKind::HANG, 0, 20);
+    this->request(0, 3, RequestKind::COMPUTE);
+    ASSERT_from_requestOut_SIZE(0);
+    this->request(0, 4, RequestKind::KNOWN_ANSWER);
+    ASSERT_from_requestOut_SIZE(0);
+    // the hang that started ends; the one scheduled for cycle 20 still comes
+    this->clearHistory();
+    this->invoke_to_resetIn(0, 5);
+    ASSERT_EVENTS_ResetApplied_SIZE(1);
+    ASSERT_EVENTS_ResetApplied(0, 0, 5, true);
+    this->request(0, 6, RequestKind::KNOWN_ANSWER);
+    this->assertForwarded(0, 6, RequestKind::KNOWN_ANSWER, NO_UPSET);
+    this->request(0, 7, RequestKind::COMPUTE);
+    ASSERT_from_requestOut_SIZE(1);
+    this->request(0, 20, RequestKind::COMPUTE);
+    ASSERT_from_requestOut_SIZE(0);
+
+    // a killed unit stays dead
+    this->inject(FaultKind::KILL, 1, 2);
+    this->clearHistory();
+    this->invoke_to_resetIn(1, 4);
+    ASSERT_EVENTS_ResetApplied(0, 1, 4, false);
+    this->request(1, 5, RequestKind::KNOWN_ANSWER);
+    ASSERT_from_requestOut_SIZE(0);
+
+    // a stuck unit stays stuck
+    this->inject(FaultKind::STUCK, 2, 2);
+    this->clearHistory();
+    this->invoke_to_resetIn(2, 4);
+    ASSERT_EVENTS_ResetApplied(0, 2, 4, false);
+    this->clearHistory();
+    this->invoke_to_replyIn(2, 5, RequestKind::KNOWN_ANSWER, 5, 0);
+    ASSERT_from_replyOut(0, 5, RequestKind::KNOWN_ANSWER, FaultInjector::STUCK_VALUE, FaultInjector::STUCK_VALUE);
+}
+
 void FaultInjectorTester ::refusals() {
     this->inject(FaultKind::KILL, 3, 1);
     ASSERT_CMD_RESPONSE(0, FaultInjectorComponentBase::OPCODE_INJECT, 0, Fw::CmdResponse::VALIDATION_ERROR);

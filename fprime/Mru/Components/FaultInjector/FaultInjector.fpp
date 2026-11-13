@@ -23,6 +23,9 @@ module Mru {
     @ Replies on to RedundancyManager
     output port replyOut: [Replicas] ReplicaReply
 
+    @ A reset of a replica's unit from RedundancyManager (MRU-FI-004)
+    guarded input port resetIn: [Replicas] ReplicaReset
+
     # ----------------------------------------------------------------------
     # Special ports
     # ----------------------------------------------------------------------
@@ -85,6 +88,16 @@ module Mru {
     ) \
       severity warning low \
       format "Fault on replica {} refused"
+
+    @ A replica's unit was reset: a hang that had started ends; a kill or a
+    @ stuck value stays (MRU-FI-004)
+    event ResetApplied(
+      replica: U8 @< The replica
+      cycle: U64 @< The cycle of the reset
+      hangEnded: bool @< A hang had started and the reset ended it
+    ) \
+      severity activity high \
+      format "Replica {} reset at cycle {}; hang ended: {}"
 
     @ Every fault of a replica was removed
     event FaultsCleared(

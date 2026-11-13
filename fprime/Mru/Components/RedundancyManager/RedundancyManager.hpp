@@ -86,8 +86,21 @@ class RedundancyManager final : public RedundancyManagerComponentBase {
     //! Ask a replica for its known answer
     void requestKnownAnswer(FwIndexType slot, KatPurpose purpose);
 
-    //! Retire a replica (MRU-RM-009 to 011)
+    //! Retire a replica (MRU-RM-009 to 011); one retired for silence is reset (MRU-RM-024)
     void retire(FwIndexType slot, RetireReason reason);
+
+    //! Enable a slot and ask its known answer: an admission (MRU-RM-020)
+    void startAdmission(FwIndexType slot);
+
+    //! Whether an admission waits for its known answer
+    bool admissionBusy() const;
+
+    //! A replica fell silent: reset its unit and admit it at the next cycle,
+    //! or keep it out when it had every reset allowed (MRU-RM-024)
+    void resetSilent(FwIndexType slot);
+
+    //! Start the admissions of replicas reset in an earlier cycle (MRU-RM-024)
+    void admitAfterReset();
 
     //! Number of ACTIVE slots
     U32 activeCount() const;
@@ -123,6 +136,12 @@ class RedundancyManager final : public RedundancyManagerComponentBase {
     U64 m_katCycle[Replicas];
     bool m_katGot[Replicas];
     bool m_katPassed[Replicas];
+
+    // automatic resets (MRU-RM-024); not in the state file, as strikes are not
+    U8 m_resets[Replicas];        //!< resets sent per slot
+    U64 m_resetCycle[Replicas];   //!< cycle of a reset whose admission has not started; 0 none
+    bool m_resetAdmit[Replicas];  //!< the admission in progress follows a reset
+    U32 m_resetTotal;
 
     Mode m_lastMode;
     bool m_halted;

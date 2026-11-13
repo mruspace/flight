@@ -53,6 +53,13 @@ TEST(Nominal, ClearFaults) {
     tester.clearFaults();
 }
 
+TEST(Nominal, ResetEndsHang) {
+    COMMENT("A reset ends a hang that has started; a kill or a stuck value stays");
+    REQUIREMENT("MRU-FI-004");
+    Mru::FaultInjectorTester tester;
+    tester.resetEndsHang();
+}
+
 TEST(OffNominal, Refusals) {
     COMMENT("Commands with bad arguments are refused");
     REQUIREMENT("MRU-FI-001");

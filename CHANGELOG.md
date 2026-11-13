@@ -5,6 +5,14 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ## Unreleased
 
+### Added
+
+- Automatic resets (MRU-RM-024): when a replica is retired for silence (lost, or its known answer missing), `RedundancyManager` sends a reset on a new `resetOut` port and starts an admission at the next cycle; the unit is taken back only on the right known answer. A unit still silent gets the next reset; after `ResetLimit` resets (a new parameter, default 0: off) the manager emits `ResetsExhausted` and keeps the slot retired, so a dead unit cannot cause a reset loop. A replica retired for a wrong answer is never reset. New events `ReplicaReset` and `ResetsExhausted`, telemetry `Resets`, port `ReplicaReset`. With the default, behavior is unchanged: the parity test with the demo and both deployment checks pass as before.
+- `FaultInjector`: a `resetIn` port (MRU-FI-004). A reset ends a hang that has started; a hang scheduled for later still comes; a kill or a stuck value stays. Event `ResetApplied`. Both deployments wire `manager.resetOut` to `injector.resetIn`.
+- Five unit tests (50 in all): a silent replica reset and admitted, one kept out after its last reset, no reset after a wrong answer, the last replica brought back from Halted, and the injector's reset.
+- `opssat/fprime3/`: run 4, built, not flown. A replica that stops answering (a hang at cycle 60 and again at 300) and a real dead unit (replica 2's process killed with SIGKILL at cycle 150), in three 40-second segments: the shrinking quorum with `ResetLimit` 3, without resets, and fixed TMR. `scripts/fprime-run4.sh` runs it in CI with short caps; the release adds `mru-fprime-resets-VERSION-armv7-linux-static.tar.gz`. A full-length native run in the build container (not the SEPP): with resets, 2 units live at the end, replica 1 back twice, replica 2 kept out after 3 resets, 0 wrong; without resets, alone in self-check, 0 wrong; fixed TMR halted at cycle 153, 0 wrong.
+- `docs/fault-model.md`: each simulated fault, the failure it stands for on a real system, how the run produces it, and what Mru does; and what is not modeled.
+
 ### Changed
 
 - `RedundancyManager`: the `DisagreementCaught` event description says that its mode is the one the cycle was decided in, from the answers counted that cycle. In run 3 in orbit the event read "caught at cycle 240 in SELF_CHECK" while the mode change to SELF_CHECK was logged at 243: replica 0's process had been killed, so it dropped out of the decision three cycles before it was retired as lost. Not a behavior change.

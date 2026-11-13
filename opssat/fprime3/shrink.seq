@@ -1,0 +1,10 @@
+; Run 4 on OPS-SAT PRETTY (exp4051), segment 2: the shrinking quorum on the
+; same faults, with automatic resets off (ResetLimit 0, the default):
+;   cycle  60  replica 1 hangs: lost, and stays out
+;   cycle 150  replica 2's process is killed with SIGKILL: lost; replica 0
+;              goes on alone in self-check
+;   cycle 300  replica 1 hangs again (already out: no effect)
+R00:00:00 MruQuorum.manager.SET_POLICY SHRINK
+R00:00:00 MruQuorum.injector.SET_UPSETS 0.0 0.05 1
+R00:00:00 MruQuorum.injector.INJECT HANG 1 60
+R00:00:00 MruQuorum.injector.INJECT HANG 1 300

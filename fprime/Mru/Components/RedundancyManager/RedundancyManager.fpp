@@ -20,6 +20,9 @@ module Mru {
     @ Enables or disables a replica (MRU-RM-011, 019, 020)
     output port enableOut: [Replicas] ReplicaEnable
 
+    @ Resets a replica's unit after it fell silent (MRU-RM-024)
+    output port resetOut: [Replicas] ReplicaReset
+
     @ Delivered results (MRU-RM-003)
     output port resultOut: Result
 
@@ -79,6 +82,9 @@ module Mru {
 
     @ Cycles between saves of the state file; 0 saves on change only (MRU-RM-022)
     param StateSavePeriod: U32 default 1000
+
+    @ Resets per replica after it fell silent; 0 turns automatic resets off (MRU-RM-024)
+    param ResetLimit: U8 default 0
 
     # ----------------------------------------------------------------------
     # Events
@@ -170,6 +176,25 @@ module Mru {
       severity warning low \
       format "Replica {} not admitted ({}) at cycle {}"
 
+    @ A replica that fell silent was reset; its admission follows (MRU-RM-024)
+    event ReplicaReset(
+      slot: U8 @< The slot
+      $reset: U8 @< This reset's number for the slot
+      limit: U8 @< The resets allowed per slot
+      cycle: U64 @< The cycle
+    ) \
+      severity activity high \
+      format "Replica {} reset ({} of {}) at cycle {}"
+
+    @ A replica stayed silent after every reset allowed; it stays out (MRU-RM-024)
+    event ResetsExhausted(
+      slot: U8 @< The slot
+      cycle: U64 @< The cycle
+      resets: U8 @< The resets it had
+    ) \
+      severity warning high \
+      format "Replica {} kept out at cycle {}: still silent after {} resets"
+
     @ A slot command was refused (MRU-RM-019, 020)
     event SlotCommandRefused(
       slot: U8 @< The slot asked for
@@ -244,6 +269,9 @@ module Mru {
 
     @ Cycles withheld because they closed late (MRU-RM-023)
     telemetry Late: U64
+
+    @ Automatic resets sent (MRU-RM-024)
+    telemetry Resets: U32 update on change
 
   }
 
