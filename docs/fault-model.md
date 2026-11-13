@@ -35,7 +35,7 @@ Faults are commanded the way an operator commands anything in F´: by command
 sequences (`INJECT`, `SET_UPSETS`) compiled against the deployment's
 dictionary, or by the deployment's `-k` option for real signals. The
 sequences for each run are in `opssat/` (for example
-[`opssat/fprime3/reset.seq`](../opssat/fprime3/reset.seq) for run 4). Every
+[`opssat/run4/reset.seq`](../opssat/run4/reset.seq) for run 4). Every
 event lands in the run's event file with its cycle.
 
 ## Run 4 (built, not flown)
@@ -73,8 +73,8 @@ PRETTY environment image (32-bit ARM, emulated on a laptop), as user `exp`:
 205 seconds, five segments, each exit 0, 0 wrong results in every segment,
 and nothing left behind by the cFS segment.
 
-Package and scripts: [`opssat/fprime3`](../opssat/fprime3). The CI check is
-[`scripts/fprime-run4.sh`](../scripts/fprime-run4.sh).
+Package and scripts: [`opssat/run4`](../opssat/run4). The CI check is
+[`scripts/opssat-run4.sh`](../scripts/opssat-run4.sh).
 
 ## Not modeled
 

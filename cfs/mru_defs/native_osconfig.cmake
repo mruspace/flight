@@ -4,7 +4,7 @@
 #   need root are skipped, instead of failing;
 # - the network layer stays built, because OSAL v7.0.1 does not link without
 #   it (OS_NetworkGetID_Impl), but nothing calls it: no application here
-#   opens a socket, and scripts/fprime-run4.sh checks that the running
+#   opens a socket, and scripts/opssat-run4.sh checks that the running
 #   process holds none;
 # - a static loader only: the app is linked into core-cpu1.
 set(OSAL_CONFIG_DEBUG_PERMISSIVE_MODE TRUE)

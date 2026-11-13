@@ -81,15 +81,15 @@ jobs:
           cp opssat/fprime2/run opssat/fprime2/shrink.seq opssat/fprime2/tmr.seq opssat/fprime2/restart.seq LICENSE "pkg/$name/"
           tar -C pkg -czf "dist/$name.tar.gz" "$name"
       - name: Build run 4 (automatic resets) and compile its sequences
-        run: ./opssat/fprime3/build.sh
+        run: ./opssat/run4/build.sh
       - name: Build Mru's cFS mission for the SEPP (static ARM)
         run: ./cfs/build.sh
       - name: Package run 4
         run: |
           name=mru-fprime-resets-${{ github.ref_name }}-armv7-linux-static
           mkdir -p "pkg/$name"
-          cp opssat/fprime3/dist/* "pkg/$name/"
-          cp opssat/fprime3/run opssat/fprime3/reset.seq opssat/fprime3/shrink.seq opssat/fprime3/tmr.seq opssat/fprime3/sensor.seq LICENSE "pkg/$name/"
+          cp opssat/run4/dist/* "pkg/$name/"
+          cp opssat/run4/run opssat/run4/reset.seq opssat/run4/shrink.seq opssat/run4/tmr.seq opssat/run4/sensor.seq LICENSE "pkg/$name/"
           mkdir -p "pkg/$name/cfs/cf"
           cp cfs/dist/core-cpu1 "pkg/$name/cfs/"
           cp cfs/dist/cf/cfe_es_startup.scr "pkg/$name/cfs/cf/"

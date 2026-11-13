@@ -1,5 +1,5 @@
 #!/bin/sh
-# fprime-run4.sh: the OPS-SAT run 4 package (opssat/fprime3), end to end with
+# opssat-run4.sh: the OPS-SAT run 4 package (opssat/run4), end to end with
 # short caps, against a native build: a replica that hangs is reset and
 # taken back, a replica whose process is killed is kept out after three
 # resets, and no segment delivers a wrong result (MRU-RM-024, MRU-FI-004).
@@ -33,14 +33,14 @@ fail() { printf 'FAIL  %s\n' "$1"; fails=$((fails + 1)); }
 
 dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
-cp opssat/fprime3/run "$dir/run"
+cp opssat/run4/run "$dir/run"
 cp "$deployment" "$dir/MruQuorum"
 cp "$replica" "$dir/MruReplica"
 mkdir -p "$dir/cfs/cf"
 cp "$cfs" "$dir/cfs/core-cpu1"
 cp "$cfs_startup" "$dir/cfs/cf/cfe_es_startup.scr"
 for s in reset shrink tmr sensor; do
-    fprime-seqgen --dictionary "$dictionary" "opssat/fprime3/$s.seq" "$dir/$s.bin" >/dev/null
+    fprime-seqgen --dictionary "$dictionary" "opssat/run4/$s.seq" "$dir/$s.bin" >/dev/null
 done
 
 # 20 ms cycles: 9 s reach about cycle 450, past the second hang at 300

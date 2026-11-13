@@ -17,9 +17,9 @@ fprime/build-artifacts/
 opssat/fprime2/dist/
 opssat/fprime2/dist-native/
 opssat/fprime2/toGround/
-opssat/fprime3/dist/
-opssat/fprime3/dist-native/
-opssat/fprime3/toGround/
+opssat/run4/dist/
+opssat/run4/dist-native/
+opssat/run4/toGround/
 cfs/dist/
 cfs/dist-native/
 cfs/build-native/

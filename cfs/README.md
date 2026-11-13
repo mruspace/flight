@@ -2,7 +2,7 @@
 
 Mru's decision core, the `quorum` crate, run as an application of NASA's core
 Flight System (cFS). Built for OPS-SAT run 4, segment 5
-([`opssat/fprime3`](../opssat/fprime3)): built and tested on the ground, not
+([`opssat/run4`](../opssat/run4)): built and tested on the ground, not
 flown.
 
 ## What is here

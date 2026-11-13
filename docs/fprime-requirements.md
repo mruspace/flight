@@ -122,7 +122,7 @@ of `RedundancyManager`, which needs exact agreement, does not fit them.
 | MRU-SS-001 | After a `SENSORS_ON` command, the component shall send three readings of a known value each cycle, each with uniform noise of a commanded amplitude from a seeded generator. Before it, it shall send nothing. | Unit test |
 | MRU-SS-002 | Commands shall schedule, on a chosen sensor and cycle: a spike, a drift, a stuck reading and a dropped reading. | Unit test |
 | MRU-SS-003 | The component shall score each value delivered as checked against the true value of its cycle: correct within a commanded accuracy, wrong outside it, with a throttled event. It shall count unchecked values and cycles with no value. | Unit test |
-| MRU-SS-004 | The component shall also score a plain average of the readings of each cycle, as a baseline, and give all counts to the deployment's summary. | Unit test, integration test (`scripts/fprime-run4.sh`) |
+| MRU-SS-004 | The component shall also score a plain average of the readings of each cycle, as a baseline, and give all counts to the deployment's summary. | Unit test, integration test (`scripts/opssat-run4.sh`) |
 | MRU-SS-005 | The component shall not be part of a flight build. | Inspection of the build |
 
 ## `RunRecorder` (passive, experiment builds only)

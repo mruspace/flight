@@ -86,7 +86,7 @@ jobs:
         env:
           MRU_CFS: cfs/build-native/exe/cpu1/core-cpu1
           MRU_CFS_STARTUP: cfs/build-native/exe/cpu1/cf/cfe_es_startup.scr
-        run: ./scripts/fprime-run4.sh
+        run: ./scripts/opssat-run4.sh
       - name: Unit tests and parity with the demo (MRU-SYS-001)
         working-directory: fprime
         run: fprime-util generate --ut && fprime-util check --all -j4

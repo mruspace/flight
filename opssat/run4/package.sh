@@ -15,7 +15,7 @@
 # same release asset); README.txt (for the operators) and LICENSE.
 #
 #   VERSION=v0.8.0 ./package.sh     uses that release (there is no default yet)
-#   DIST=opssat/fprime3/dist CFS_DIST=cfs/dist ./package.sh
+#   DIST=opssat/run4/dist CFS_DIST=cfs/dist ./package.sh
 #                                   uses local builds (build.sh, cfs/build.sh)
 set -eu
 
