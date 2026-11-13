@@ -26,6 +26,20 @@ module Mru {
     cycle: U64 @< The cycle of the reset
   )
 
+  @ The readings of one quantity by every sensor, for one cycle
+  port SensorReadings(
+    cycle: U64 @< The cycle
+    values: SensorValues @< One reading per sensor
+    present: SensorFlags @< False where a sensor gave no reading
+  )
+
+  @ The value chosen from the sensors' readings for one cycle
+  port SensorSelected(
+    cycle: U64 @< The cycle
+    value: I32 @< The value
+    checked: bool @< True when two or more sensors agreed; false for a single reading
+  )
+
   @ A delivered result
   port Result(
     cycle: U64 @< The cycle it belongs to

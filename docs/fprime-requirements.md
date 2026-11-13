@@ -4,8 +4,9 @@ Status: **approved on October 11, 2026**, with decisions D1 to D7 as
 recommended. After a comparison with the whitepaper, three additions were
 approved the same day: spares and standby (MRU-RM-018 to 021), reset
 survival (MRU-RM-022, which replaces D8), and Kani proofs on the C interface
-(MRU-FFI-005). MRU-RM-024 and MRU-FI-004 (automatic resets, for OPS-SAT
-run 4) were added on November 13, 2026. MRU-SYS-001 was changed as the
+(MRU-FFI-005). MRU-RM-024 and MRU-FI-004 (automatic resets), and SensorVoter
+(MRU-SV-001 to 007) and SensorSim (MRU-SS-001 to 005), all for OPS-SAT run 4,
+were added on November 13, 2026. MRU-SYS-001 was changed as the
 [design](fprime-design-fpp.md#change-to-mru-sys-001) proposed. F´'s
 development process
 ([nasa/fprime](https://github.com/nasa/fprime/blob/devel/docs/user-manual/overview/development-practice.md))
@@ -37,7 +38,7 @@ Each has a recommended answer. The requirements below assume it.
 
 | ID | Requirement | Verification |
 |---|---|---|
-| MRU-FFI-001 | A static library shall expose `mode`, `decide`, `Health::strike` and `Health::clear` of the `quorum` crate as C functions. | Unit test in C, built in CI |
+| MRU-FFI-001 | A static library shall expose `mode`, `decide`, `Health::strike` and `Health::clear` of the `quorum` crate, and `sensor::select` and `sensor::observe`, as C functions. | Unit test in C, built in CI |
 | MRU-FFI-002 | Only plain values shall cross the interface: integers, fixed-size arrays and structs of them. No Rust type, pointer to Rust memory or allocation. | Inspection |
 | MRU-FFI-003 | The C header shall match the Rust definitions. A test shall check sizes and values of every type and constant. | Unit test |
 | MRU-FFI-004 | The library shall add no decision logic. Each function shall call the crate and convert its inputs and outputs. | Inspection |
@@ -98,6 +99,32 @@ Each has a recommended answer. The requirements below assume it.
 | MRU-FI-003 | The component shall not be part of a flight build. | Inspection of the build |
 | MRU-FI-004 | A reset on a replica's `resetIn` port shall end a hang that has started on that replica; a hang scheduled for a later cycle shall still come. A kill or a stuck value shall stay. | Unit test |
 
+## `SensorVoter` (passive)
+
+Added on November 13, 2026, for sensor discrepancies (OPS-SAT run 4). The
+readings of one quantity by up to three sensors differ slightly, so the vote
+of `RedundancyManager`, which needs exact agreement, does not fit them.
+
+| ID | Requirement | Verification |
+|---|---|---|
+| MRU-SV-001 | The component shall make no decision itself: the choice and the exclusion come from the `quorum` crate's `sensor::select` and `sensor::observe`, through the C interface. | Inspection |
+| MRU-SV-002 | Each cycle, the component shall choose one value from the readings received, within the `Tolerance` parameter (default 0): the median of three if another reading is within the tolerance of it, the midpoint of two if they are within the tolerance of each other. | Unit test, Kani (core) |
+| MRU-SV-003 | When the readings differ by more than the tolerance and nothing says which is right, the component shall deliver nothing for the cycle and emit a throttled event. | Unit test, Kani (core) |
+| MRU-SV-004 | A reading more than the tolerance from the agreed value shall be an outlier, reported by a throttled event. A sensor that is an outlier in `ExcludeAfter` agreed cycles in a row (a parameter, default 5; 0 never excludes) shall be excluded, with an event, and its readings no longer used. Cycles without an agreed value shall not change the count. | Unit test, Kani (core) |
+| MRU-SV-005 | With one reading left, the component shall deliver it marked as unchecked, with a throttled event. | Unit test, Kani (core) |
+| MRU-SV-006 | An `INCLUDE_SENSOR` command shall use an excluded sensor again, with its count reset, and shall be refused for any other sensor. | Unit test |
+| MRU-SV-007 | The component shall report as telemetry: agreed, unchecked and disagreeing cycles, outliers, and the sensors excluded. | Unit test |
+
+## `SensorSim` (passive, test builds only)
+
+| ID | Requirement | Verification |
+|---|---|---|
+| MRU-SS-001 | After a `SENSORS_ON` command, the component shall send three readings of a known value each cycle, each with uniform noise of a commanded amplitude from a seeded generator. Before it, it shall send nothing. | Unit test |
+| MRU-SS-002 | Commands shall schedule, on a chosen sensor and cycle: a spike, a drift, a stuck reading and a dropped reading. | Unit test |
+| MRU-SS-003 | The component shall score each value delivered as checked against the true value of its cycle: correct within a commanded accuracy, wrong outside it, with a throttled event. It shall count unchecked values and cycles with no value. | Unit test |
+| MRU-SS-004 | The component shall also score a plain average of the readings of each cycle, as a baseline, and give all counts to the deployment's summary. | Unit test, integration test (`scripts/fprime-run4.sh`) |
+| MRU-SS-005 | The component shall not be part of a flight build. | Inspection of the build |
+
 ## `RunRecorder` (passive, experiment builds only)
 
 Added on October 22, 2026, for the OPS-SAT deployment (run 3). It stands in for the ground: the manager never sees it.
@@ -139,6 +166,7 @@ Compared with Layer 1 in the whitepaper (§8):
 |---|---|
 | Shrinking quorum: vote, compare, self-check | Built (core and components) |
 | Dual redundancy **with checkpointing**: on a caught disagreement with two replicas, roll back and recompute the cycle | Not built. A retry rule belongs in the core, with its own Kani proofs. Today the cycle is lost. |
+| Input agreement: replicas computing from sensor readings that differ | One value is chosen from up to three readings of one quantity within a tolerance, and a sensor that keeps disagreeing is excluded (MRU-SV-001 to 007). A step that makes every replica's input equal before it computes is not built. |
 | Health registry scoring error rate, response time and gate use; gradual deprioritization; donors | Strikes only. Response time is measurable from reply arrival and comes next. Gate use needs FPGA hardware. |
 | Spares from salvaged hardware; deprioritized nodes | Slots can be admitted and put on standby (MRU-RM-018 to 020). A replica that falls silent can be reset and admitted again, a bounded number of times (MRU-RM-024). Choosing when to bring in a spare is for the hardware inventory and the power accountant, not built. |
 | Power accountant | Not built. STANDBY_REPLICA is the hook it will use. |

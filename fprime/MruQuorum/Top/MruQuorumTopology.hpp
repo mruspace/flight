@@ -6,6 +6,7 @@
 #define MRUQUORUM_MRUQUORUMTOPOLOGY_HPP
 
 #include "Mru/Components/RunRecorder/RunRecorder.hpp"
+#include "Mru/Components/SensorSim/SensorSim.hpp"
 #include "MruQuorum/Top/MruQuorumTopologyDefs.hpp"
 
 namespace MruQuorum {
@@ -24,6 +25,9 @@ void setCycleHook(void (*hook)(U64 cycle));
 
 //! The counts and the manager's last telemetry
 Mru::RunRecorder::Totals totals();
+
+//! The sensor simulator's counts (MRU-SS-004)
+Mru::SensorSim::Totals sensorTotals();
 
 //! Drive the rate groups from the Linux timer; blocks until stopRateGroups()
 void startRateGroups(const TopologyState& state);

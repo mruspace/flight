@@ -8,13 +8,16 @@
 //! - **Fixed TMR** (`Policy::Tmr`): vote on three, compare on two, stop on one.
 //!
 //! It also keeps the health record that decides when a replica that keeps
-//! being outvoted must be diagnosed.
+//! being outvoted must be diagnosed, and, in [`sensor`], chooses one value
+//! from sensor readings that may differ slightly.
 //!
 //! The crate is `no_std`, allocates nothing and has no dependencies, so the
 //! same code can run on flight hardware and be checked with Kani
 //! (see the `proofs` module, built only under `cargo kani`).
 
 #![no_std]
+
+pub mod sensor;
 
 /// Number of replicas.
 pub const REPLICAS: usize = 3;

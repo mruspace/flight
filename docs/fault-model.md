@@ -28,6 +28,7 @@ named in the table.
 | A device on a bus stops answering, and a reset brings it back | No answer, until a reset | `FaultInjector` drops the replica's requests (`INJECT HANG`). A reset from the manager ends the hang, as a platform reset ends it in a device (MRU-FI-004) | Lost after three cycles without an answer. With resets on: Mru resets it, tests it with a known answer, and takes it back only if the test passes. At most `ResetLimit` resets per unit, so a unit that keeps failing cannot cause a reset loop. | 4 |
 | A process freezes without dying | No answer | A real SIGSTOP to the replica's process (`-k stop:N@C`) | As for a unit that stops answering | Supported, not used in a run yet |
 | Power cut or reboot in the middle of work | The manager disappears, then starts again | The manager process is killed with SIGKILL and started again with new replica processes | It restores the policy, the slot states and the cycle count from its state file, and carries on with the failed units still out. A corrupted state file is caught by its checksum, and Mru starts fresh. | 2, 3 |
+| Sensors of one quantity disagree: noise, a spike, a slow drift, a frozen sensor | Readings that differ, slightly or by a lot | `SensorSim`: three readings of a known value, with noise, and `SENSOR_FAULT` SPIKE, DRIFT, STUCK or DROP | `SensorVoter` chooses one value within a tolerance: the median of three, the midpoint of two. A reading beyond the tolerance is an outlier and is not chosen; a sensor that is an outlier five agreed cycles in a row is excluded, so a short spike is forgiven. With two readings left that disagree, nothing is delivered. | 4 (sensor segment) |
 | The processor is overloaded, or the manager falls behind | Answers arrive late | Real: found on loaded CI runners, not injected | The cycle is withheld and no unit is blamed (MRU-RM-023). A unit that answers late is alive, not lost. | CI; withheld once on the FlatSat in run 3 |
 
 Faults are commanded the way an operator commands anything in F´: by command
@@ -39,8 +40,9 @@ event lands in the run's event file with its cycle.
 
 ## Run 4 (built, not flown)
 
-Run 4 shows the second half of the bus-device row: recovery. The same faults
-run in three segments of 40 seconds each, at 100 ms per cycle:
+Run 4 shows the second half of the bus-device row, recovery, and the sensor
+row. Segments 1 to 3 run the same faults, 40 seconds each, at 100 ms per
+cycle:
 
 - Cycle 60: replica 1 stops answering (a hang).
 - Cycle 150: replica 2's process is killed with SIGKILL, a real dead unit.
@@ -51,6 +53,16 @@ run in three segments of 40 seconds each, at 100 ms per cycle:
 | Shrinking quorum, resets on (`ResetLimit` 3) | Replica 1 is reset and taken back, both times. Replica 2 is reset three times, fails every known-answer test, and is kept out. |
 | Shrinking quorum, resets off | Both units stay out; replica 0 goes on alone in self-check. |
 | Fixed TMR, no resets | One unit left after the kill; fixed TMR stops. |
+
+Segment 4, also 40 seconds, runs three simulated sensors next to the
+replicas: a spike on sensor 1 at cycle 60 (three cycles), a drift on sensor 2
+from cycle 120, and sensor 0 frozen from cycle 260. Tolerance 2.00, noise up
+to 0.50, a sensor excluded after five outlier cycles in a row. A full-length
+native run in the build container (not the SEPP), 399 cycles: 279 correct
+values, 0 wrong, and 120 cycles with no value, after the two readings left
+disagreed from cycle 279. The spike was masked and sensor 1 kept; sensor 2
+was excluded at cycle 137. A plain average of the same readings was wrong in
+261 of the 399 cycles.
 
 Package and scripts: [`opssat/fprime3`](../opssat/fprime3). The CI check is
 [`scripts/fprime-run4.sh`](../scripts/fprime-run4.sh).
@@ -72,7 +84,9 @@ Package and scripts: [`opssat/fprime3`](../opssat/fprime3). The CI check is
   real system, `resetOut` would drive the platform's reset line for that
   unit. Mru decides when to reset and whether to take the unit back; it does
   not reset hardware itself.
-- **Sensor disagreement.** Mru votes on results that should match exactly.
-  Real sensor readings differ slightly, so they need a tolerance step before
-  the vote. That step is not built (see "Input agreement" in the
-  [README](../README.md#input-agreement)).
+- **Input agreement for the replicas.** `SensorVoter` chooses one value from
+  sensors of one quantity. The replicas' vote still needs exact agreement: a
+  step that makes every replica's input equal before it computes is not
+  built (see "Input agreement" in the [README](../README.md#input-agreement)).
+- **Real sensors.** The readings are simulated, with a known true value.
+  On PRETTY, no sensor data is used.

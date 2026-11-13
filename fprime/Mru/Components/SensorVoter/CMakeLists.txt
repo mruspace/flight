@@ -1,0 +1,22 @@
+register_fprime_module(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/SensorVoter.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/SensorVoter.cpp"
+  HEADERS
+    "${CMAKE_CURRENT_LIST_DIR}/SensorVoter.hpp"
+  DEPENDS
+    quorum_ffi
+)
+
+register_fprime_ut(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/SensorVoter.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/SensorVoterTestMain.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/SensorVoterTester.cpp"
+  DEPENDS
+    STest
+    quorum_ffi
+  UT_AUTO_HELPERS
+)

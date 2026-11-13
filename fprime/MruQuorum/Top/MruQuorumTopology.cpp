@@ -89,6 +89,10 @@ Mru::RunRecorder::Totals totals() {
     return recorder.totals();
 }
 
+Mru::SensorSim::Totals sensorTotals() {
+    return sensorSim.totals();
+}
+
 void startRateGroups(const TopologyState& state) {
     timer.startTimer(Fw::TimeInterval(state.cycleMs / 1000, (state.cycleMs % 1000) * 1000));
 }

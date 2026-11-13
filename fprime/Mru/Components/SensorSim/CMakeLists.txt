@@ -1,0 +1,19 @@
+register_fprime_module(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/SensorSim.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/SensorSim.cpp"
+  HEADERS
+    "${CMAKE_CURRENT_LIST_DIR}/SensorSim.hpp"
+)
+
+register_fprime_ut(
+  AUTOCODER_INPUTS
+    "${CMAKE_CURRENT_LIST_DIR}/SensorSim.fpp"
+  SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/SensorSimTestMain.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test/ut/SensorSimTester.cpp"
+  DEPENDS
+    STest
+  UT_AUTO_HELPERS
+)

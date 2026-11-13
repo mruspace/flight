@@ -13,4 +13,6 @@ register_fprime_module(
         Mru_Components_SeqPacketDriver
         Mru_Components_FaultInjector
         Mru_Components_RunRecorder
+        Mru_Components_SensorSim
+        Mru_Components_SensorVoter
 )
