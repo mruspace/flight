@@ -86,8 +86,9 @@ test passes; it resets each replica at most three times in a run, then keeps
 it out. And SensorVoter chooses one value from three sensors of the same
 quantity within a tolerance, and excludes a sensor that keeps disagreeing.
 Segment 5 runs the same decision core as an application of NASA's core
-Flight System (cFS v7.0.1: cFE, OSAL and PSP), cfs/core-cpu1. MruQuorum, the manager process, runs RedundancyManager,
-HealthRegistry and FaultInjector with F´'s own command dispatcher, event
+Flight System (cFS v7.0.1: cFE, OSAL and PSP), cfs/core-cpu1.
+
+MruQuorum, the manager process, runs RedundancyManager, HealthRegistry and FaultInjector with F´'s own command dispatcher, event
 manager, telemetry database, health pings and command sequencer, driven by a
 Linux timer every 100 ms. It starts three MruReplica processes, one
 ReplicaHost each, linked through F´'s GenericHub over Unix socket pairs (no
@@ -100,7 +101,7 @@ The faults of segments 1 to 3:
   cycle 150  replica 2's process is killed: the manager sends it SIGKILL.
              A real dead unit: no reset brings it back.
   cycle 300  replica 1 hangs again.
-Nothing outside these processes is touched. Four segments, one after the
+Nothing outside these processes is touched. Five segments, one after the
 other, then it exits:
 
   1  reset    reset.bin: the shrinking quorum with automatic resets. Cap 40 s.
@@ -137,10 +138,9 @@ the package, a few tens of kilobytes of output.
 Output, all in toGround/: run-info.txt (start, end, exit codes, checksums);
 for each segment summary-NAME.txt (counts, footprint, the CPU time by phase,
 how each replica process ended and the experiment's CPU share; for segment
-4 also the sensors' counts) and events-NAME.txt; for segment 5
-summary-cfs.txt, events-cfs.txt (cFE's console, with the app's events) and
-cfs-mru.cfg (its fault schedule) (F´ events as text lines,
-the core of each replica process, the real fault).
+4 also the sensors' counts) and events-NAME.txt (F´ events as text lines: the core of each replica
+process, the real fault); for segment 5 summary-cfs.txt, events-cfs.txt
+(cFE's console, with the app's events) and cfs-mru.cfg (its fault schedule).
 
 Source and documentation: https://github.com/mruspace/flight (docs/opssat.md,
 docs/fault-model.md)
