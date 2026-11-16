@@ -7,7 +7,8 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ### Changed
 
-- The run 4 package is named `exp4051-mru-flight-VERSION.tar.gz`, as the packages of runs 1 and 2 were (it was `exp4051-mru-flight-fprime-resets-VERSION.tar.gz`): it holds the F´ deployment, the cFS app and six segments, not only F´ resets. The v0.9.0 asset on the release is the same file under the new name (same sha256).
+- The run 4 package is named `exp4051-mru-flight-VERSION.tar.gz`, as the packages of runs 1 and 2 were (it was `exp4051-mru-flight-fprime-resets-VERSION.tar.gz`): it holds the F´ deployment, the cFS app and six segments, not only F´ resets.
+- The run 4 package's `README.txt` names every addition (resets, SensorVoter, the bit flips, the check on every reply), gives the unpacked size (about 3.5 MB) and the `links: dropped=` line, and says what the events files hold; `run-info.txt` says `package=mru-flight`. The v0.9.0 asset was rebuilt from the same release binaries with these two files changed, and run full length in ESA's environment image again.
 
 ## 0.9.0 (2026-11-16)
 

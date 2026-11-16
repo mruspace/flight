@@ -104,7 +104,7 @@ mkdir -p "$OUT_DIR" || exit 2
 info=$OUT_DIR/run-info.txt
 now() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 {
-    echo "experiment=exp4051 package=mru-flight-fprime-resets run=4"
+    echo "experiment=exp4051 package=mru-flight run=4"
     echo "start_utc=$(now)"
     echo "uname=$(uname -a 2>/dev/null)"
     echo "user=$(id 2>/dev/null)"
