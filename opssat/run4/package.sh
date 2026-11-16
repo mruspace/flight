@@ -80,20 +80,28 @@ MruQuorum sha256: $sum
 MruReplica sha256: $sumReplica
 cfs/core-cpu1 sha256: $sumCfs
 
-What it is: the F´ deployment of run 3 (NASA JPL's flight software framework),
-in four processes, with two new behaviors. When a replica stops answering,
-Mru resets it, tests it with a known answer, and takes it back only if the
-test passes; it resets each replica at most three times in a run, then keeps
-it out. And SensorVoter chooses one value from three sensors of the same
-quantity within a tolerance, and excludes a sensor that keeps disagreeing.
+What it is: the F´ deployment of run 3 (NASA JPL's flight software
+framework), in four processes, with these additions:
+  - Automatic resets: when a replica stops answering, Mru resets it, tests
+    it with a known answer, and takes it back only if the test passes. It
+    resets each replica at most three times in a run, then keeps it out.
+  - SensorVoter: it chooses one value from three sensors of the same
+    quantity within a tolerance, and excludes a sensor that keeps
+    disagreeing.
+  - Real bit flips (segment 6): each replica process flips random bits in
+    its own memory, and nothing tells the manager where they land.
+  - A check on every message from a replica: the manager drops a message
+    that is not one well-formed reply, or one too many in a cycle, so a
+    corrupted replica cannot stop the manager. It only looks silent.
 Segment 5 runs the same decision core as an application of NASA's core
 Flight System (cFS v7.0.1: cFE, OSAL and PSP), cfs/core-cpu1.
 
-MruQuorum, the manager process, runs RedundancyManager, HealthRegistry and FaultInjector with F´'s own command dispatcher, event
-manager, telemetry database, health pings and command sequencer, driven by a
-Linux timer every 100 ms. It starts three MruReplica processes, one
-ReplicaHost each, linked through F´'s GenericHub over Unix socket pairs (no
-network), and pins replica 0 to core 0 and replicas 1 and 2 to core 1.
+MruQuorum, the manager process, runs RedundancyManager, HealthRegistry and
+FaultInjector with F´'s own command dispatcher, event manager, telemetry
+database, health pings and command sequencer, driven by a Linux timer every
+100 ms. It starts three MruReplica processes, one ReplicaHost each, linked
+through F´'s GenericHub over Unix socket pairs (no network), and pins
+replica 0 to core 0 and replicas 1 and 2 to core 1.
 
 The faults of segments 1 to 3:
   cycle  60  replica 1 stops answering (a hang, commanded by the sequence and
@@ -146,15 +154,17 @@ At most four processes at a time. Segment 5 uses System V shared memory and
 POSIX message queues (within the kernel's limits for a normal user) and
 removes what it created. Memory limit 128 MB of address space per
 process (RLIMIT_AS), set by each process itself. Each replica process pins
-itself to one core (sched_setaffinity on itself). Storage: about 2.5 MB for
-the package, a few tens of kilobytes of output.
+itself to one core (sched_setaffinity on itself). Storage: about 3.5 MB for
+the package unpacked, under 100 KB of output.
 
 Output, all in toGround/: run-info.txt (start, end, exit codes, checksums);
 for each segment summary-NAME.txt (counts, footprint, the CPU time by phase,
-how each replica process ended and the experiment's CPU share; for segment
-4 also the sensors' counts) and events-NAME.txt (F´ events as text lines: the core of each replica
-process, the real fault); for segment 5 summary-cfs.txt, events-cfs.txt
-(cFE's console, with the app's events) and cfs-mru.cfg (its fault schedule);
+how each replica process ended, the experiment's CPU share, and the
+messages dropped on each link; for segment 4 also the sensors' counts) and
+events-NAME.txt (F´ events as text lines, the core each replica process
+runs on, and a line for each real fault); for segment 5 summary-cfs.txt,
+events-cfs.txt (cFE's console, with the app's events) and cfs-mru.cfg (its
+fault schedule);
 for segment 6 also flips-bitflip-rN.txt (each replica's flips, one line
 each: number, ms, kind of memory, address, bit).
 
