@@ -4,7 +4,7 @@
 # the same decision core as a NASA cFS application, and real bit flips in
 # the replicas' memory.
 #
-# Output: exp4051-mru-flight-fprime-resets-VERSION.tar.gz in the current folder, with
+# Output: exp4051-mru-flight-VERSION.tar.gz in the current folder, with
 # all paths relative and all files owned by user and group "exp", as the
 # OPS-SAT experiment environment README requires. The runner unpacks it into
 # $HOME of user exp and executes ./run.
@@ -164,7 +164,7 @@ Contact: contact@mru.space
 TXT
 chmod 644 "$stage/README.txt"
 
-out="$PWD/exp4051-mru-flight-fprime-resets-$VERSION.tar.gz"
+out="$PWD/exp4051-mru-flight-$VERSION.tar.gz"
 entries="run MruQuorum MruReplica reset.bin shrink.bin tmr.bin sensor.bin bitflip.bin cfs README.txt LICENSE"
 if tar --version 2>/dev/null | grep -q bsdtar; then
     # shellcheck disable=SC2086
