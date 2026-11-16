@@ -9,6 +9,8 @@
 // `core` (a processor of its own where there is one), answers the manager's
 // requests through F´'s GenericHub, and exits when the link closes: when the
 // manager stops, or is killed. A replica killed by a fault simply ends.
+// With MRU_FLIPS set, a thread flips real bits in the process's own memory
+// (BitFlips.hpp).
 // ======================================================================
 #include <getopt.h>
 #include <sched.h>
@@ -19,6 +21,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "MruReplica/BitFlips.hpp"
 #include "MruReplica/Top/MruReplicaTopology.hpp"
 #include "Os/Os.hpp"
 #include "Os/Task.hpp"
@@ -78,6 +81,11 @@ int main(int argc, char* argv[]) {
     }
     std::printf("replica %d: pid %d, %s, on core %d\n", replica, static_cast<int>(getpid()), pinned, sched_getcpu());
     std::fflush(stdout);
+    // real bit flips in this process's memory, if MRU_FLIPS is set (run 4,
+    // segment 6); the thread is started after the pin, so it shares the core
+    if (!MruReplica::startBitFlips(replica)) {
+        return 1;
+    }
 
     struct sigaction action;
     action.sa_handler = onSignal;

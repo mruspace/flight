@@ -2,7 +2,7 @@
 # build.sh: build run 4 for the SEPP, in the F´ build container: the
 # version 2 binaries of run 3 with automatic resets (MRU-RM-024), and run 4's
 # command sequences. Output in opssat/run4/dist/: MruQuorum and MruReplica
-# (static 32-bit ARM, optimized) and reset.bin, shrink.bin, tmr.bin and sensor.bin,
+# (static 32-bit ARM, optimized) and reset.bin, shrink.bin, tmr.bin, sensor.bin and bitflip.bin,
 # compiled against that build's dictionary, plus the dictionary.
 #
 #   ./opssat/run4/build.sh           the ARM build for the package
@@ -23,7 +23,7 @@ cd /src
 rm -rf $out && mkdir -p $out
 cp $cache/bin/$bin/MruQuorum $cache/bin/$bin/MruReplica $out/
 cp $cache/MruQuorum/Top/MruQuorumTopologyDictionary.json $out/
-for s in reset shrink tmr sensor; do
+for s in reset shrink tmr sensor bitflip; do
     fprime-seqgen --dictionary $out/MruQuorumTopologyDictionary.json opssat/run4/\$s.seq $out/\$s.bin >/dev/null
 done
 "

@@ -7,6 +7,7 @@
 #include "Fw/Types/String.hpp"
 #include "Mru/Payload/Payload.hpp"
 
+#include <atomic>
 #include <cstring>
 
 namespace MruQuorum {
@@ -27,6 +28,46 @@ constexpr U16 BUFFER_MANAGER_ID = 100;
 
 //! Stack of each link thread
 constexpr Os::Task::ParamType LINK_STACK = 128 * 1024;
+
+//! Replies a replica can send in one cycle: its result, a known-answer
+//! test, and one late from the cycle before, with room to spare
+constexpr U32 MESSAGES_PER_CYCLE = 4;
+
+//! What one link let through since the start of the cycle
+std::atomic<U32> g_linkMessages[3];
+
+//! The manager's check on every message from a replica (link0 to link2).
+//! A replica sends one kind of message: a ReplicaReply on hub port 0. A
+//! message that is not exactly that, or one too many this cycle, is dropped
+//! on the link: to the manager the replica is silent, and it is retired as
+//! lost. Without this check, a reply that a corrupted replica malformed
+//! reached F´'s generated port code, which asserts on it and ends the
+//! manager (found by the bit flips of run 4, segment 6).
+bool validReply(void* context, const U8* data, FwSizeType size) {
+    std::atomic<U32>& count = *static_cast<std::atomic<U32>*>(context);
+    if (data == nullptr || size == 0 || ++count > MESSAGES_PER_CYCLE) {
+        return false;
+    }
+    Fw::ExternalSerializeBuffer in(const_cast<U8*>(data), size);
+    if (in.setBuffLen(size) != Fw::FW_SERIALIZE_OK) {
+        return false;
+    }
+    U32 type = 0;
+    U32 port = 0;
+    FwBuffSizeType length = 0;
+    U64 cycle = 0;
+    U64 first = 0;
+    U64 second = 0;
+    Mru::RequestKind kind;
+    const FwSizeType header = sizeof(U32) + sizeof(U32) + sizeof(FwBuffSizeType);
+    return (in.deserializeTo(type) == Fw::FW_SERIALIZE_OK) && (type == Svc::GenericHub::HUB_TYPE_PORT) &&
+           (in.deserializeTo(port) == Fw::FW_SERIALIZE_OK) && (port == 0) &&
+           (in.deserializeTo(length) == Fw::FW_SERIALIZE_OK) && (size >= header) &&
+           (static_cast<FwSizeType>(length) == size - header) && (in.deserializeTo(cycle) == Fw::FW_SERIALIZE_OK) &&
+           (in.deserializeTo(kind) == Fw::FW_SERIALIZE_OK) && kind.isValid() &&
+           (in.deserializeTo(first) == Fw::FW_SERIALIZE_OK) && (in.deserializeTo(second) == Fw::FW_SERIALIZE_OK) &&
+           (in.getDeserializeSizeLeft() == 0);
+}
 
 void configureTopology(const TopologyState& state) {
     // the fast group runs every cycle, the slow one once a second
@@ -51,6 +92,10 @@ void configureTopology(const TopologyState& state) {
     (void)link0.configure(state.fds[0], MESSAGE_BYTES);
     (void)link1.configure(state.fds[1], MESSAGE_BYTES);
     (void)link2.configure(state.fds[2], MESSAGE_BYTES);
+    // check every message from a replica before the hub sees it
+    link0.setFilter(validReply, &g_linkMessages[0]);
+    link1.setFilter(validReply, &g_linkMessages[1]);
+    link2.setFilter(validReply, &g_linkMessages[2]);
 }
 
 }  // namespace
@@ -71,6 +116,25 @@ void setupTopology(const TopologyState& state) {
                 Os::Task::TASK_PRIORITY_DEFAULT, LINK_STACK);
     link2.start(Fw::String("link2"), Os::Task::TASK_PRIORITY_DEFAULT, LINK_STACK, Os::Task::TASK_DEFAULT,
                 Os::Task::TASK_PRIORITY_DEFAULT, LINK_STACK);
+}
+
+void newCycleOnLinks() {
+    for (auto& count : g_linkMessages) {
+        count = 0;
+    }
+}
+
+U32 linkDropped(FwIndexType replica) {
+    switch (replica) {
+        case 0:
+            return link0.dropped();
+        case 1:
+            return link1.dropped();
+        case 2:
+            return link2.dropped();
+        default:
+            return 0;
+    }
 }
 
 bool linksOpen() {

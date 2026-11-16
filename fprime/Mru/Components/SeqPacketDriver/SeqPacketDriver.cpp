@@ -11,13 +11,28 @@
 namespace Mru {
 
 SeqPacketDriver ::SeqPacketDriver(const char* const compName)
-    : SeqPacketDriverComponentBase(compName), Drv::SocketComponentHelper(), m_socket(), m_allocationSize(1024) {}
+    : SeqPacketDriverComponentBase(compName),
+      Drv::SocketComponentHelper(),
+      m_socket(),
+      m_allocationSize(1024),
+      m_filter(nullptr),
+      m_filterContext(nullptr),
+      m_dropped(0) {}
 
 SeqPacketDriver ::~SeqPacketDriver() {}
 
 Drv::SocketIpStatus SeqPacketDriver ::configure(int fd, FwSizeType bufferSize) {
     this->m_allocationSize = bufferSize;
     return this->m_socket.configureDescriptor(fd, SOCKET_SEND_TIMEOUT_SECONDS, SOCKET_SEND_TIMEOUT_MICROSECONDS);
+}
+
+void SeqPacketDriver ::setFilter(Filter filter, void* context) {
+    this->m_filterContext = context;
+    this->m_filter = filter;
+}
+
+U32 SeqPacketDriver ::dropped() const {
+    return this->m_dropped.load();
 }
 
 Drv::IpSocket& SeqPacketDriver ::getSocketHandler() {
@@ -30,6 +45,13 @@ Fw::Buffer SeqPacketDriver ::getBuffer() {
 
 void SeqPacketDriver ::sendBuffer(Fw::Buffer buffer, Drv::SocketIpStatus status) {
     FW_ASSERT((status != Drv::SOCK_SUCCESS) || (buffer.getData() != nullptr));
+    if ((status == Drv::SOCK_SUCCESS) && (this->m_filter != nullptr) &&
+        !this->m_filter(this->m_filterContext, buffer.getData(), buffer.getSize())) {
+        // refused: it goes no further, and its buffer goes back
+        this->m_dropped++;
+        this->deallocate_out(0, buffer);
+        return;
+    }
     Drv::ByteStreamStatus recvStatus = Drv::ByteStreamStatus::OTHER_ERROR;
     if (status == Drv::SOCK_SUCCESS) {
         recvStatus = Drv::ByteStreamStatus::OP_OK;

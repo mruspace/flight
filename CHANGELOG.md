@@ -3,6 +3,17 @@
 All notable changes to Mru Flight. Versions follow [Semantic Versioning](https://semver.org).
 Release packages are on the [releases page](https://github.com/mruspace/flight/releases).
 
+## 0.9.0 (2026-11-16)
+
+### Added
+
+- Run 4, segment 6 (`opssat/run4/bitflip.seq`): real bit flips. With `MRU_FLIPS` set, a thread in each `MruReplica` process flips one random bit at a time in that process's own memory (code, read-only data, data, heap and stacks, in proportion to their size, on pages in memory), at random times, and logs each flip before making it (`fprime/MruReplica/BitFlips.hpp`, MRU-DEP-009). The cause is injected, not the symptom: nothing tells the manager where a flip lands. The run's default: 2 flips per second per replica from 2 s, 40 s, the shrinking quorum with no resets and a known-answer test on the last replica every cycle. A flipped replica's CPU time is limited (`RLIMIT_CPU`, 2 s) and its files (256 KB); no process writes a core file (the manager and the entry script turn core files off). The package runs six segments, 240 s of caps; three full runs in ESA's environment image: 246 s, every exit 0, 0 wrong in every segment. `scripts/opssat-run4.sh` checks segment 6 at 20 flips per second.
+- The manager checks every message from a replica on its link (MRU-DEP-008): `SeqPacketDriver::setFilter`, and in `MruQuorum` a check that each message is exactly one well-formed `ReplicaReply` on hub port 0 (type, port, length, a valid `RequestKind`, nothing left over) and no more than four in a cycle. Anything else is dropped and counted (`links: dropped=` in the summary), so a replica that sends garbage is silent to the manager and is lost.
+
+### Fixed
+
+- A corrupted replica could end the manager: a reply too short to decode reached F´'s generated port code, which asserts on it (found by the bit flips: 1 of 64 native runs at 200 flips per second from start-up, before the fix; 0 of 160 after). See MRU-DEP-008.
+
 ## 0.8.0 (2026-11-16)
 
 ### Added

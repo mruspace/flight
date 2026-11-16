@@ -1,15 +1,16 @@
 #!/bin/sh
 # run: entry point for the Mru Flight experiment on OPS-SAT PRETTY [exp4051],
 # run 4: a device that stops answering, automatic resets, sensors that
-# disagree, and the same decision core as a NASA cFS application. The F´
-# deployment of run 3, version 2, with each replica in a process of its own,
-# spread over the processor's two cores.
+# disagree, the same decision core as a NASA cFS application, and real bit
+# flips in the replicas' memory. The F´ deployment of run 3, version 2, with
+# each replica in a process of its own, spread over the processor's two
+# cores.
 #
 # The OPS-SAT runner executes ./run as user exp in $HOME, which holds the
 # files of this package, and collects everything written under $HOME when the
-# run ends. This script runs in the foreground, five segments one after the
+# run ends. This script runs in the foreground, six segments one after the
 # other, writes all output to toGround/, and exits. It stops by itself inside
-# the five-minute window: the caps below add up to 200 seconds.
+# the five-minute window: the caps below add up to 240 seconds.
 #
 # MruQuorum is the manager process: Mru's RedundancyManager, HealthRegistry
 # and FaultInjector with F´'s command dispatcher, event manager, telemetry
@@ -41,14 +42,32 @@
 #               /dev/shm and any shared memory segment that appeared during
 #               the segment and is still there. No network: nothing in it
 #               opens a socket, and the script records the count.
+#   6  bitflip  real bit flips: a thread in each replica process flips one
+#               random bit at a time in that process's own memory (code,
+#               read-only data, data, heap, stacks; pages in memory only),
+#               at random times, FLIP_RATE per second on average, from
+#               FLIP_DELAY_MS (MRU_FLIPS, fprime/MruReplica/BitFlips.hpp).
+#               The faults of segments 1 to 5 are injected at the symptom;
+#               these at the cause, and nothing tells the manager where they
+#               land. The shrinking quorum, no resets, a known-answer test
+#               on the last replica every cycle (bitflip.bin). Each replica
+#               logs its flips to flips-bitflip-rN.txt before making them.
+#               A flipped replica can crash, stop or spin: its CPU time is
+#               limited to FLIP_CPU_SECONDS, its files to 256 KB, and it
+#               writes no core file. Cap BITFLIP_SECONDS.
 #
 # Settings (environment variables, defaults in brackets):
-#   SEGMENTS          segments to run, in order      [reset shrink tmr sensor cfs]
+#   SEGMENTS          segments to run, in order      [reset shrink tmr sensor cfs bitflip]
 #   RESET_SECONDS     cap of segment 1               [40]
 #   SHRINK_SECONDS    cap of segment 2               [40]
 #   TMR_SECONDS       cap of segment 3               [40]
 #   SENSOR_SECONDS    cap of segment 4               [40]
 #   CFS_SECONDS       cycles of segment 5, in seconds [40]
+#   BITFLIP_SECONDS   cap of segment 6               [40]
+#   FLIP_RATE         bit flips per second, each replica [2]
+#   FLIP_SEED         seed of the flips              [1]
+#   FLIP_DELAY_MS     time before the first flip     [2000]
+#   FLIP_CPU_SECONDS  CPU limit of a replica, segment 6 [2]
 #   CYCLE_MS          cycle period in milliseconds   [100]
 #   MEMORY_MB         address-space limit, each      [128]
 #   CORES             replicas' cores                [0,1,1]
@@ -60,12 +79,19 @@ set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
 cd "$here" || exit 2
-SEGMENTS=${SEGMENTS:-"reset shrink tmr sensor cfs"}
+# no core file in the output folder from any process of the run
+ulimit -c 0 2>/dev/null
+SEGMENTS=${SEGMENTS:-"reset shrink tmr sensor cfs bitflip"}
 RESET_SECONDS=${RESET_SECONDS:-40}
 SHRINK_SECONDS=${SHRINK_SECONDS:-40}
 TMR_SECONDS=${TMR_SECONDS:-40}
 SENSOR_SECONDS=${SENSOR_SECONDS:-40}
 CFS_SECONDS=${CFS_SECONDS:-40}
+BITFLIP_SECONDS=${BITFLIP_SECONDS:-40}
+FLIP_RATE=${FLIP_RATE:-2}
+FLIP_SEED=${FLIP_SEED:-1}
+FLIP_DELAY_MS=${FLIP_DELAY_MS:-2000}
+FLIP_CPU_SECONDS=${FLIP_CPU_SECONDS:-2}
 CYCLE_MS=${CYCLE_MS:-100}
 MEMORY_MB=${MEMORY_MB:-128}
 CORES=${CORES:-0,1,1}
@@ -88,11 +114,11 @@ now() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
     echo "---"
     echo "deployment_sha256=$(sha256sum "$DEPLOYMENT" 2>/dev/null | cut -d' ' -f1)"
     echo "replica_sha256=$(sha256sum "$REPLICA" 2>/dev/null | cut -d' ' -f1)"
-    for s in reset shrink tmr sensor; do
+    for s in reset shrink tmr sensor bitflip; do
         echo "sequence_${s}_sha256=$(sha256sum "$here/$s.bin" 2>/dev/null | cut -d' ' -f1)"
     done
     echo "cfs_sha256=$(sha256sum "$here/cfs/core-cpu1" 2>/dev/null | cut -d' ' -f1)"
-    echo "settings: segments=$SEGMENTS reset_seconds=$RESET_SECONDS shrink_seconds=$SHRINK_SECONDS tmr_seconds=$TMR_SECONDS sensor_seconds=$SENSOR_SECONDS cfs_seconds=$CFS_SECONDS cycle_ms=$CYCLE_MS memory_mb=$MEMORY_MB cores=$CORES kill_cycle=$KILL_CYCLE"
+    echo "settings: segments=$SEGMENTS reset_seconds=$RESET_SECONDS shrink_seconds=$SHRINK_SECONDS tmr_seconds=$TMR_SECONDS sensor_seconds=$SENSOR_SECONDS cfs_seconds=$CFS_SECONDS bitflip_seconds=$BITFLIP_SECONDS flip_rate=$FLIP_RATE flip_seed=$FLIP_SEED flip_delay_ms=$FLIP_DELAY_MS flip_cpu_seconds=$FLIP_CPU_SECONDS cycle_ms=$CYCLE_MS memory_mb=$MEMORY_MB cores=$CORES kill_cycle=$KILL_CYCLE"
 } >"$info"
 
 child=
@@ -138,6 +164,7 @@ for segment in $SEGMENTS; do
     shrink) secs=$SHRINK_SECONDS kill="kill:2@$KILL_CYCLE" ;;
     tmr) secs=$TMR_SECONDS kill="kill:2@$KILL_CYCLE" ;;
     sensor) secs=$SENSOR_SECONDS kill= ;;
+    bitflip) secs=$BITFLIP_SECONDS kill= ;;
     cfs)
         # OSAL caps message queue depths at the kernel's limit for a normal
         # user only; as root in a container without CAP_SYS_RESOURCE, cFE
@@ -205,7 +232,13 @@ for segment in $SEGMENTS; do
         ;;
     esac
     echo "$segment: start_utc=$(now) max_seconds=$secs" >>"$info"
-    "$DEPLOYMENT" -t "$secs" -p "$CYCLE_MS" -m "$MEMORY_MB" -R "$REPLICA" -C "$CORES" \
+    # segment 6 only: the replicas flip real bits in their own memory
+    flips=
+    if [ "$segment" = bitflip ]; then
+        flips="MRU_FLIPS=$FLIP_RATE:$FLIP_SEED:$FLIP_DELAY_MS MRU_FLIPS_LOG=$OUT_DIR/flips-bitflip-r MRU_CPU_SECONDS=$FLIP_CPU_SECONDS"
+    fi
+    # shellcheck disable=SC2086
+    env $flips "$DEPLOYMENT" -t "$secs" -p "$CYCLE_MS" -m "$MEMORY_MB" -R "$REPLICA" -C "$CORES" \
         -o "$OUT_DIR/summary-$segment.txt" -s "$here/$segment.bin" ${kill:+-k "$kill"} \
         >"$OUT_DIR/events-$segment.txt" 2>&1 &
     child=$!
@@ -213,6 +246,14 @@ for segment in $SEGMENTS; do
     rc=$?
     child=
     echo "$segment: exit=$rc end_utc=$(now)" >>"$info"
+    if [ "$segment" = bitflip ]; then
+        for i in 0 1 2; do
+            f=$OUT_DIR/flips-bitflip-r$i.txt
+            n=$(grep -vc refused "$f" 2>/dev/null)
+            r=$(grep -c refused "$f" 2>/dev/null)
+            echo "bitflip: replica $i flips=${n:-0} refused=${r:-0}" >>"$info"
+        done
+    fi
     [ "$rc" -eq 0 ] || status=1
 done
 echo "end_utc=$(now) status=$status" >>"$info"

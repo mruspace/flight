@@ -64,6 +64,7 @@ int g_nFaults = 0;
 
 //! Called by RunRecorder at the start of every cycle, before the manager
 void onCycle(U64 cycle) {
+    MruQuorum::newCycleOnLinks();
     for (int i = 0; i < g_nFaults; i++) {
         ProcessFault& f = g_faults[i];
         if (!f.sent && f.cycle == cycle && g_pids[f.replica] > 0) {
@@ -269,6 +270,11 @@ void usage(const char* app) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
+    // no core file in the output folder, whatever ends this process
+    struct rlimit noCore;
+    noCore.rlim_cur = 0;
+    noCore.rlim_max = 0;
+    (void)setrlimit(RLIMIT_CORE, &noCore);
     struct timespec start;
     (void)clock_gettime(CLOCK_MONOTONIC, &start);
 
@@ -477,6 +483,7 @@ int main(int argc, char* argv[]) {
         "cpu: startup_user=%.3fs startup_system=%.3fs startup_wall=%.3fs run_user=%.3fs run_system=%.3fs "
         "run_wall=%.3fs run_share=%.2f%% end_cpu=%.3fs\n"
         "replicas: %s cores=%d,%d,%d cpu=%.3fs experiment_share=%.2f%%\n"
+        "links: dropped=%u,%u,%u\n"
         "limits: memory=%uMB/process max_run=%us\n",
         t.policy.e == Mru::Policy::TMR ? "tmr" : "shrink", static_cast<unsigned long long>(t.cycles), cycleMs,
         seqStatus, static_cast<unsigned long long>(t.correct), static_cast<unsigned long long>(t.caught),
@@ -485,7 +492,7 @@ int main(int argc, char* argv[]) {
         slotName(t.slots[0]), slotName(t.slots[1]), slotName(t.slots[2]), g_stopped, usage.ru_maxrss, vmKiB, cpu, wall,
         started.user, started.system, started.wall - seconds(start), runUser, runSystem, runWall, runShare, endCpu,
         replicas, cores[0], cores[1], cores[2], replicaCpu, (wall > 0.0) ? 100.0 * (cpu + replicaCpu) / wall : 0.0,
-        memoryMb, maxSeconds);
+        MruQuorum::linkDropped(0), MruQuorum::linkDropped(1), MruQuorum::linkDropped(2), memoryMb, maxSeconds);
     // the sensors' line, only when the sequence turned them on (MRU-SS-004)
     if (n > 0 && st.on && static_cast<size_t>(n) < sizeof(text)) {
         (void)snprintf(text + n, sizeof(text) - static_cast<size_t>(n),

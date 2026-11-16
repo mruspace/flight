@@ -1,0 +1,15 @@
+; Run 4 on OPS-SAT PRETTY (exp4051), segment 6: real bit flips. The faults
+; of segments 1 to 5 are injected at the symptom; these at the cause. A
+; thread in each replica process flips one random bit at a time in that
+; process's own memory (code, read-only data, data, heap, stacks), on pages
+; that are in memory, at random times (MRU_FLIPS in run, BitFlips.hpp).
+; Nothing tells the manager where a flip landed or what it did: most hit
+; memory that is never read again; some change a result, stop the replica,
+; crash it or set it spinning. Each replica process logs its flips.
+;   the shrinking quorum, no resets (a reset here cannot reload a process)
+;   KatPeriod 1: on the last replica, a known-answer test every cycle, so a
+;              flip that changes the payload's code is caught at once
+;   no simulated faults: SET_UPSETS sets no random upsets, seed 1
+R00:00:00 MruQuorum.manager.SET_POLICY SHRINK
+R00:00:00 MruQuorum.manager.KATPERIOD_PRM_SET 1
+R00:00:00 MruQuorum.injector.SET_UPSETS 0.0 0.0 1

@@ -27,9 +27,10 @@ that ran in runs 1 and 2. Run 3, on October 28, 2026, flew the F´
 deployment of the same decision core, with F´'s command, event and
 telemetry interfaces ([run 3](#run-3-v070-the-f-deployment-flown-october-28-2026)).
 [fault-model.md](fault-model.md) maps each simulated fault to the failure it
-stands for on a real system, and describes run 4 (built, not flown): a
-replica that stops answering, reset and taken back; sensors that disagree;
-and the same decision core as a cFS application ([cfs](../cfs/README.md)).
+stands for on a real system, and describes run 4 (built, planned, not
+flown): a replica that stops answering, reset and taken back; sensors that
+disagree; the same decision core as a cFS application
+([cfs](../cfs/README.md)); and real bit flips in the replicas' memory.
 
 ## What runs
 
