@@ -20,6 +20,14 @@ void runSequence(const char* path);
 //! True when the links to all three replica processes are open
 bool linksOpen();
 
+//! A new cycle: each link may pass a few replies again (called at the start
+//! of every cycle)
+void newCycleOnLinks();
+
+//! Messages from `replica` dropped on its link: malformed, or too many in
+//! one cycle
+U32 linkDropped(FwIndexType replica);
+
 //! Called with the cycle number at the start of every cycle, before the manager
 void setCycleHook(void (*hook)(U64 cycle));
 

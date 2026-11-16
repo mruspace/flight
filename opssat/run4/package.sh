@@ -1,7 +1,8 @@
 #!/bin/sh
 # package.sh: build the run 4 experiment package for OPS-SAT PRETTY [exp4051]:
 # a device that stops answering, automatic resets, sensors that disagree,
-# and the same decision core as a NASA cFS application.
+# the same decision core as a NASA cFS application, and real bit flips in
+# the replicas' memory.
 #
 # Output: exp4051-mru-flight-fprime-resets-VERSION.tar.gz in the current folder, with
 # all paths relative and all files owned by user and group "exp", as the
@@ -10,7 +11,7 @@
 #
 # Contents: run (entry point), MruQuorum (the manager process) and MruReplica
 # (one replica process), static 32-bit ARM hard-float binaries from the
-# GitHub release, checksum verified; reset.bin, shrink.bin, tmr.bin and sensor.bin (the
+# GitHub release, checksum verified; reset.bin, shrink.bin, tmr.bin, sensor.bin and bitflip.bin (the
 # F´ command sequences, compiled against the manager's dictionary, from the
 # same release asset); README.txt (for the operators) and LICENSE.
 #
@@ -34,7 +35,7 @@ PLATFORM=armv7-linux-static
 REPO=mruspace/flight
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-files="MruQuorum MruReplica reset.bin shrink.bin tmr.bin sensor.bin"
+files="MruQuorum MruReplica reset.bin shrink.bin tmr.bin sensor.bin bitflip.bin"
 
 if [ -n "${DIST:-}" ]; then
     for f in $files; do cp "$DIST/$f" "$work/$f"; done
@@ -66,14 +67,14 @@ chmod 644 "$stage/cfs/cf/cfe_es_startup.scr"
 cp "$here/run" "$stage/run"
 cp "$here/../../LICENSE" "$stage/LICENSE"
 chmod 755 "$stage/run" "$stage/MruQuorum" "$stage/MruReplica"
-chmod 644 "$stage/reset.bin" "$stage/shrink.bin" "$stage/tmr.bin" "$stage/sensor.bin" "$stage/LICENSE"
+chmod 644 "$stage/reset.bin" "$stage/shrink.bin" "$stage/tmr.bin" "$stage/sensor.bin" "$stage/bitflip.bin" "$stage/LICENSE"
 sha() { (sha256sum "$1" 2>/dev/null || shasum -a 256 "$1") | cut -d' ' -f1; }
 sum=$(sha "$stage/MruQuorum")
 sumReplica=$(sha "$stage/MruReplica")
 sumCfs=$(sha "$stage/cfs/core-cpu1")
 cat >"$stage/README.txt" <<TXT
 Mru Flight on OPS-SAT PRETTY, experiment exp4051, run 4: a device that stops
-answering, automatic resets, and sensors that disagree
+answering, automatic resets, sensors that disagree, and real bit flips
 Binaries: $source
 MruQuorum sha256: $sum
 MruReplica sha256: $sumReplica
@@ -101,7 +102,7 @@ The faults of segments 1 to 3:
   cycle 150  replica 2's process is killed: the manager sends it SIGKILL.
              A real dead unit: no reset brings it back.
   cycle 300  replica 1 hangs again.
-Nothing outside these processes is touched. Five segments, one after the
+Nothing outside these processes is touched. Six segments, one after the
 other, then it exits:
 
   1  reset    reset.bin: the shrinking quorum with automatic resets. Cap 40 s.
@@ -121,9 +122,22 @@ other, then it exits:
               (osal:RAM); run deletes both, and any shared memory segment
               that appeared during the segment and is still there. It opens
               no socket; run records the count.
+  6  bitflip  bitflip.bin: real bit flips. Segments 1 to 5 inject each fault
+              at its symptom (a changed answer, a stopped or killed
+              process). Here a thread in each replica process flips one
+              random bit at a time in that process's own memory: code,
+              read-only data, data, heap and stacks, on pages in memory, at
+              random times, 2 per second on average from 2 s. Nothing tells
+              the manager where a flip lands. Most hit memory that is never
+              read again; some crash a replica (the journal may show it),
+              stop it or change its results. The shrinking quorum, no
+              resets, a known-answer test on the last replica every cycle.
+              A flipped replica's CPU time is limited to 2 s and its files
+              to 256 KB, and it writes no core file. Code pages are private
+              copies: the files of the package are never changed. Cap 40 s.
 
 How to run: ./run (foreground, as user exp, in this folder). It stops by
-itself: the caps add up to 200 s, under five minutes in total. Stop early
+itself: the caps add up to 240 s, under five minutes in total. Stop early
 with SIGTERM: the running manager stops its timer, writes its summary, and
 its replica processes end.
 
@@ -140,7 +154,9 @@ for each segment summary-NAME.txt (counts, footprint, the CPU time by phase,
 how each replica process ended and the experiment's CPU share; for segment
 4 also the sensors' counts) and events-NAME.txt (F´ events as text lines: the core of each replica
 process, the real fault); for segment 5 summary-cfs.txt, events-cfs.txt
-(cFE's console, with the app's events) and cfs-mru.cfg (its fault schedule).
+(cFE's console, with the app's events) and cfs-mru.cfg (its fault schedule);
+for segment 6 also flips-bitflip-rN.txt (each replica's flips, one line
+each: number, ms, kind of memory, address, bit).
 
 Source and documentation: https://github.com/mruspace/flight (docs/opssat.md,
 docs/fault-model.md)
@@ -149,7 +165,7 @@ TXT
 chmod 644 "$stage/README.txt"
 
 out="$PWD/exp4051-mru-flight-fprime-resets-$VERSION.tar.gz"
-entries="run MruQuorum MruReplica reset.bin shrink.bin tmr.bin sensor.bin cfs README.txt LICENSE"
+entries="run MruQuorum MruReplica reset.bin shrink.bin tmr.bin sensor.bin bitflip.bin cfs README.txt LICENSE"
 if tar --version 2>/dev/null | grep -q bsdtar; then
     # shellcheck disable=SC2086
     tar -C "$stage" --no-mac-metadata --uname exp --gname exp --uid 1024 --gid 1024 -czf "$out" $entries
@@ -163,7 +179,7 @@ echo "wrote $out"
 # exactly these entries, no "._" entries, every entry owned by exp.
 python3 -I - "$out" <<'PY'
 import sys, tarfile
-want = ["run", "MruQuorum", "MruReplica", "reset.bin", "shrink.bin", "tmr.bin", "sensor.bin", "cfs", "cfs/cf",
+want = ["run", "MruQuorum", "MruReplica", "reset.bin", "shrink.bin", "tmr.bin", "sensor.bin", "bitflip.bin", "cfs", "cfs/cf",
         "cfs/cf/cfe_es_startup.scr", "cfs/core-cpu1", "README.txt", "LICENSE"]
 with tarfile.open(sys.argv[1]) as t:
     members = t.getmembers()

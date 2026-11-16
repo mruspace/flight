@@ -9,6 +9,7 @@ add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Top/")
 register_fprime_deployment(
     SOURCES
         "${CMAKE_CURRENT_LIST_DIR}/Main.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/BitFlips.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../MruOpsSat/RustSupport.cpp"
     DEPENDS
         ${FPRIME_CURRENT_MODULE}_Top

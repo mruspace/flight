@@ -6,7 +6,9 @@
 # The cFS segment: the same decision core as a cFS application, the faults
 # of run 1, no socket, nothing left behind. The sensor segment: a spike masked, a drifting sensor excluded, a stuck one
 # that leaves two readings in disagreement, and no wrong value (MRU-SV-001 to
-# 007, MRU-SS-001 to 004).
+# 007, MRU-SS-001 to 004). The bit-flip segment: every replica flips real
+# bits in its own memory and logs them, the manager ends cleanly, no wrong
+# result, no core file.
 # Cycles are not checked exactly: on a loaded runner a withheld cycle
 # (MRU-RM-023) can move an event. Exit status is non-zero if any check fails.
 #
@@ -39,13 +41,15 @@ cp "$replica" "$dir/MruReplica"
 mkdir -p "$dir/cfs/cf"
 cp "$cfs" "$dir/cfs/core-cpu1"
 cp "$cfs_startup" "$dir/cfs/cf/cfe_es_startup.scr"
-for s in reset shrink tmr sensor; do
+for s in reset shrink tmr sensor bitflip; do
     fprime-seqgen --dictionary "$dictionary" "opssat/run4/$s.seq" "$dir/$s.bin" >/dev/null
 done
 
 # 20 ms cycles: 9 s reach about cycle 450, past the second hang at 300
-if (cd "$dir" && CYCLE_MS=20 RESET_SECONDS=9 SHRINK_SECONDS=9 TMR_SECONDS=9 SENSOR_SECONDS=9 CFS_SECONDS=8 ./run); then
-    pass "run: five segments, exit 0"
+# segment 6 at 20 flips per second, so flips crash replicas in 9 s
+if (cd "$dir" && CYCLE_MS=20 RESET_SECONDS=9 SHRINK_SECONDS=9 TMR_SECONDS=9 SENSOR_SECONDS=9 CFS_SECONDS=8 \
+    BITFLIP_SECONDS=9 FLIP_RATE=20 FLIP_DELAY_MS=500 ./run); then
+    pass "run: six segments, exit 0"
 else
     fail "run: exit status $? ($(grep -E 'exit=' "$dir/toGround/run-info.txt" | tr '\n' ' '))"
 fi
@@ -125,5 +129,21 @@ grep -q 'cfs: cleanup: working folder removed, /dev/shm/osal:RAM absent, 0 share
     "$out/run-info.txt" && [ ! -e "$dir/cfs-work" ] &&
     pass "cfs: the power-on reset deleted cFE's shared memory; working files and RAM disk folder removed" ||
     fail "cfs: cleanup ($(grep 'cfs: cleanup' "$out/run-info.txt"))"
+
+# segment 6: real bit flips in the replicas' own memory
+s=$out/summary-bitflip.txt
+n=0
+for i in 0 1 2; do
+    [ -s "$out/flips-bitflip-r$i.txt" ] && n=$((n + 1))
+done
+[ "$n" -eq 3 ] && pass "bitflip: every replica logged its flips ($(cat "$out"/flips-bitflip-r*.txt | grep -vc refused) in all)" ||
+    fail "bitflip: flip logs from $n of 3 replicas"
+[ "$(field "$s" wrong)" = 0 ] &&
+    pass "bitflip: $(field "$s" useful) correct, 0 wrong; at the end $(field "$s" slots), mode $(field "$s" mode); $(grep '^replicas:' "$s" | cut -d' ' -f2-7)" ||
+    fail "bitflip: wrong=$(field "$s" wrong)"
+grep -q '^bitflip: exit=0' "$out/run-info.txt" && pass "bitflip: the manager ended cleanly" ||
+    fail "bitflip: $(grep '^bitflip: exit' "$out/run-info.txt")"
+[ -z "$(find "$dir" -name 'core*' -type f ! -path "$dir/cfs/*")" ] && pass "bitflip: no core file" ||
+    fail "bitflip: a core file was written"
 
 [ "$fails" -eq 0 ] || { echo "$fails check(s) failed"; exit 1; }

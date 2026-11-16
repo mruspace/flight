@@ -89,7 +89,7 @@ jobs:
           name=mru-fprime-resets-${{ github.ref_name }}-armv7-linux-static
           mkdir -p "pkg/$name"
           cp opssat/run4/dist/* "pkg/$name/"
-          cp opssat/run4/run opssat/run4/reset.seq opssat/run4/shrink.seq opssat/run4/tmr.seq opssat/run4/sensor.seq LICENSE "pkg/$name/"
+          cp opssat/run4/run opssat/run4/reset.seq opssat/run4/shrink.seq opssat/run4/tmr.seq opssat/run4/sensor.seq opssat/run4/bitflip.seq LICENSE "pkg/$name/"
           mkdir -p "pkg/$name/cfs/cf"
           cp cfs/dist/core-cpu1 "pkg/$name/cfs/"
           cp cfs/dist/cf/cfe_es_startup.scr "pkg/$name/cfs/cf/"

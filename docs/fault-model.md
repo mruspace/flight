@@ -8,8 +8,14 @@ known-answer test).
 
 So a hardware fault reaches Mru only as a **symptom at the interface**: a
 wrong value, the same wrong value every time, a late answer, or no answer at
-all. The runs reproduce those symptoms in software. They do not reproduce
-the physics that cause them.
+all. Most of the runs reproduce those symptoms in software. They do not
+reproduce the physics that cause them.
+
+Run 4's last segment goes one step closer to the cause. Each replica
+process flips **real bits in its own memory**, one at a time at random
+times: its code, data, heap and stacks. Nothing chooses the symptom.
+Whatever the flip does (nothing, a wrong result, a crash, a hang, a
+malformed message) is what Mru gets. See [Run 4, segment 6](#run-4-segment-6-real-bit-flips).
 
 On OPS-SAT PRETTY, the three replicas run on one processor with two cores:
 as processes (runs 1 to 3, and run 4's F´ segments) or as cFE child tasks,
@@ -32,6 +38,7 @@ tasks.
 | A process freezes without dying | No answer | A real SIGSTOP to the replica's process (`-k stop:N@C`) | As for a unit that stops answering | Supported, not used in a run yet |
 | Power cut or reboot in the middle of work | The manager disappears, then starts again | The manager process is killed with SIGKILL and started again with new replica processes | It restores the policy, the slot states and the cycle count from its state file, and carries on with the failed units still out. A corrupted state file is caught by its checksum, and Mru starts fresh. | 2, 3 |
 | Sensors of one quantity disagree: noise, a spike, a slow drift, a frozen sensor | Readings that differ, slightly or by a lot | `SensorSim`: three readings of a known value, with noise, and `SENSOR_FAULT` SPIKE, DRIFT, STUCK or DROP | `SensorVoter` chooses one value within a tolerance: the median of three, the midpoint of two. A reading beyond the tolerance is an outlier and is not chosen; a sensor that is an outlier five agreed cycles in a row is excluded, so a short spike is forgiven. With two readings left that disagree, nothing is delivered. | 4 (sensor segment) |
+| A particle flips a bit anywhere in a unit's memory: its code, its data, its stack | Whatever the flip causes: usually nothing; sometimes a wrong result, a crash, a hang, a garbled message | Real: a thread in each replica process flips random bits in that process's own memory, at random times (`MRU_FLIPS`, `fprime/MruReplica/BitFlips.hpp`). The cause is injected; the symptom is not chosen | As for each symptom. A message that is not a well-formed reply, or one too many in a cycle, is dropped on the link (MRU-DEP-008), so the replica looks silent and is lost. | 4 (segment 6) |
 | The processor is overloaded, or the manager falls behind | Answers arrive late | Real: found on loaded CI runners, not injected | The cycle is withheld and no unit is blamed (MRU-RM-023). A unit that answers late is alive, not lost. | CI; withheld once on the FlatSat in run 3 |
 
 Faults are commanded the way an operator commands anything in F´: by command
@@ -43,7 +50,7 @@ segment, the entry script writes the schedule to `/cf/mru.cfg` before cFS
 starts, and copies it to the output (`cfs-mru.cfg`). Every event lands in the
 run's event file with its cycle.
 
-## Run 4 (built, not flown)
+## Run 4 (built, planned, not flown)
 
 Run 4 shows the second half of the bus-device row, recovery, and the sensor
 row, and runs the same decision core under cFS. Segments 1 to 3 run the same
@@ -80,10 +87,61 @@ wrong; the stuck replica 1 retired on its known answer at cycle 122, the hung
 replica 0 lost at cycle 242, replica 2 alone in self-check from cycle 243; no
 socket open.
 
-On November 13, 2026, the whole package ran at full length in ESA's OPS-SAT
-PRETTY environment image (32-bit ARM, emulated on a laptop), as user `exp`:
-205 seconds, five segments, each exit 0, 0 wrong results in every segment,
-and nothing left behind by the cFS segment.
+On November 13, 2026, the five-segment package ran at full length in ESA's
+OPS-SAT PRETTY environment image (32-bit ARM, emulated on a laptop), as user
+`exp`: 205 seconds, each exit 0, 0 wrong results in every segment, and
+nothing left behind by the cFS segment. With segment 6 (November 16, 2026),
+three full runs: 246 seconds, each exit 0, 0 wrong results in every
+segment.
+
+## Run 4, segment 6: real bit flips
+
+Segments 1 to 5 inject each fault at its symptom. Segment 6 injects at the
+cause. A thread in each replica process flips one bit at a time in that
+process's own memory, as a particle would: it picks a byte at random from
+the process's code, read-only data, data, heap and stacks, in proportion to
+their size, on a page that is in memory, and flips one bit of it. The flips
+come at random times, 2 per second per replica on average, from 2 seconds
+after start (after the links are up). Code pages are the process's private
+copies: the package's files are never changed. Each replica logs every flip
+before it makes it (`flips-bitflip-rN.txt`: number, time, kind of memory,
+address, bit), so a flip that crashes the process is still on record.
+
+The manager runs the shrinking quorum, with no resets (a reset in these runs
+cannot reload a process) and a known-answer test on the last replica every
+cycle. It is told nothing about the flips.
+
+What the flips do cannot be scheduled: it depends on where they land, and
+the memory layout on the SEPP differs from the test host. In ESA's
+environment image (emulated, 32-bit ARM) and in 160 native runs at up to 200
+flips per second, the outcomes were: most flips changed nothing; some
+crashed a replica (segmentation fault, illegal instruction, stack smashing
+detected) or hung it, and it was lost; some made a replica answer wrong, and
+the disagreement was caught and the replica retired; when the last replica
+went, Mru halted and delivered nothing. **No run delivered a wrong
+result.**
+
+The flips found one real flaw before flight. A corrupted replica sent a
+reply too short to decode, and F´'s generated port code in the manager
+asserted on it and ended the manager process (1 of 64 native runs at 200
+flips per second from start-up). Now the manager checks every message from a
+replica on its link before the hub sees it: a message that is not exactly
+one well-formed reply, or one more than four in a cycle, is dropped and
+counted (MRU-DEP-008, `links: dropped=` in the summary). A replica that
+sends only garbage is then silent to the manager, and is lost. In 160 runs
+after the fix, the manager never crashed, and it dropped malformed messages
+in several. In one of them all three replicas died in the first 50 ms,
+before their links were up, and the manager declined to start (exit 1,
+nothing delivered); in the package the flips start at 2 seconds.
+
+A replica that a flip sets spinning stops at 2 seconds of CPU time
+(`RLIMIT_CPU`); a replica that writes without end stops at 256 KB
+(`RLIMIT_FSIZE`); no process of the run writes a core file.
+
+Limits: the flips are made by software, in user space, one bit at a time. A
+real particle can also flip a bit in a register, a cache, the kernel, or the
+shared processor itself, and can flip several bits at once. None of those is
+modeled here.
 
 Package and scripts: [`opssat/run4`](../opssat/run4). The CI check is
 [`scripts/opssat-run4.sh`](../scripts/opssat-run4.sh).
@@ -91,7 +149,9 @@ Package and scripts: [`opssat/run4`](../opssat/run4). The CI check is
 ## Not modeled
 
 - **Causes.** Radiation physics, latch-up, thermal and power faults are not
-  simulated. Only their symptoms at the interface are.
+  simulated. Only their symptoms at the interface are, except for the bit
+  flips of run 4, segment 6, which are real flips in a replica process's
+  memory, made by software.
 - **Common-mode faults.** On PRETTY all replicas share one processor, one
   clock and one power supply. A fault there hits every replica at once. Mru
   then withholds the cycle and blames no unit (MRU-RM-023), but it cannot
