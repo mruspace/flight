@@ -7,7 +7,7 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ### Changed
 
-- The run 4 package is named `exp4051-mru-flight-run4-VERSION.tar.gz` (it was `exp4051-mru-flight-fprime-resets-VERSION.tar.gz`): it holds the F´ deployment, the cFS app and six segments, not only F´ resets. The v0.9.0 asset on the release is the same file under the new name (same sha256).
+- The run 4 package is named `exp4051-mru-flight-VERSION.tar.gz`, as the packages of runs 1 and 2 were (it was `exp4051-mru-flight-fprime-resets-VERSION.tar.gz`): it holds the F´ deployment, the cFS app and six segments, not only F´ resets. The v0.9.0 asset on the release is the same file under the new name (same sha256).
 
 ## 0.9.0 (2026-11-16)
 
