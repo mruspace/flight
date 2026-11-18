@@ -216,7 +216,7 @@ topology that forgets `loadParameters()` does not test every cycle.
 
 | Check | Result |
 |---|---|
-| Kani, `quorum` and `quorum-ffi` | 9 of 9 proofs verified |
+| Kani, `quorum` and `quorum-ffi` | 16 of 16 proofs verified |
 | C test of `quorum.h` | passes |
 | F´ unit tests | 59 (HealthRegistry 5, ReplicaHost 5, FaultInjector 9, RedundancyManager 27, RunRecorder 4, SensorVoter 6, SensorSim 3), with address and undefined-behavior sanitizers |
 | MRU-SYS-001, 60 cases (5 schedules, 2 policies, 3 upset rates, 2 seeds, 4,000 cycles) | 36 identical to the demo. In the other 24, a kill that leaves one replica costs the shrinking quorum 2 correct results and adds 3 caught disagreements, as predicted. Wrong results are identical in all 60. |

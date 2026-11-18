@@ -1,7 +1,8 @@
 # Mru Flight F´ components
 
 F´ v4.4.1 components around the `quorum` decision core: `RedundancyManager`,
-`HealthRegistry`, `ReplicaHost`, and `FaultInjector` for test builds. Every
+`HealthRegistry`, `ReplicaHost` and `SensorVoter` for flight, and
+`FaultInjector`, `RunRecorder` and `SensorSim` for test builds. Every
 decision comes from the Rust core through [`quorum-ffi`](../quorum-ffi), so no
 vote, compare or self-check logic is written again in C++.
 

@@ -41,7 +41,7 @@ This repository is where that policy becomes flight software: a small,
 verified Rust core, wrapped as components for NASA JPL's open-source
 [F´](https://github.com/nasa/fprime) framework.
 
-**Status (October 2026): Mru Flight ran in orbit three times.** On October 18, 2026,
+**Status (November 2026): Mru Flight ran in orbit three times.** On October 18, 2026,
 Mru Flight v0.3.1 ran on the SEPP payload processor of ESA's OPS-SAT PRETTY as
 experiment exp4051: three software replicas on one processor, with faults
 from a schedule, 227 seconds, every result as predicted in writing before the
@@ -53,8 +53,10 @@ deployment: the F´ components, with each replica a process of its own on the
 SEPP's two cores and a real process kill, again as predicted. That tests the
 software policy on a flight processor. It is not a hardware-redundancy test
 and not qualification evidence. The decision core, the demo on real
-processes with faults injected, and the F´ components (three for flight, two
-test-only) work today.
+processes with faults injected, and the F´ components (four for flight, three
+test-only) work today. Run 4 was approved by the OPS-SAT team on November 16,
+2026, and its package (v0.9.0) is with TU Graz; it has not flown
+([fault model](docs/fault-model.md#run-4-approved-not-flown)).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/chart-dark.png">
@@ -450,8 +452,9 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## Roadmap
 
-1. **F´ components**: `RedundancyManager`, `HealthRegistry`, `ReplicaHost`, and
-   the test-only `FaultInjector` and `RunRecorder` are built
+1. **F´ components**: `RedundancyManager`, `HealthRegistry`, `ReplicaHost`,
+   `SensorVoter`, and the test-only `FaultInjector`, `RunRecorder` and
+   `SensorSim` are built
    ([design](docs/fprime-design.md)). The first deployment, `MruOpsSat`, runs
    them with F´'s own services. A second, `MruQuorum` with three `MruReplica`
    processes, puts each replica in a process of its own on the SEPP's two
@@ -476,8 +479,10 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
    the F´ deployment on October 28, 2026, each replica a process of its own,
    with a real kill and a restore from the manager's state file. All three
    matched the written prediction ([operations note](docs/opssat.md)). Next:
-   at most one more run on PRETTY, a failure case chosen with ESA's
-   operations team, planned.
+   run 4, approved by the OPS-SAT team on November 16, 2026, package sent,
+   not flown: automatic resets, sensor selection, the cFS app and real bit
+   flips made by software, all with simulated faults
+   ([fault model](docs/fault-model.md#run-4-approved-not-flown)).
 5. **On Earth**: the same software on an unattended ocean node, proposed for an
    EMSO ERIC observatory test.
 
@@ -488,7 +493,7 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
   [doi:10.5281/zenodo.23305299](https://doi.org/10.5281/zenodo.23305299)
 - Mru Field: [field](https://github.com/mruspace/field), the same core for
   hard-to-reach systems on Earth, as a supervisor that runs an operator's task
-  as three replicas on one processor; version 0.1.0, tested on the bench, not
+  as three replicas on one processor; version 0.3.0, tested on the bench, not
   yet on a board in a system
 - Simulator: [dusk](https://github.com/mruspace/dusk), interactive at
   [dusk.mru.space](https://dusk.mru.space)

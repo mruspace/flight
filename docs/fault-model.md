@@ -50,7 +50,10 @@ segment, the entry script writes the schedule to `/cf/mru.cfg` before cFS
 starts, and copies it to the output (`cfs-mru.cfg`). Every event lands in the
 run's event file with its cycle.
 
-## Run 4 (built, planned, not flown)
+## Run 4 (approved, not flown)
+
+The OPS-SAT team approved run 4 on November 16, 2026, and the v0.9.0
+package was sent to TU Graz the same day. It has not flown.
 
 Run 4 shows the second half of the bus-device row, recovery, and the sensor
 row, and runs the same decision core under cFS. Segments 1 to 3 run the same

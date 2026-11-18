@@ -7,6 +7,7 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ### Changed
 
+- Run 4 is approved, not flown: the OPS-SAT team approved it on November 16, 2026, and the v0.9.0 package was sent that day. README, `docs/opssat.md` and `docs/fault-model.md` say so. The README names Field 0.3.0 and the seven F´ components; `fprime/README.md` lists them; the F´ results table counts 16 Kani proofs, as the README does.
 - The run 4 package is named `exp4051-mru-flight-VERSION.tar.gz`, as the packages of runs 1 and 2 were (it was `exp4051-mru-flight-fprime-resets-VERSION.tar.gz`): it holds the F´ deployment, the cFS app and six segments, not only F´ resets.
 - The run 4 package's `README.txt` names every addition (resets, SensorVoter, the bit flips, the check on every reply), gives the unpacked size (about 3.5 MB) and the `links: dropped=` line, and says what the events files hold; `run-info.txt` says `package=mru-flight`. The v0.9.0 asset was rebuilt from the same release binaries with these two files changed, and run full length in ESA's environment image again.
 
