@@ -1,0 +1,95 @@
+replica 0: pid 182, pinned, on core 0
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+replica 1: pid 183, pinned, on core 1
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+EVENT: (16789504) (2:1795174911,782044) ACTIVITY_LO: (CdhCore.version) FrameworkVersion : Framework Version: [558b7ef]
+EVENT: (16789505) (2:1795174911,782144) ACTIVITY_LO: (CdhCore.version) ProjectVersion : Project Version: [v0.9.0]
+replica 2: pid 185, pinned, on core 1
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+EVENT: (268447744) (2:1795174911,833859) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_SequenceLoaded : Loaded sequence /home/exp/tmr.bin
+EVENT: (268447759) (2:1795174911,834004) ACTIVITY_HI: (MruQuorum.cmdSeq) CS_PortSequenceStarted : Local request for sequence /home/exp/tmr.bin started.
+EVENT: (16777217) (2:1795174911,834135) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10004000 dispatched to port 6
+EVENT: (268451840) (2:1795174911,834241) ACTIVITY_HI: (MruQuorum.manager) PolicySet : Policy set to TMR (1)
+EVENT: (16777218) (2:1795174911,834411) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10004000 completed
+EVENT: (268447752) (2:1795174911,834514) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/tmr.bin: Command 0 (opcode 268451840) complete
+EVENT: (268517382) (2:1795174911,834654) ACTIVITY_HI: (MruQuorum.injector) UpsetsSet : Upsets: rate 0.000000, common mode 0.050000, seed 1
+EVENT: (16777217) (2:1795174911,834735) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10014002 dispatched to port 5
+EVENT: (16777218) (2:1795174911,834781) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10014002 completed
+EVENT: (268447752) (2:1795174911,834876) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/tmr.bin: Command 1 (opcode 268517378) complete
+EVENT: (268517376) (2:1795174911,834993) ACTIVITY_HI: (MruQuorum.injector) FaultScheduled : HANG (1) scheduled on replica 1 at cycle 60
+EVENT: (16777217) (2:1795174911,835055) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10014000 dispatched to port 5
+EVENT: (16777218) (2:1795174911,835099) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10014000 completed
+EVENT: (268447752) (2:1795174911,835190) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/tmr.bin: Command 2 (opcode 268517376) complete
+EVENT: (268517376) (2:1795174911,835305) ACTIVITY_HI: (MruQuorum.injector) FaultScheduled : HANG (1) scheduled on replica 1 at cycle 300
+EVENT: (16777217) (2:1795174911,835405) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10014000 dispatched to port 5
+EVENT: (16777218) (2:1795174911,835453) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10014000 completed
+EVENT: (268447752) (2:1795174911,835548) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/tmr.bin: Command 3 (opcode 268517376) complete
+EVENT: (268447753) (2:1795174911,835609) ACTIVITY_HI: (MruQuorum.cmdSeq) CS_SequenceComplete : Sequence file /home/exp/tmr.bin complete
+EVENT: (268451854) (2:1795174911,944174) WARNING_LO: (MruQuorum.manager) StateNotRestored : No valid state file; starting with all slots active
+EVENT: (268517377) (2:1795174917,844010) WARNING_LO: (MruQuorum.injector) FaultApplied : HANG (1) applied to replica 1 at cycle 60
+EVENT: (268451845) (2:1795174918,144150) WARNING_HI: (MruQuorum.manager) ReplicaRetired : Replica 1 retired (LOST (2)) at cycle 62
+EVENT: (268451841) (2:1795174918,144260) ACTIVITY_HI: (MruQuorum.manager) ModeChanged : Mode VOTE (0) -> COMPARE (1) at cycle 63
+FAULT: replica 2 (pid 185) sent SIGKILL at the start of cycle 150: ok
+[WARNING] link2 failed to recv from port with status -8 and errno 0
+EVENT: (268558337) (2:1795174926,844478) WARNING_LO: (MruQuorum.adapter2) DataSendError : Data send error status: 3
+EVENT: (268558338) (2:1795174926,844484) WARNING_LO: (MruQuorum.adapter2) DataReceiveError : Data reception error status: 3
+EVENT: (268558337) (2:1795174926,944104) WARNING_LO: (MruQuorum.adapter2) DataSendError : Data send error status: 3
+EVENT: (268558337) (2:1795174927,44022) WARNING_LO: (MruQuorum.adapter2) DataSendError : Data send error status: 3
+EVENT: (268558337) (2:1795174927,143986) WARNING_LO: (MruQuorum.adapter2) DataSendError : Data send error status: 3
+EVENT: (268451845) (2:1795174927,144063) WARNING_HI: (MruQuorum.manager) ReplicaRetired : Replica 2 retired (LOST (2)) at cycle 152
+EVENT: (268451841) (2:1795174927,144125) ACTIVITY_HI: (MruQuorum.manager) ModeChanged : Mode COMPARE (1) -> HALTED (3) at cycle 153
+EVENT: (268451856) (2:1795174927,144180) WARNING_HI: (MruQuorum.manager) Halted : Halted at cycle 153
+[WARNING] link0 failed to recv from port with status -8 and errno 0
+[WARNING] link failed to recv from port with status -8 and errno 0
+EVENT: (268550146) (2:1795174952,44624) WARNING_LO: (MruQuorum.adapter0) DataReceiveError : Data reception error status: 3
+[WARNING] link1 failed to recv from port with status -8 and errno 0
+[WARNING] link failed to recv from port with status -8 and errno 0
+EVENT: (268554242) (2:1795174952,44831) WARNING_LO: (MruQuorum.adapter1) DataReceiveError : Data reception error status: 3
+policy=tmr cycles=399 cycle_ms=100 sequence=ok
+useful=149 detected=0 wrong=0 late=0 last_useful=149 live_at_end=1 mode=halted slots=active,retired,retired stopped=time-limit
+footprint: max_rss=1776KiB address_space=11848KiB cpu=0.110s wall=40.329s
+cpu: startup_user=0.000s startup_system=0.010s startup_wall=0.067s run_user=0.000s run_system=0.100s run_wall=40.000s run_share=0.25% end_cpu=0.000s
+replicas: 0=exit 0 1=exit 0 2=signal 9 cores=0,1,1 cpu=0.070s experiment_share=0.45%
+links: dropped=0,0,0
+limits: memory=128MB/process max_run=40s

@@ -1,0 +1,95 @@
+CFE_PSP: Default Reset SubType = 1
+CFE_PSP: Default CPU ID = 1
+CFE_PSP: Default Spacecraft ID = 66
+CFE_PSP: Default CPU Name: cpu1
+CFE_PSP: initializing module 'soft_timebase' with ID 0110ff00
+CFE_PSP: Instantiated software timebase 'cFS-Master' running at 10000 usec
+CFE_PSP: initializing module 'timebase_posix_clock' with ID 0110ff01
+CFE_PSP: Using POSIX monotonic clock as CFE timebase
+CFE_PSP: initializing module 'eeprom_mmap_file' with ID 0110ff02
+CFE_PSP: Using MMAP simulated EEPROM implementation
+CFE_PSP: initializing module 'port_notimpl' with ID 0110ff03
+CFE_PSP: EEPROM Range (2) created: Start Address = B6D5E000, Size = 00080000 Status = 0
+CFE_PSP: I/O Port access not implemented
+CFE_PSP: initializing module 'iodriver' with ID 0110ff04
+CFE_PSP: initializing module 'linux_sysmon' with ID 0110ff05
+CFE_PSP: initializing module 'endian_api' with ID 0110ff06
+CFE_PSP: Host CPU Endian=LITTLE
+CFE_PSP: initializing module 'ram_notimpl' with ID 0110ff07
+CFE_PSP: Physical RAM access not implemented
+CFE_PSP: Starting the cFE with a POWER ON reset.
+CFE_PSP: Clearing out CFE CDS Shared memory segment.
+CFE_PSP: Clearing out CFE Reset Shared memory segment.
+CFE_PSP: Clearing out CFE User Reserved Shared memory segment.
+1980-001-00:10:42.24145 CFE_ES_SetupResetVariables: POWER ON RESET due to Power Cycle (Power Cycle).
+1980-001-00:10:42.24158 CFE_ES_Main: CFE_ES_Main in EARLY_INIT state
+CFE_PSP: CFE_PSP_AttachExceptions called
+1980-001-00:10:42.24175 CFE_ES_Main: CFE_ES_Main entering CORE_STARTUP state
+1980-001-00:10:42.24177 CFE_ES_CreateObjects: Starting Object Creation calls.
+1980-001-00:10:42.24178 CFE_ES_CreateObjects: Calling EarlyInit for CFE_CONFIG
+1980-001-00:10:42.24183 CFE_ES_CreateObjects: Calling EarlyInit for CFE_ES
+1980-001-00:10:42.24257 CFE_ES_CreateObjects: Calling EarlyInit for CFE_EVS
+1980-001-00:10:42.24267 CFE_EVS_EarlyInit: Event Log cleared following power-on reset
+1980-001-00:10:42.24269 CFE_ES_CreateObjects: Calling EarlyInit for CFE_FS
+1980-001-00:10:42.24271 CFE_ES_CreateObjects: Calling EarlyInit for CFE_SB
+1980-001-00:10:42.24415 CFE_ES_CreateObjects: Calling EarlyInit for CFE_TBL
+1980-001-00:10:42.24604 CFE_ES_CreateObjects: Calling EarlyInit for CFE_TIME
+EVS Port1 1980-012-14:03:20.06030 66/1/CFE_ES 1: cFE ES Initialized: CFE_ES v7.0.1+dev0 (Draco) v7.0.1 Official Release, EDS disabled
+EVS Port1 1980-012-14:03:20.06037 66/1/CFE_ES 2: cFS Versions: cfe v7.0.1+dev0, osal v7.0.1+dev0, psp v7.0.1+dev0. cFE chksm 20441
+EVS Port1 1980-012-14:03:20.06042 66/1/CFE_ES 91: Version Info: Mission Mru, version git:v0.9.0
+EVS Port1 1980-012-14:03:20.06047 66/1/CFE_ES 91: Version Info: Module CORE_API, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06053 66/1/CFE_ES 91: Version Info: Module MRU, version git:v0.9.0
+EVS Port1 1980-012-14:03:20.06057 66/1/CFE_ES 91: Version Info: Module CONFIG, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06062 66/1/CFE_ES 91: Version Info: Module ES, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06066 66/1/CFE_ES 91: Version Info: Module EVS, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06071 66/1/CFE_ES 91: Version Info: Module FS, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06086 66/1/CFE_ES 91: Version Info: Module SB, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06092 66/1/CFE_ES 91: Version Info: Module TBL, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06098 66/1/CFE_ES 91: Version Info: Module TIME, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06103 66/1/CFE_ES 91: Version Info: Module OSAL, version git:d2d877a
+EVS Port1 1980-012-14:03:20.06106 66/1/CFE_ES 91: Version Info: Module PSP, version git:c4b3b0b
+EVS Port1 1980-012-14:03:20.06111 66/1/CFE_ES 91: Version Info: Module MSG, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06115 66/1/CFE_ES 91: Version Info: Module SBR, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06120 66/1/CFE_ES 91: Version Info: Module RESOURCEID, version git:c5fb2b4
+EVS Port1 1980-012-14:03:20.06124 66/1/CFE_ES 92: Build 202611161439 by root@aa80bc9c7a1c, config mru
+EVS Port1 1980-012-14:03:20.15142 66/1/CFE_EVS 1: cFE EVS Initialized: CFE_EVS v7.0.1+dev0 (Draco) v7.0.1 Official Release, EDS disabled
+1980-012-14:03:20.25157 CFE_SB_AppInit: Registered 4 events for filtering
+EVS Port1 1980-012-14:03:20.25184 66/1/CFE_SB 1: cFE SB Initialized: CFE_SB v7.0.1+dev0 (Draco) v7.0.1 Official Release, EDS disabled
+EVS Port1 1980-012-14:03:20.25190 66/1/CFE_SB 14: No subscribers for MsgId 0x808,sender CFE_SB
+EVS Port1 1980-012-14:03:20.35200 66/1/CFE_TBL 1: cFE TBL Initialized: CFE_TBL v7.0.1+dev0 (Draco) v7.0.1 Official Release, EDS disabled
+EVS Port1 1980-012-14:03:20.35211 66/1/CFE_SB 14: No subscribers for MsgId 0x808,sender CFE_TBL
+EVS Port1 1980-012-14:03:20.45260 66/1/CFE_TIME 1: cFE TIME Initialized: CFE_TIME v7.0.1+dev0 (Draco) v7.0.1 Official Release, EDS disabled
+EVS Port1 1980-012-14:03:20.45268 66/1/CFE_SB 14: No subscribers for MsgId 0x808,sender CFE_TIME
+1980-012-14:03:20.50225 CFE_ES_CreateObjects: Finished ES CreateObject table entries.
+1980-012-14:03:20.50230 CFE_ES_Main: CFE_ES_Main entering CORE_READY state
+1980-012-14:03:20.50237 CFE_ES_StartApplications: Opened ES App Startup file: /cf/cfe_es_startup.scr
+1980-012-14:03:20.50292 CFE_ES_ParseFileEntry: Loading file: /cf/mru.so, APP: MRU
+EVS Port1 1980-012-14:03:20.55363 66/1/MRU 2: Config: 400 cycles of 100 ms, 3 faults, 0 bad lines
+EVS Port1 1980-012-14:03:20.55380 66/1/CFE_SB 14: No subscribers for MsgId 0x808,sender MRU
+EVS Port1 1980-012-14:03:20.55439 66/1/MRU 1: Mru started: shrinking quorum over three replica tasks, decided by the quorum core
+1980-012-14:03:20.60332 CFE_ES_Main: CFE_ES_Main entering APPS_INIT state
+1980-012-14:03:20.60336 CFE_ES_Main: CFE_ES_Main entering OPERATIONAL state
+EVS Port1 1980-012-14:03:20.60508 66/1/MRU 8: Replica 0 passed its start-up known-answer test
+EVS Port1 1980-012-14:03:20.60517 66/1/MRU 8: Replica 1 passed its start-up known-answer test
+EVS Port1 1980-012-14:03:20.60522 66/1/MRU 8: Replica 2 passed its start-up known-answer test
+EVS Port1 1980-012-14:03:21.00013 66/1/CFE_TIME 21: Stop FLYWHEEL
+EVS Port1 1980-012-14:03:25.55461 66/1/MRU 3: corrupt applied to replica 2 at cycle 60
+EVS Port1 1980-012-14:03:31.55494 66/1/MRU 3: stuck applied to replica 1 at cycle 120
+EVS Port1 1980-012-14:03:31.75497 66/1/MRU 7: Known-answer test requested from replica 1 at cycle 122
+EVS Port1 1980-012-14:03:31.75517 66/1/MRU 5: Replica 1 retired (KNOWN_ANSWER_FAILED) at cycle 122
+EVS Port1 1980-012-14:03:31.85437 66/1/MRU 4: Mode vote -> compare at cycle 123
+EVS Port1 1980-012-14:03:43.55473 66/1/MRU 3: hang applied to replica 0 at cycle 240
+EVS Port1 1980-012-14:03:43.60496 66/1/MRU 6: Disagreement caught at cycle 240 in self-check
+EVS Port1 1980-012-14:03:43.70426 66/1/MRU 6: Disagreement caught at cycle 241 in self-check
+EVS Port1 1980-012-14:03:43.80451 66/1/MRU 6: Disagreement caught at cycle 242 in self-check
+EVS Port1 1980-012-14:03:43.80458 66/1/MRU 5: Replica 0 retired (LOST) at cycle 242
+EVS Port1 1980-012-14:03:43.85470 66/1/MRU 4: Mode compare -> self-check at cycle 243
+MRU SUMMARY: policy=shrink cycles=400 cycle_ms=100 useful=318 detected=3 wrong=0 withheld=0 last_useful=400 live_at_end=1 mode=self-check slots=retired,retired,active
+EVS Port1 1980-012-14:03:59.65499 66/1/MRU 12: Run ended after 400 cycles: power-on reset
+1980-012-14:03:59.65508 CFE_ES_ResetCFE: POWERON RESET called from CFE_ES_ResetCFE (Commanded).
+CFE_PSP: Exiting cFE with POWERON Reset status.
+CFE_PSP: Critical Data Store Shared memory segment removed
+Reset Area Shared memory segment removed
+User Reserved Area Shared memory segment removed
+
+CFE_PSP: Shutdown initiated - Exiting cFE
