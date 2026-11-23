@@ -5,6 +5,10 @@ Release packages are on the [releases page](https://github.com/mruspace/flight/r
 
 ## Unreleased
 
+### Added
+
+- Run 4 ran on TU Graz's FlatSat and in orbit on OPS-SAT PRETTY on November 20, 2026 (v0.9.0, 245 s and 244 s, status 0, 0 wrong results in every segment). The files are in `opssat/results/2026-11-20-tu-graz-flatsat-run4` and `opssat/results/2026-11-20-ops-sat-pretty-on-board-run4`. README, `docs/opssat.md`, `docs/fault-model.md`, `cfs/README.md`, `docs/qualification.md`, `docs/board.md`, SECURITY and CONTRIBUTING say four runs in orbit.
+
 ### Changed
 
 - Run 4 is approved, not flown: the OPS-SAT team approved it on November 16, 2026, and the v0.9.0 package was sent that day. README, `docs/opssat.md` and `docs/fault-model.md` say so. The README names Field 0.3.0 and the seven F´ components; `fprime/README.md` lists them; the F´ results table counts 16 Kani proofs, as the README does.

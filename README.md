@@ -41,7 +41,7 @@ This repository is where that policy becomes flight software: a small,
 verified Rust core, wrapped as components for NASA JPL's open-source
 [F´](https://github.com/nasa/fprime) framework.
 
-**Status (November 2026): Mru Flight ran in orbit three times.** On October 18, 2026,
+**Status (November 2026): Mru Flight ran in orbit four times.** On October 18, 2026,
 Mru Flight v0.3.1 ran on the SEPP payload processor of ESA's OPS-SAT PRETTY as
 experiment exp4051: three software replicas on one processor, with faults
 from a schedule, 227 seconds, every result as predicted in writing before the
@@ -54,9 +54,10 @@ SEPP's two cores and a real process kill, again as predicted. That tests the
 software policy on a flight processor. It is not a hardware-redundancy test
 and not qualification evidence. The decision core, the demo on real
 processes with faults injected, and the F´ components (four for flight, three
-test-only) work today. Run 4 was approved by the OPS-SAT team on November 16,
-2026, and its package (v0.9.0) is with TU Graz; it has not flown
-([fault model](docs/fault-model.md#run-4-approved-not-flown)).
+test-only) work today. On November 20, 2026, v0.9.0 ran there as run 4:
+automatic resets, sensor selection, the decision core as a NASA cFS
+application, and real bit flips made by software in the replicas' own
+memory, with 0 wrong results in every segment ([in orbit](#in-orbit)).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/chart-dark.png">
@@ -70,7 +71,7 @@ test-only) work today. Run 4 was approved by the OPS-SAT team on November 16,
 | [`quorum`](quorum/src/lib.rs) | The decision core: vote, compare, self-check, and the health record that decides when a replica must be diagnosed; and sensor selection, which chooses one value from readings that differ slightly, within a tolerance. `no_std`, no allocation, no dependencies. Unit-tested, checked with [Kani](https://github.com/model-checking/kani), and built in CI for a bare-metal ARM Cortex-M target. |
 | [`quorum-ffi`](quorum-ffi/src/lib.rs) | The C interface to the core ([`quorum.h`](quorum-ffi/include/quorum.h)), as a `no_std` static library. Kani proves that its decide, mode, strike, clear and sensor functions give the core's answer. Used by the F´ components, and usable from any C or C++ framework. |
 | [`fprime`](fprime) | F´ v4.4.1 components: `RedundancyManager`, `HealthRegistry`, `ReplicaHost`, `SensorVoter`, and the test-only `FaultInjector`, `RunRecorder` and `SensorSim`, with spares, standby, bounded automatic resets of a replica that falls silent, sensor selection within a tolerance, and state that survives resets. 59 unit tests, and a system test against the demo on the bench schedules: wrong results match in all 60 cases, and correct results match exactly in 36 ([requirements](docs/fprime-requirements.md), [design and results](docs/fprime-design-fpp.md), [fault model](docs/fault-model.md)). `MruOpsSat`, the first F´ deployment: the components with F´'s command, event, telemetry, health and sequencing services, driven by a Linux timer, built as a static 32-bit ARM binary for OPS-SAT PRETTY's processor. `MruQuorum` with three `MruReplica` processes, the second, puts each replica in a process of its own; it ran in orbit on OPS-SAT PRETTY on October 28, 2026 ([run 3](docs/opssat.md)). |
-| [`cfs`](cfs) | The decision core as an application of NASA's core Flight System: cFE, OSAL and PSP of cFS v7.0.1 (submodules, unchanged) and Mru's app (C99), three replicas as cFE child tasks, every decision through the C interface, linked statically into one binary for OPS-SAT PRETTY's processor. No network. Run 4, segment 5: built and run in ESA's environment image, not flown ([cfs/README.md](cfs/README.md)). |
+| [`cfs`](cfs) | The decision core as an application of NASA's core Flight System: cFE, OSAL and PSP of cFS v7.0.1 (submodules, unchanged) and Mru's app (C99), three replicas as cFE child tasks, every decision through the C interface, linked statically into one binary for OPS-SAT PRETTY's processor. No network. Run 4, segment 5: ran on the SEPP, on the FlatSat and in orbit, on November 20, 2026 ([cfs/README.md](cfs/README.md)). |
 | [`bench`](bench/src/main.rs) | Times the decision core on the host: nanoseconds per call of `decide()` for each policy and mode, and of `Health::strike()`. No dependencies. |
 | [`demo`](demo/src/main.rs) | The `quorum` program: three replica processes, a voter built on the core, fault injection, enforced resource limits, and a report of what was delivered and what it cost. Runs on Linux and macOS; release builds are fully static binaries for 64-bit and 32-bit ARM Linux and x86_64 Linux. Its only dependency is `libc`, for the system calls behind the limits. |
 
@@ -291,8 +292,8 @@ Method, results and limits: [docs.mru.space/core/bench](https://docs.mru.space/c
 Linux board over SSH, with reboots or real power cuts. No run with `board.sh`
 has been done yet; the procedure is in [docs/board.md](docs/board.md). The
 OPS-SAT package, which runs the demo without `board.sh`, has run on the
-PRETTY FlatSat and in orbit, twice, and the F´ deployment once
-([in orbit](#in-orbit)).
+PRETTY FlatSat and in orbit, twice, and the F´ deployment twice, the second
+time with a cFS segment ([in orbit](#in-orbit)).
 
 ### Footprint and limits
 
@@ -308,7 +309,9 @@ Largest resident memory of any process over all 300 bench runs per host, from
 The static `quorum` binaries in the v0.2.0 release packages are 642 to 675 kB.
 The 32-bit ARM (hard float) binaries of v0.3.1 and v0.4.0 are the ones that
 ran on the SEPP, on the FlatSat and in orbit. In run 3 the F´ manager,
-`MruQuorum`, used 1.7 MB resident and 11.8 MB of address space on the SEPP.
+`MruQuorum`, used 1.7 MB resident and 11.8 MB of address space on the SEPP,
+and the same in run 4. Run 4's cFS application peaked at 4.5 MB of address
+space (`VmPeak`, 4,496 kB) on the SEPP.
 
 The scenario tests also check the safety limits: a hung replica is dropped
 after the reply timeout, SIGTERM ends the run cleanly with no replica left, the
@@ -370,10 +373,47 @@ from its state file:
 Each replica ran on the core it was pinned to, the retired replica stayed
 retired through the restore, and all four processes used 0.79% to 0.96% of
 wall time on the SEPP. The orbit run matched the prediction written to ESA
-before it. Scope, for all three runs: three software replicas on one Linux
-payload processor, in user space, with faults from a schedule or a command
-sequence; 227, 136 and 148 seconds in orbit, with no real upset in the 64 MB
-sensor block of runs 1 and 2 (run 3 has no sensor). This tests the software policy on a flight processor. It is
+before it.
+
+On November 20, 2026, run 4 (v0.9.0) ran in orbit, 244 seconds in six
+segments of 40 seconds at 100 ms per cycle. Segments 1 to 3 run the same
+simulated faults: replica 1 stops answering at cycles 60 and 300, and replica
+2's process is killed with SIGKILL at cycle 150. Segment 1 resets a silent
+replica (up to three times) and takes it back only on the right known
+answer, segment 2 has resets off, and segment 3 is fixed TMR. Segment 4 runs
+three simulated sensors (a spike, a drift, a frozen sensor), and segment 5
+runs the decision core as a NASA cFS application with the faults of run 1.
+Segment 6 schedules no fault: a thread in each replica process flips
+real bits, one at a time, in that process's own memory, 2 per second on
+average, and the manager is told nothing about them:
+
+| Run 4, correct / caught / wrong | 2026-11-20, 11:40 UTC, TU Graz FlatSat | 2026-11-20, 20:28 UTC, in orbit |
+|---|---|---|
+| 1 shrink, resets on | 394 / 3 / 0; replica 1 back at cycles 63 and 304, replica 2 kept out after three resets at 159 | 394 / 3 / 0; replica 1 back at 63 and 303, replica 2 kept out at 159 |
+| 2 shrink, resets off | 271 / 3 / 0; self-check from 154 | 271 / 3 / 0; self-check from 154 |
+| 3 fixed TMR | 149 / 0 / 0; halted at 153 | 148 / 0 / 0; halted at 153 |
+| 4 sensors (values correct / wrong / none) | 279 / 0 / 120; sensor 2 excluded at 137 | 279 / 0 / 120; sensor 2 excluded at 137 |
+| 5 cFS application | 318 / 3 / 0 | 318 / 3 / 0 |
+| 6 real bit flips | 173 flips; replica 2 lost at 229; 399 / 0 / 0 | 173 flips; replica 2 lost at 229; 399 / 0 / 0 |
+| Wall time, exits | 245 s, every exit 0 | 244 s, every exit 0 |
+
+In segment 6, 149 of the 173 flips landed in code. Replica 2 crashed after
+41 flips and was lost at cycle 229; replicas 0 and 1 delivered every result
+to the end, and the manager dropped no message on its links. Replicas 0 and
+1 crashed at shutdown, after the last result: corruption the run never read
+until the exit code ran. The two hosts differ only where a cycle closed late
+on the processor and the manager withheld it (MRU-RM-023): that cycle
+delivers nothing, and the next event can move by one cycle. No result was
+wrong because of it. The orbit run
+matched the prediction written to ESA on November 16, 2026, with replica 2
+kept out one cycle later (159, not 158). The four F´ processes used 0.47% to
+1.41% of wall time in orbit.
+
+Scope, for all four runs: three software replicas on one Linux payload
+processor, in user space, with faults from a schedule or a command sequence,
+and in run 4 real bit flips made by software; 227, 136, 148 and 244 seconds
+in orbit, with no real upset in the 64 MB sensor block of runs 1 and 2 (runs
+3 and 4 have no radiation sensor). This tests the software policy on a flight processor. It is
 not a hardware-redundancy test and not qualification evidence, and the 1.34×
 above comes from dusk's simulated missions, not from these runs. Numbers, logs
 and the operations note: [docs/opssat.md](docs/opssat.md) and
@@ -410,8 +450,8 @@ For readings of one quantity by up to three sensors, `quorum::sensor`
 chooses one value within a tolerance (the median of three, the midpoint of
 two), and the F´ component `SensorVoter` excludes a sensor that keeps
 disagreeing. With two readings left that disagree, nothing is delivered,
-since nothing says which is right. It has run in run 4's package on the
-ground, not in orbit ([fault model](docs/fault-model.md)). A step that makes
+since nothing says which is right. It ran in orbit in run 4 on November 20,
+2026, with simulated readings ([fault model](docs/fault-model.md)). A step that makes
 every replica's input equal before it computes is not built, and neither
 dusk nor the bench models it.
 
@@ -460,13 +500,14 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
    processes, puts each replica in a process of its own on the SEPP's two
    cores, linked through F´'s GenericHub, with a real kill. Both are built for
    OPS-SAT PRETTY's processor and ran full length in ESA's experiment
-   environment; the second ran in orbit on October 28, 2026. Next:
+   environment; the second ran in orbit on October 28 and November 20, 2026. Next:
    `PowerAccountant` and `ScrubScheduler`.
 2. **Measurements on representative processors**: static ARM Linux binaries are
    built and tested in CI under emulation. The 32-bit ARM binary ran on the
    SEPP, the flight processor of OPS-SAT PRETTY, on the FlatSat and in orbit
    (v0.3.1 and v0.4.0, October 2026), and the F´ deployment there too
-   (v0.7.0, October 28, 2026). Next: real boards on the bench.
+   (v0.7.0, October 28, 2026), and the F´ deployment with the cFS
+   application (v0.9.0, November 20, 2026). Next: real boards on the bench.
 3. **Hardware-in-the-loop bench**: real boards with injected faults (bit flips,
    resets, power cuts). The scripts and the procedure are ready
    ([docs/board.md](docs/board.md)).
@@ -477,12 +518,13 @@ Changes are in [CHANGELOG.md](CHANGELOG.md).
    rest of the lifecycle on October 22, 2026: a hung replica, a stuck bit on
    the last replica with a safe halt, and a resume after a kill. Run 3 flew
    the F´ deployment on October 28, 2026, each replica a process of its own,
-   with a real kill and a restore from the manager's state file. All three
-   matched the written prediction ([operations note](docs/opssat.md)). Next:
-   run 4, approved by the OPS-SAT team on November 16, 2026, package sent,
-   not flown: automatic resets, sensor selection, the cFS app and real bit
-   flips made by software, all with simulated faults
-   ([fault model](docs/fault-model.md#run-4-approved-not-flown)).
+   with a real kill and a restore from the manager's state file. Run 4 flew
+   on November 20, 2026: automatic resets, sensor selection and the cFS app
+   with simulated faults, and real bit flips made by software, with 0 wrong
+   results in every segment. All four matched the written prediction
+   ([operations note](docs/opssat.md),
+   [fault model](docs/fault-model.md#run-4-flown-november-20-2026)). Next:
+   independent processors, on boards on the bench.
 5. **On Earth**: the same software on an unattended ocean node, proposed for an
    EMSO ERIC observatory test.
 

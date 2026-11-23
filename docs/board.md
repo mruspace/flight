@@ -9,10 +9,11 @@ Prototype to Bench-tested on the
 
 No run with `board.sh` has been done yet. This note is the procedure. The
 OPS-SAT packages, which run without this bench, have run on the SEPP of ESA's
-OPS-SAT PRETTY, on the FlatSat on October 16, 21 and 28, 2026, and in orbit on
-October 18, 22 and 28, 2026 ([opssat.md](opssat.md)). Those runs had no resets
-or power cuts; runs 2 and 3 killed and restarted the voter or manager
-process, in user space.
+OPS-SAT PRETTY, on the FlatSat on October 16, 21 and 28 and November 20,
+2026, and in orbit on October 18, 22 and 28 and November 20, 2026
+([opssat.md](opssat.md)). Those runs had no board resets or power cuts; runs
+2 and 3 killed and restarted the voter or manager process, and run 4 killed
+and restarted replica processes, in user space.
 
 ## Which board
 

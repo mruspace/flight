@@ -2,8 +2,8 @@
 
 Mru's decision core, the `quorum` crate, run as an application of NASA's core
 Flight System (cFS). Built for OPS-SAT run 4, segment 5
-([`opssat/run4`](../opssat/run4)): built and tested on the ground, not
-flown.
+([`opssat/run4`](../opssat/run4)). It ran on the SEPP of OPS-SAT PRETTY, on
+the FlatSat and in orbit, on November 20, 2026.
 
 ## What is here
 
@@ -64,3 +64,12 @@ answer at cycle 122, the hung replica 0 lost at cycle 242, replica 2 alone in
 self-check from cycle 243; no socket open; exit 0; nothing left behind. The
 same counts as a native run. CPU under emulation is not a figure for the
 SEPP and is not given here.
+
+On November 20, 2026, the same package ran on TU Graz's FlatSat and in orbit
+on OPS-SAT PRETTY, the first run of the cFS application on flight hardware.
+Segment 5 gave the same counts on both: 400 cycles, 318 correct, 3 caught, 0
+wrong, the same retirements at cycles 122 and 242, no socket, exit 0, and
+nothing left behind. On the SEPP the process peaked at 4,496 kB of address
+space (`VmPeak`) and used 25 CPU ticks of 10 ms in 41 s in orbit (21 on the
+FlatSat), about 0.6% of wall time. Files:
+[`opssat/results`](../opssat/results).

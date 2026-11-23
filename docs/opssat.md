@@ -1,6 +1,6 @@
 # Running Mru Flight on OPS-SAT
 
-**Status: ran in orbit three times, on October 18, 22 and 28, 2026.**
+**Status: ran in orbit four times, on October 18, 22 and 28 and November 20, 2026.**
 ESA's OPS-SAT Space Lab confirmed the experiment on October 14, 2026, as
 **exp4051** for OPS-SAT PRETTY. Run 1, the package
 `exp4051-mru-flight-v0.3.1.tar.gz` (release v0.3.1), ran three times:
@@ -15,9 +15,14 @@ on the last replica with a safe halt, and a resume after the voter was
 killed. Run 3, the package
 `exp4051-mru-flight-fprime-processes-v0.7.0.tar.gz` (release v0.7.0), the
 F´ deployment with each replica in a process of its own, ran on the FlatSat
-and in orbit on October 28, 2026, at 09:13 UTC. Each orbit run matched the
+and in orbit on October 28, 2026, at 09:13 UTC. Run 4, the package
+`exp4051-mru-flight-v0.9.0.tar.gz` (release v0.9.0), ran on the FlatSat and
+in orbit on November 20, 2026, at 20:28 UTC: automatic resets, sensor
+selection and a cFS application with simulated faults, and real bit flips
+made by software. Each orbit run matched the
 prediction written to ESA before the run (numbers below). Scope: three software replicas on one Linux payload
-processor, in user space, with faults from a schedule. Not a
+processor, in user space, with faults from a schedule (and in run 4, real
+bit flips made by software). Not a
 hardware-redundancy test, and not qualification evidence.
 
 A note for the OPS-SAT Space Lab team: what the experiment does on the
@@ -27,10 +32,11 @@ that ran in runs 1 and 2. Run 3, on October 28, 2026, flew the F´
 deployment of the same decision core, with F´'s command, event and
 telemetry interfaces ([run 3](#run-3-v070-the-f-deployment-flown-october-28-2026)).
 [fault-model.md](fault-model.md) maps each simulated fault to the failure it
-stands for on a real system, and describes run 4 (approved by the OPS-SAT
-team on November 16, 2026, package sent, not flown): a replica that stops answering, reset and taken back; sensors that
-disagree; the same decision core as a cFS application
-([cfs](../cfs/README.md)); and real bit flips in the replicas' memory.
+stands for on a real system, and describes run 4 (flown November 20, 2026,
+[below](#run-4-v090-flown-november-20-2026)): a replica that stops answering,
+reset and taken back; sensors that disagree; the same decision core as a cFS
+application ([cfs](../cfs/README.md)); and real bit flips in the replicas'
+memory.
 
 ## What runs
 
@@ -157,6 +163,87 @@ target, checks it against `SHA256SUMS`, adds `run`, the schedules, a
 `README.txt` for the operators and the license, and writes the archive with
 the required ownership and no hidden entries. `QUORUM_BIN=path ./package.sh`
 packages a binary you built yourself.
+
+### Run 4 (v0.9.0, flown November 20, 2026)
+
+Run 4, approved by the OPS-SAT team on November 16, 2026, flew the F´
+deployment of run 3 with four additions: automatic resets of a silent
+replica (MRU-RM-024), sensor selection within a tolerance (`SensorVoter`),
+the decision core as a NASA cFS application ([cfs](../cfs/README.md)), and
+real bit flips made by software in each replica process's own memory
+(MRU-DEP-009), with a check on every message on the manager's links
+(MRU-DEP-008). Six segments of 40 seconds at 100 ms per cycle, from
+[`opssat/run4`](../opssat/run4). What each segment simulates, and why:
+[fault-model.md](fault-model.md#run-4-flown-november-20-2026).
+
+The v0.9.0 package, the file ESA validated, ran on TU Graz's FlatSat (host
+`sepp`) on November 20, 2026, from 11:40:30 to 11:44:35 UTC, and in orbit on
+the SEPP of OPS-SAT PRETTY (host `sepp1`) the same day, from 20:28:02 to
+20:32:06 UTC by the SEPP's clock: 245 s and 244 s, status 0. The checksums of
+`MruQuorum`, `MruReplica`, `cfs/core-cpu1` and the six sequences in
+`run-info.txt` match release v0.9.0 on both hosts. Files:
+[`opssat/results/2026-11-20-ops-sat-pretty-on-board-run4`](../opssat/results/2026-11-20-ops-sat-pretty-on-board-run4)
+and
+[`2026-11-20-tu-graz-flatsat-run4`](../opssat/results/2026-11-20-tu-graz-flatsat-run4).
+
+| In orbit | 1 resets on | 2 resets off | 3 fixed TMR | 4 sensors | 5 cFS | 6 bit flips |
+|---|---|---|---|---|---|---|
+| Start (UTC) | 20:28:02 | 20:28:43 | 20:29:23 | 20:30:03 | 20:30:44 | 20:31:26 |
+| Exit code | 0 | 0 | 0 | 0 | 0 | 0 |
+| Cycles | 399 | 399 | 399 | 399 | 400 | 399 |
+| Correct results | 394 | 271 | 148 | 279 values | 318 | 399 |
+| Wrong results | 0 | 0 | 0 | 0 | 0 | 0 |
+| Caught | 3 | 3 | 0 | 0 | 3 | 0 |
+| Withheld | 1 (`late=`) | 2 (`late=`) | 1 (`late=`) | 120 (two sensors left that disagree) | 0 | 0 |
+| End | 2 live, compare | replica 0 alone, self-check | halted at 153 | 3 live, vote | replica 2 alone, self-check | 2 live, compare |
+| Replica processes | 2 killed (SIGKILL) at 150 | the same | the same | all exit 0 | cFE child tasks | all three signal 11 (2 at cycle 229, 0 and 1 at shutdown) |
+| CPU share of wall time, manager / all four processes | 0.57% / 1.14% | 0.32% / 0.60% | 0.25% / 0.47% | 0.62% / 1.22% | 25 ticks in 41 s (one process) | 0.50% / 1.41% |
+
+Events in orbit, from the logs. Segment 1: replica 1 hung at cycle 60, lost
+at 62, reset (1 of 3) and admitted at 63 on its known answer; replica 2's
+process killed at 150, the cycle withheld as late, replica 2 lost at 153 and
+reset at 153, 155 and 157, silent each time, kept out at 159
+(`ResetsExhausted`); replica 1 hung again at 300, three disagreements caught
+in self-check on 300 to 302, lost at 302, reset (2 of 3) and admitted at
+303. Segment 2: the same faults with resets off; cycles 60 and 150 withheld
+as late, replica 1 lost at 63 and replica 2 at 153, replica 0 alone in
+self-check from 154. Segment 3: fixed TMR, cycle 60 withheld, replica 1 lost
+at 63, replica 2 at 152, halted at 153. Segment 4: the spike on sensor 1 at
+60 to 62 outvoted, sensor 2 drifting from 120 and excluded at 137 after five
+outlier cycles in a row, sensor 0 frozen from 260, and from 279 the two
+readings left disagreed, so nothing was delivered; a plain average of the
+same readings was wrong in 261 of 399 cycles. Segment 5: replica 1 retired
+on its known answer at 122, replica 0 lost at 242, replica 2 alone in
+self-check from 243; no socket open, nothing left behind, `VmPeak` 4,496 kB.
+Segment 6: 173 flips (64, 68 and 41), 149 in code, 6 in read-only data, 1 in
+data, 7 in the heap and 10 in other memory, none refused; replica 2 crashed
+after 41 flips and was lost at 229; replicas 0 and 1 gave all 399 results,
+the manager dropped no message (`links: dropped=0,0,0`), and both crashed at
+shutdown, after the last result.
+
+On the FlatSat every count was the same except where a cycle closed late on
+the processor and the manager withheld it (MRU-RM-023): in segment 1 the
+FlatSat withheld cycle 300 too, so replica 1 was lost at 303 and back at
+304; in segment 3 it withheld no cycle, 149 correct. The flips of segment 6
+came out the same on both hosts: the seed fixes their times and offsets, and
+only the addresses of mapped memory moved.
+
+The prediction, written to ESA with the package on November 16, 2026: replica
+1 back at 63 and 303, replica 2 kept out at 158, fixed TMR halted at 153,
+sensor 2 excluded at 137, and zero wrong results in every segment, the flips
+included. In orbit every one held except replica 2, kept out one cycle later
+(159), after the cycle of the kill was withheld as late.
+
+CPU, measured on the SEPP: the manager used 0.25% to 0.62% of wall time and
+all four F´ processes 0.47% to 1.41% in orbit (FlatSat: 0.25% to 0.57% and
+0.45% to 1.39%); the cFS process used 25 ticks of 10 ms in 41 s, about 0.6%
+(21 on the FlatSat). The load average at the start was 0.05.
+
+Scope: the F´ components and the cFS application, three replicas on the two
+cores of one Linux payload processor, in user space. Segments 1 to 5
+simulate each fault at its symptom; segment 6 makes real bit flips in
+software, one bit at a time, in user space. Not a hardware-redundancy test,
+not radiation, and not qualification evidence.
 
 ### Run 3 (v0.7.0, the F´ deployment, flown October 28, 2026)
 

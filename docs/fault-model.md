@@ -50,10 +50,15 @@ segment, the entry script writes the schedule to `/cf/mru.cfg` before cFS
 starts, and copies it to the output (`cfs-mru.cfg`). Every event lands in the
 run's event file with its cycle.
 
-## Run 4 (approved, not flown)
+## Run 4 (flown November 20, 2026)
 
 The OPS-SAT team approved run 4 on November 16, 2026. The package is the
-v0.9.0 release asset `exp4051-mru-flight-v0.9.0.tar.gz`. It has not flown.
+v0.9.0 release asset `exp4051-mru-flight-v0.9.0.tar.gz`. It ran on TU Graz's
+FlatSat and in orbit on OPS-SAT PRETTY on November 20, 2026, with 0 wrong
+results in every segment (results below and in
+[opssat.md](opssat.md#run-4-v090-flown-november-20-2026)). Segments 1 to 5
+use simulated faults, as described here; segment 6 uses real bit flips made
+by software.
 
 Run 4 shows the second half of the bus-device row, recovery, and the sensor
 row, and runs the same decision core under cFS. Segments 1 to 3 run the same
@@ -96,6 +101,17 @@ OPS-SAT PRETTY environment image (32-bit ARM, emulated on a laptop), as user
 nothing left behind by the cFS segment. With segment 6 (November 16, 2026),
 three full runs: 246 seconds, each exit 0, 0 wrong results in every
 segment.
+
+On the SEPP, on the FlatSat and in orbit on November 20, 2026, every segment
+ended as above. Segment 1: 394 correct, 3 caught, 0 wrong; replica 1 back at
+cycles 63 and 303 in orbit (304 on the FlatSat), replica 2 kept out at 159.
+Segment 2: 271 correct, replica 0 alone in self-check from cycle 154.
+Segment 3: fixed TMR halted at cycle 153 (148 correct in orbit, 149 on the
+FlatSat). Segment 4: 279 correct values, 0 wrong, 120 with no value; sensor
+2 excluded at cycle 137; a plain average wrong in 261 cycles. Segment 5: the
+cFS application, 318 correct, 3 caught, 0 wrong. Where an event moved by one
+cycle, a cycle had closed late on the processor and the manager withheld it
+(MRU-RM-023).
 
 ## Run 4, segment 6: real bit flips
 
@@ -145,6 +161,17 @@ Limits: the flips are made by software, in user space, one bit at a time. A
 real particle can also flip a bit in a register, a cache, the kernel, or the
 shared processor itself, and can flip several bits at once. None of those is
 modeled here.
+
+On the SEPP, on the FlatSat and in orbit on November 20, 2026, the flips
+came out the same on both hosts: the seed fixes their times and offsets, and
+only the addresses of mapped memory moved. 173 flips in all (64, 68 and 41
+per replica), 149 of them in code, none refused. Replica 2 crashed
+(segmentation fault) after 41 flips and was lost at cycle 229. Replicas 0
+and 1 delivered all 399 results to the end, 0 caught, 0 wrong, and the
+manager dropped no message on its links. Replicas 0 and 1 then crashed at
+shutdown, after the last result: flips had corrupted memory that only the
+exit code read. Files:
+[`opssat/results`](../opssat/results).
 
 Package and scripts: [`opssat/run4`](../opssat/run4). The CI check is
 [`scripts/opssat-run4.sh`](../scripts/opssat-run4.sh).

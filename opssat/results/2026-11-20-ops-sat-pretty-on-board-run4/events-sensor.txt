@@ -1,0 +1,120 @@
+replica 0: pid 223, pinned, on core 0
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+replica 1: pid 224, pinned, on core 1
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+EVENT: (16789504) (2:1795206603,913661) ACTIVITY_LO: (CdhCore.version) FrameworkVersion : Framework Version: [558b7ef]
+EVENT: (16789505) (2:1795206603,913763) ACTIVITY_LO: (CdhCore.version) ProjectVersion : Project Version: [v0.9.0]
+replica 2: pid 226, pinned, on core 1
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+
+[NOTE] Task Permissions:
+[NOTE]
+[NOTE] You have insufficient permissions to create a task with priority and/or cpu affinity.
+[NOTE] A task without priority and affinity will be created.
+[NOTE]
+[NOTE] There are three possible resolutions:
+[NOTE] 1. Use tasks without priority and affinity using parameterless start()
+[NOTE] 2. Run this executable as a user with task priority permission
+[NOTE] 3. Grant capability with "setcap 'cap_sys_nice=eip'" or equivalent
+
+EVENT: (268447744) (2:1795206603,965501) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_SequenceLoaded : Loaded sequence /home/exp/sensor.bin
+EVENT: (268447759) (2:1795206603,965647) ACTIVITY_HI: (MruQuorum.cmdSeq) CS_PortSequenceStarted : Local request for sequence /home/exp/sensor.bin started.
+EVENT: (16777217) (2:1795206603,965781) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10004000 dispatched to port 6
+EVENT: (268451840) (2:1795206603,965883) ACTIVITY_HI: (MruQuorum.manager) PolicySet : Policy set to SHRINK (0)
+EVENT: (16777218) (2:1795206603,966045) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10004000 completed
+EVENT: (268447752) (2:1795206603,966196) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/sensor.bin: Command 0 (opcode 268451840) complete
+EVENT: (16777217) (2:1795206603,966345) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10021001 dispatched to port 8
+EVENT: (16777218) (2:1795206603,966407) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10021001 completed
+EVENT: (268447752) (2:1795206603,966498) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/sensor.bin: Command 1 (opcode 268570625) complete
+EVENT: (16777217) (2:1795206603,966617) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10021003 dispatched to port 8
+EVENT: (16777218) (2:1795206603,966672) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10021003 completed
+EVENT: (268447752) (2:1795206603,966761) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/sensor.bin: Command 2 (opcode 268570627) complete
+EVENT: (268566528) (2:1795206603,966876) ACTIVITY_HI: (MruQuorum.sensorSim) SensorsOn : Sensors on: noise 50, accuracy 150, seed 1
+EVENT: (16777217) (2:1795206603,966937) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10020000 dispatched to port 7
+EVENT: (16777218) (2:1795206603,966982) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10020000 completed
+EVENT: (268447752) (2:1795206603,967152) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/sensor.bin: Command 3 (opcode 268566528) complete
+EVENT: (268566529) (2:1795206603,967281) ACTIVITY_HI: (MruQuorum.sensorSim) SensorFaultScheduled : SPIKE (0) scheduled on sensor 1 at cycle 60 (3 cycles, magnitude 5000)
+EVENT: (16777217) (2:1795206603,967347) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10020001 dispatched to port 7
+EVENT: (16777218) (2:1795206603,967393) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10020001 completed
+EVENT: (268447752) (2:1795206603,967487) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/sensor.bin: Command 4 (opcode 268566529) complete
+EVENT: (268566529) (2:1795206603,967602) ACTIVITY_HI: (MruQuorum.sensorSim) SensorFaultScheduled : DRIFT (1) scheduled on sensor 2 at cycle 120 (200 cycles, magnitude 4000)
+EVENT: (16777217) (2:1795206603,967664) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10020001 dispatched to port 7
+EVENT: (16777218) (2:1795206603,967708) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10020001 completed
+EVENT: (268447752) (2:1795206603,967800) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/sensor.bin: Command 5 (opcode 268566529) complete
+EVENT: (268566529) (2:1795206603,967915) ACTIVITY_HI: (MruQuorum.sensorSim) SensorFaultScheduled : STUCK (2) scheduled on sensor 0 at cycle 260 (0 cycles, magnitude 0)
+EVENT: (16777217) (2:1795206603,967977) COMMAND: (CdhCore.cmdDisp) OpCodeDispatched : Opcode 0x10020001 dispatched to port 7
+EVENT: (16777218) (2:1795206603,968021) COMMAND: (CdhCore.cmdDisp) OpCodeCompleted : Opcode 0x10020001 completed
+EVENT: (268447752) (2:1795206603,968144) ACTIVITY_LO: (MruQuorum.cmdSeq) CS_CommandComplete : Sequence file /home/exp/sensor.bin: Command 6 (opcode 268566529) complete
+EVENT: (268447753) (2:1795206603,968208) ACTIVITY_HI: (MruQuorum.cmdSeq) CS_SequenceComplete : Sequence file /home/exp/sensor.bin complete
+EVENT: (268451854) (2:1795206604,75876) WARNING_LO: (MruQuorum.manager) StateNotRestored : No valid state file; starting with all slots active
+EVENT: (268566530) (2:1795206609,975596) WARNING_LO: (MruQuorum.sensorSim) SensorFaultApplied : SPIKE (0) applied to sensor 1 at cycle 60
+EVENT: (268570624) (2:1795206609,975763) WARNING_LO: (MruQuorum.sensorVoter) SensorOutlier : Sensor 1 outlier at cycle 60: 25590 against 20632
+EVENT: (268570624) (2:1795206610,75616) WARNING_LO: (MruQuorum.sensorVoter) SensorOutlier : Sensor 1 outlier at cycle 61: 25574 against 20618
+EVENT: (268570624) (2:1795206610,175602) WARNING_LO: (MruQuorum.sensorVoter) SensorOutlier : Sensor 1 outlier at cycle 62: 25584 against 20603
+EVENT: (268566530) (2:1795206615,975593) WARNING_LO: (MruQuorum.sensorSim) SensorFaultApplied : DRIFT (1) applied to sensor 2 at cycle 120
+EVENT: (268570624) (2:1795206616,975605) WARNING_LO: (MruQuorum.sensorVoter) SensorOutlier : Sensor 2 outlier at cycle 130: 21553 against 21318
+EVENT: (268570624) (2:1795206617,75616) WARNING_LO: (MruQuorum.sensorVoter) SensorOutlier : Sensor 2 outlier at cycle 131: 21501 against 21294
+EVENT: (268570624) (2:1795206617,275605) WARNING_LO: (MruQuorum.sensorVoter) SensorOutlier : Sensor 2 outlier at cycle 133: 21579 against 21308
+EVENT: (268570624) (2:1795206617,375605) WARNING_LO: (MruQuorum.sensorVoter) SensorOutlier : Sensor 2 outlier at cycle 134: 21604 against 21356
+EVENT: (268570624) (2:1795206617,475606) WARNING_LO: (MruQuorum.sensorVoter) SensorOutlier : Sensor 2 outlier at cycle 135: 21665 against 21371
+EVENT: (268570624) (2:1795206617,575604) WARNING_LO: (MruQuorum.sensorVoter) SensorOutlier : Sensor 2 outlier at cycle 136: 21689 against 21367
+EVENT: (268570624) (2:1795206617,675603) WARNING_LO: (MruQuorum.sensorVoter) SensorOutlier : Sensor 2 outlier at cycle 137: 21716 against 21418
+EVENT: (268570625) (2:1795206617,675698) WARNING_HI: (MruQuorum.sensorVoter) SensorExcluded : Sensor 2 excluded at cycle 137: 5 outlier cycles in a row
+EVENT: (268566530) (2:1795206629,975603) WARNING_LO: (MruQuorum.sensorSim) SensorFaultApplied : STUCK (2) applied to sensor 0 at cycle 260
+EVENT: (268570626) (2:1795206631,875605) WARNING_LO: (MruQuorum.sensorVoter) SensorsDisagree : Sensors disagree at cycle 279: nothing delivered
+EVENT: (268570626) (2:1795206631,975602) WARNING_LO: (MruQuorum.sensorVoter) SensorsDisagree : Sensors disagree at cycle 280: nothing delivered
+EVENT: (268570626) (2:1795206632,75619) WARNING_LO: (MruQuorum.sensorVoter) SensorsDisagree : Sensors disagree at cycle 281: nothing delivered
+EVENT: (268570626) (2:1795206632,275601) WARNING_LO: (MruQuorum.sensorVoter) SensorsDisagree : Sensors disagree at cycle 283: nothing delivered
+EVENT: (268570626) (2:1795206632,375603) WARNING_LO: (MruQuorum.sensorVoter) SensorsDisagree : Sensors disagree at cycle 284: nothing delivered
+EVENT: (268570626) (2:1795206632,475603) WARNING_LO: (MruQuorum.sensorVoter) SensorsDisagree : Sensors disagree at cycle 285: nothing delivered
+EVENT: (268570626) (2:1795206632,575604) WARNING_LO: (MruQuorum.sensorVoter) SensorsDisagree : Sensors disagree at cycle 286: nothing delivered
+EVENT: (268570626) (2:1795206632,675601) WARNING_LO: (MruQuorum.sensorVoter) SensorsDisagree : Sensors disagree at cycle 287: nothing delivered
+EVENT: (268570626) (2:1795206632,775609) WARNING_LO: (MruQuorum.sensorVoter) SensorsDisagree : Sensors disagree at cycle 288: nothing delivered
+EVENT: (268570626) (2:1795206632,875605) WARNING_LO: (MruQuorum.sensorVoter) SensorsDisagree : Sensors disagree at cycle 289: nothing delivered
+[WARNING] link1 failed to recv from port with status -8 and errno 0
+EVENT: (268554242) (2:1795206644,174825) WARNING_LO: (MruQuorum.adapter1) DataReceiveError : Data reception error status: 3
+[WARNING] link failed to recv from port with status -8 and errno 0
+[WARNING] link2 failed to recv from port with status -8 and errno 0
+EVENT: (268558338) (2:1795206644,175368) WARNING_LO: (MruQuorum.adapter2) DataReceiveError : Data reception error status: 3
+[WARNING] link failed to recv from port with status -8 and errno 0
+[WARNING] link0 failed to recv from port with status -8 and errno 0
+EVENT: (268550146) (2:1795206644,175812) WARNING_LO: (MruQuorum.adapter0) DataReceiveError : Data reception error status: 3
+[WARNING] link failed to recv from port with status -8 and errno 0
+policy=shrink cycles=399 cycle_ms=100 sequence=ok
+useful=399 detected=0 wrong=0 late=0 last_useful=399 live_at_end=3 mode=vote slots=active,active,active stopped=time-limit
+footprint: max_rss=1772KiB address_space=11848KiB cpu=0.260s wall=40.290s
+cpu: startup_user=0.000s startup_system=0.010s startup_wall=0.067s run_user=0.000s run_system=0.250s run_wall=40.000s run_share=0.62% end_cpu=0.000s
+replicas: 0=exit 0 1=exit 0 2=exit 0 cores=0,1,1 cpu=0.230s experiment_share=1.22%
+links: dropped=0,0,0
+limits: memory=128MB/process max_run=40s
+sensors: cycles=399 correct=279 wrong=0 unchecked=0 withheld=120 average_wrong=261
