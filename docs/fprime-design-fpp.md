@@ -1,4 +1,4 @@
-# F´ components: design (draft for review)
+# F´ components: design
 
 Status: **approved on October 11, 2026**, with the change to MRU-SYS-001 and
 three additions from a comparison with the whitepaper: spares and standby,
@@ -7,8 +7,13 @@ F´'s development process; the [requirements](fprime-requirements.md) are the
 first.
 
 The models are in [`fprime/Mru`](../fprime/Mru). They compile with F´ v4.4.1
-(`fprime-util build` builds the generated base classes of all four
-components).
+(`fprime-util build` builds the generated base classes of all eight
+components in `fprime/Mru/Components`, which are the four flight components,
+the link driver `SeqPacketDriver` and the three test-only components).
+
+This page has the design and the bench and system test results. The results
+of the four runs in orbit on OPS-SAT PRETTY (October 18, 22 and 28 and
+November 20, 2026) are in [opssat.md](opssat.md).
 
 ## Layout
 
